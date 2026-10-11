@@ -43,6 +43,14 @@ void CHeartbeatDelay::FlexibleSleep() {
     // than "performance", usually single-tabling.
     sleeping_factor = MIN(sleeping_factor, 2);
   }
+  if (Preferences()->handhistory_generator_enable()
+      && p_autoconnector->IsConnectedToAnything()) {
+    // The handhistory-generator needs every action of every player.
+    // Slowing down while we are folded or while opponents think would make us
+    // miss raises, calls and folds at fast tables, therefore never slower
+    // than the delay from the preferences (but faster is still fine).
+    sleeping_factor = MIN(sleeping_factor, 1.0);
+  }
   double modified_heartbeat_delay = default_heartbeat_delay * sleeping_factor;
   write_log(Preferences()->debug_heartbeat(), "[HeartBeatThread] default delay   %.3f ms.\n", default_heartbeat_delay);
   write_log(Preferences()->debug_heartbeat(), "[HeartBeatThread] sleeping factor %.3f .\n", sleeping_factor);
