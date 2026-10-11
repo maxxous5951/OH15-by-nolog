@@ -36,6 +36,7 @@ CScintillaWnd::CScintillaWnd() {
     m_bSelection = true;
     m_bFolding = false;
     m_nSearchflags = 0;
+    m_bWordWrap = false;
 }
 
 /////////////////////////////////////
@@ -72,6 +73,8 @@ void CScintillaWnd::SetText (LPCSTR szText) { //@parm pointer to new text
     if (szText != NULL) {
         lResult = SendMessage(SCI_SETTEXT,0,(LPARAM)szText);
     }
+    // The horizontal scroll width has to match the longest line of the new text
+    UpdateScrollWidth();
     GotoPosition(0);
     SetFocus();
 }
@@ -474,6 +477,10 @@ void CScintillaWnd::Init(void) {
     // set markersymbol for marker type 0 - bookmark
     SendMessage(SCI_MARKERDEFINE, 0, SC_MARK_CIRCLE);
 
+    // horizontal scrollbar: the scroll width is adjusted to the longest line (see UpdateScrollWidth)
+    SendMessage(SCI_SETHSCROLLBAR, true, 0);
+    SetWordWrap(m_bWordWrap);
+
     // display all margins
     SetDisplayLinenumbers(true);
     SetDisplayFolding(true);
@@ -781,4 +788,83 @@ int CScintillaWnd::ReplaceAll(LPCSTR szFind, LPCSTR szReplace, bool bUseSelectio
         }
     }
     return nCount;
+}
+
+
+/////////////////////////////////////
+// @mfunc Calculate the width in pixels of the widest line in the given range of lines.
+//   The editor uses a monospaced font, so width = number of columns * width of one character.
+//   Columns are used (not characters) so that tabs are handled correctly.
+// @rvalue int | width in pixels (without margins)
+//
+int CScintillaWnd::GetMaxLineWidth(long lFirstLine, long lLastLine) {
+    long lMaxColumn = 0;
+    for (long lLine = lFirstLine; lLine <= lLastLine; lLine++) {
+        long lEnd = SendMessage(SCI_GETLINEENDPOSITION, lLine, 0);
+        long lColumn = SendMessage(SCI_GETCOLUMN, lEnd, 0);
+        if (lColumn > lMaxColumn) {
+            lMaxColumn = lColumn;
+        }
+    }
+    int nCharWidth = SendMessage(SCI_TEXTWIDTH, 0, (LPARAM)"9"); // style 0 = default text style (equidistant font)
+    if (nCharWidth < 1) {
+        nCharWidth = 1;
+    }
+    // Some extra room (3 characters) so that the end of the line is fully visible
+    return (lMaxColumn + 3) * nCharWidth;
+}
+
+/////////////////////////////////////
+// @mfunc Recalculate the horizontal scroll width for the whole document.
+//   Scintilla's default is a fixed width, so longer lines could not be scrolled to their end.
+// @rvalue void | not used
+//
+void CScintillaWnd::UpdateScrollWidth() {
+    if (m_bWordWrap) {
+        // No horizontal scrolling when wrapping
+        SendMessage(SCI_SETSCROLLWIDTH, 1, 0);
+        return;
+    }
+    long lLines = SendMessage(SCI_GETLINECOUNT, 0, 0);
+    if (lLines < 1) {
+        return;
+    }
+    int nWidth = GetMaxLineWidth(0, lLines - 1);
+    SendMessage(SCI_SETSCROLLWIDTH, nWidth, 0);
+}
+
+/////////////////////////////////////
+// @mfunc Called after text was inserted: grow the scroll width if needed
+//   (cheap, only looks at the modified lines)
+// @rvalue void | not used
+//
+void CScintillaWnd::UpdateScrollWidthForRange(long lPosition, long lLength) {
+    if (m_bWordWrap) {
+        return;
+    }
+    long lFirstLine = SendMessage(SCI_LINEFROMPOSITION, lPosition, 0);
+    long lLastLine = SendMessage(SCI_LINEFROMPOSITION, lPosition + lLength, 0);
+    int nWidth = GetMaxLineWidth(lFirstLine, lLastLine);
+    if (nWidth > SendMessage(SCI_GETSCROLLWIDTH, 0, 0)) {
+        SendMessage(SCI_SETSCROLLWIDTH, nWidth, 0);
+    }
+}
+
+/////////////////////////////////////
+// @mfunc Enable or disable word wrap (line wrapping)
+// @rvalue void | not used
+//
+void CScintillaWnd::SetWordWrap(bool bWrap) {
+    m_bWordWrap = bWrap;
+    if (bWrap) {
+        SendMessage(SCI_SETWRAPMODE, SC_WRAP_WORD, 0);
+        // small marker at the end of wrapped lines
+        SendMessage(SCI_SETWRAPVISUALFLAGS, SC_WRAPVISUALFLAG_END, 0);
+        SendMessage(SCI_SETXOFFSET, 0, 0);
+        SendMessage(SCI_SETHSCROLLBAR, false, 0);
+    } else {
+        SendMessage(SCI_SETWRAPMODE, SC_WRAP_NONE, 0);
+        SendMessage(SCI_SETHSCROLLBAR, true, 0);
+    }
+    UpdateScrollWidth();
 }

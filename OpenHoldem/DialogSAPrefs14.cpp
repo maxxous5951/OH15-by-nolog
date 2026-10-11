@@ -18,6 +18,7 @@
 
 #include "SAPrefsSubDlg.h"
 #include "DialogSAPrefs14.h"
+#include "CDisplayAffinity.h"
 
 
 
@@ -73,6 +74,7 @@ BOOL CDlgSAPrefs14::OnInitDialog()
 	{
 		_capture_method_original.SetCheck(true);
 	}
+	CheckDlgButton(IDC_BLOCK_SCREENSHOTS, Preferences()->block_screenshots() ? BST_CHECKED : BST_UNCHECKED);
 	return TRUE;  // return TRUE unless you set the focus to a control
 	// EXCEPTION: OCX Property Pages should return FALSE
 }
@@ -89,5 +91,8 @@ void CDlgSAPrefs14::OnOK() {
 	}	else {
 		Preferences()->SetValue(k_prefs_capture_method, k_CaptureMethod_Original);
 	}
+	Preferences()->SetValue(k_prefs_block_screenshots, IsDlgButtonChecked(IDC_BLOCK_SCREENSHOTS) == BST_CHECKED);
+	// Apply immediately to all open windows (including the preferences dialog)
+	CDisplayAffinity::Apply();
 	CSAPrefsSubDlg::OnOK();
 }

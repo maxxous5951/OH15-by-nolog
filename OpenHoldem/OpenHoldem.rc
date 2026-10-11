@@ -207,6 +207,10 @@ BEGIN
         MENUITEM SEPARATOR
         MENUITEM "&Hand List",                  ID_FORMULA_EDIT_HANDLIST
     END
+    POPUP "&View"
+    BEGIN
+        MENUITEM "&Word Wrap\tAlt+Z",           ID_FORMULA_VIEW_WORDWRAP
+    END
     POPUP "&Help"
     BEGIN
         MENUITEM "Open&Holdem Manual\tF1",      ID_HELP_HELP
@@ -761,6 +765,11 @@ BEGIN
                     "Button",BS_AUTORADIOBUTTON,12,92,196,9
     LTEXT           "PrintWindow renders the table window into a bitmap. Takes effect immediately; falls back to the original method if PrintWindow fails.",
                     IDC_STATIC,12,106,196,20
+    GROUPBOX        "Screenshot protection",IDC_STATIC,8,134,205,44
+    CONTROL         "Hide OpenHoldem windows from screenshots",IDC_BLOCK_SCREENSHOTS,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,146,196,9
+    LTEXT           "Uses SetWindowDisplayAffinity (Windows 7 or newer). Takes effect immediately; the windows stay visible on your monitor.",
+                    IDC_STATIC,12,158,196,18
 END
 
 IDD_SAPREFS15 DIALOGEX 0, 0, 219, 155
@@ -1461,6 +1470,7 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_CAN
 
 IDR_FORMULA_EDIT_ACC ACCELERATORS
 BEGIN
+    "Z",            ID_FORMULA_VIEW_WORDWRAP, VIRTKEY, ALT, NOINVERT
     VK_F2,          ID_TOGGLE_BOOKMARK,     VIRTKEY, CONTROL, NOINVERT
     VK_F2,          ID_GOTO_NEXT_BOOKMARK,  VIRTKEY, NOINVERT
     VK_F2,          ID_GOTO_PREV_BOOKMARK,  VIRTKEY, SHIFT, NOINVERT
@@ -1476,6 +1486,7 @@ END
 
 IDR_FORMULA_DIALOG_ACC ACCELERATORS
 BEGIN
+    "Z",            ID_FORMULA_VIEW_WORDWRAP, VIRTKEY, ALT, NOINVERT
     "F",            ID_FORMULA_EDIT_FIND,   VIRTKEY, CONTROL, NOINVERT
     VK_F3,          ID_FORMULA_EDIT_FIND_NEXT, VIRTKEY, NOINVERT
     VK_F3,          ID_FORMULA_EDIT_FIND_PREV, VIRTKEY, SHIFT, NOINVERT

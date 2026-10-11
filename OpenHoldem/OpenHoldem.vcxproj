@@ -388,6 +388,7 @@
     <ClCompile Include="CTableMapLoader.cpp" />
     <ClCompile Include="CTablePositioner.cpp" />
     <ClCompile Include="CTablepointChecker.cpp" />
+    <ClCompile Include="CDisplayAffinity.cpp" />
     <ClCompile Include="CWindowCapture.cpp" />
     <ClCompile Include="CPokerTrackerLookUp.cpp" />
     <ClCompile Include="CPokerTrackerThread.cpp" />
@@ -705,6 +706,7 @@
     <ClInclude Include="CTableMapLoader.h" />
     <ClInclude Include="CTablePositioner.h" />
     <ClInclude Include="CTablepointChecker.h" />
+    <ClInclude Include="CDisplayAffinity.h" />
     <ClInclude Include="CWindowCapture.h" />
     <ClInclude Include="CConfigurationCheck.h" />
     <ClInclude Include="CProblemSolver.h" />

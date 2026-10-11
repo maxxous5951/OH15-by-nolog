@@ -20,6 +20,7 @@
 #include "..\CTablemap\CTablemap.h"
 #include "..\CTablemap\CTableMapAccess.h"
 #include "CAutoConnector.h"
+#include "CDisplayAffinity.h"
 #include "CFormulaParser.h"
 #include "CHeartbeatThread.h"
 #include "CIteratorThread.h"
@@ -224,6 +225,8 @@ void COpenHoldemApp::FinishInitialization() {
 		m_pMainWnd);
 	assert(p_openholdem_title != NULL);
 	p_openholdem_title->UpdateTitle();
+	// Screenshot protection (optional, see preferences)
+	CDisplayAffinity::Install();
 	// The one and only window has been initialized, so show and update it
 	if (Preferences()->gui_first_visible() && (p_sessioncounter->session_id() == 0)) {
     m_pMainWnd->ShowWindow(SW_SHOW);
@@ -243,6 +246,7 @@ void COpenHoldemApp::FinishInitialization() {
 }
 
 int COpenHoldemApp::ExitInstance() {
+  CDisplayAffinity::Uninstall();
   // timers and threads are already stopped 
   // by CMainFrame::DestroyWindow().
   // Now we cancontinue with singletons.

@@ -149,6 +149,14 @@ public:
    virtual CString GetSelectedText();
 // replace all in buffer or selection
    virtual int ReplaceAll(LPCSTR szFind, LPCSTR szReplace, bool bSelection = true);
+// enable / disable word wrap (line wrapping)
+   virtual void SetWordWrap(bool bWrap);
+// return the word wrap flag
+   bool GetWordWrap() { return m_bWordWrap; }
+// recalculate the horizontal scroll width from the longest line of the whole document
+   virtual void UpdateScrollWidth();
+// grow the horizontal scroll width if the lines in the given range are longer than the current width
+   virtual void UpdateScrollWidthForRange(long lPosition, long lLength);
 
 
 protected:
@@ -161,6 +169,10 @@ protected:
    bool m_bFolding;
 // search flags
    int  m_nSearchflags;
+// flag if word wrap is active
+   bool m_bWordWrap;
+// width in pixels of the widest line (ignoring margins) for the given range of lines
+   int  GetMaxLineWidth(long lFirstLine, long lLastLine);
 
 };
 #define STR_SCINTILLAWND _T("Scintilla")

@@ -138,6 +138,7 @@ class CDlgFormulaScintilla : public CDialog {
   afx_msg void OnEditPaste();
   afx_msg void OnEditDeleteText();
   afx_msg void OnEditSelectAll();
+  afx_msg void OnViewWordWrap();
   void SortUdfTree();
   afx_msg BOOL OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message);
   void OnTimer(UINT_PTR nIDEvent);
@@ -244,6 +245,7 @@ class CDlgFormulaScintilla : public CDialog {
   HTREEITEM _subtree_user_defined_functions;
  private:
   CFont _edit_font;
+  bool  m_word_wrap;	// line wrapping on/off for all formula editors
 };
 
 extern CDlgFormulaScintilla	*m_formulaScintillaDlg;

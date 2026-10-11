@@ -116,6 +116,7 @@ const char* k_registry_keys_for_numerical_values[k_prefs_last_numerical_value + 
   "handhistory_tournament",
   "simple_window_title",
   "table_positioner_always_keep_position",
+  "block_screenshots",
   // ints
   "replay_max_frames",
   "frame_delay",

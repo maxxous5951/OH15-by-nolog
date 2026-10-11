@@ -136,6 +136,7 @@ enum {
   k_prefs_handhistory_tournament,
   k_prefs_simple_window_title,
   k_prefs_table_positioner_always_keep_position,
+  k_prefs_block_screenshots,
   // Int values
   k_prefs_replay_max_frames,
   k_prefs_frame_delay,
@@ -337,6 +338,8 @@ public:
   LPCSTR window_class_name() { return NonEmptyStringValueElseDefault(k_prefs_window_class_name); }
   LPCSTR mutex_name() { return NonEmptyStringValueElseDefault(k_prefs_mutex_name); }
   const bool simple_window_title() { return prefs_numerical_values[k_prefs_simple_window_title]; }
+  // Hide the windows of OpenHoldem from screenshots / screen capture (SetWindowDisplayAffinity)
+  const bool block_screenshots() { return prefs_numerical_values[k_prefs_block_screenshots]; }
 public:
   // public mutators
   void SetValue(int index_of_variable, LPCSTR value);

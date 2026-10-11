@@ -121,6 +121,7 @@ CDlgFormulaScintilla::CDlgFormulaScintilla(CWnd* pParent /*=NULL*/) :
 		CDialog(CDlgFormulaScintilla::IDD, pParent), m_winMgr(ScintillaFormulaMap) 
 {
 	in_startup = true;
+	m_word_wrap = false;
   
   if (p_function_collection->IsOpenPPLProfile()) {
     // Either use autoplayer-functions (default) or OpenPPL
@@ -188,6 +189,7 @@ BEGIN_MESSAGE_MAP(CDlgFormulaScintilla, CDialog)
 	ON_COMMAND(ID_FORMULA_EDIT_UNDO, &CDlgFormulaScintilla::OnEditUndo)
 	ON_COMMAND(ID_FORMULA_EDIT_REDO, &CDlgFormulaScintilla::OnEditRedo)
 	ON_COMMAND(ID_FORMULA_EDIT_SELECTALL, &CDlgFormulaScintilla::OnEditSelectAll)
+	ON_COMMAND(ID_FORMULA_VIEW_WORDWRAP, &CDlgFormulaScintilla::OnViewWordWrap)
 	ON_COMMAND(ID_FORMULA_EDIT_HANDLIST, &CDlgFormulaScintilla::OnHandList)
 	ON_COMMAND(ID_FORMULA_EDIT_FIND, &CDlgFormulaScintilla::OnFindReplaceDlg)
 	ON_COMMAND(ID_FORMULA_EDIT_FIND_NEXT, &CDlgFormulaScintilla::OnFindNext)
@@ -271,6 +273,8 @@ CScintillaWnd *CDlgFormulaScintilla::SetupScintilla(CScintillaWnd *pWnd, const c
 	pWnd->EnableWindow(false);
 	SetStyleColors(pWnd);
   SetEquiDistantFont(pWnd);  
+	// Apply the current word-wrap setting (also recalculates the horizontal scroll width)
+	pWnd->SetWordWrap(m_word_wrap);
 
 	return pWnd;
 }
@@ -1316,6 +1320,10 @@ BOOL CDlgFormulaScintilla::OnNotify(WPARAM wParam, LPARAM lParam, LRESULT* pResu
 			m_pActiveScinCtrl->UpdateUI();
 			break;
 		case SCN_MODIFIED:
+			// Keep the horizontal scrollbar in sync with the longest line
+			if (pMsg->modificationType & SC_MOD_INSERTTEXT) {
+				m_pActiveScinCtrl->UpdateScrollWidthForRange(pMsg->position, pMsg->length);
+			}
 			StopAutoButton();
       ClearCalcResult();
 			m_dirty = true;
@@ -1546,6 +1554,7 @@ void CDlgFormulaScintilla::UpdateDebugAuto(void) {
   m_pActiveScinCtrl->SendMessage(SCI_SETMODEVENTMASK, 0, 0);
   m_pActiveScinCtrl->SendMessage(SCI_SETTEXT,0,(LPARAM)result.GetString());
   m_pActiveScinCtrl->SendMessage(SCI_EMPTYUNDOBUFFER);
+  m_pActiveScinCtrl->UpdateScrollWidth();
   m_pActiveScinCtrl->GotoPosition(0);
   m_pActiveScinCtrl->SendMessage(SCI_SETMODEVENTMASK, SC_MOD_INSERTTEXT | SC_MOD_DELETETEXT, 0);
 }
@@ -1673,6 +1682,34 @@ void CDlgFormulaScintilla::OnEditRedo()
 void CDlgFormulaScintilla::OnEditSelectAll() 
 {
 	m_pActiveScinCtrl->SelectAll();
+}
+
+// Toggle word wrap (line wrapping) for all formula editors
+void CDlgFormulaScintilla::OnViewWordWrap()
+{
+	m_word_wrap = !m_word_wrap;
+	for (int i=0; i<m_ScinArray.GetSize(); i++)
+	{
+		CScintillaWnd *p_scintilla = m_ScinArray[i]._pWnd;
+		if (p_scintilla != NULL && ::IsWindow(p_scintilla->GetSafeHwnd()))
+		{
+			p_scintilla->SetWordWrap(m_word_wrap);
+		}
+	}
+	if (::IsWindow(m_EmptyScinCtrl.GetSafeHwnd()))
+	{
+		m_EmptyScinCtrl.SetWordWrap(m_word_wrap);
+	}
+	// Check mark in the View menu
+	CMenu *p_menu = GetMenu();
+	if (p_menu != NULL)
+	{
+		p_menu->CheckMenuItem(ID_FORMULA_VIEW_WORDWRAP, MF_BYCOMMAND | (m_word_wrap ? MF_CHECKED : MF_UNCHECKED));
+	}
+	if (m_pActiveScinCtrl != NULL)
+	{
+		m_pActiveScinCtrl->SetFocus();
+	}
 }
 
 void CDlgFormulaScintilla::OnTimer(UINT_PTR nIDEvent) {
