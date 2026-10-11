@@ -838,6 +838,8 @@ BEGIN
                     BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,12,40,150,8
     CONTROL         "Tournament",IDC_HANDHISTORY_RADIO_TOURNAMENT,"Button",
                     BS_AUTORADIOBUTTON,12,56,150,8
+    CONTROL         "Also write HH + action profile (separate folder)",IDC_HANDHISTORY_PROFILE,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,4,84,200,8
 END
 
 IDD_SAPREFS20 DIALOGEX 0, 0, 550, 450

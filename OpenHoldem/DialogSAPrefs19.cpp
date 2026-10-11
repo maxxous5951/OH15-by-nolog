@@ -58,6 +58,8 @@ BOOL CDlgSAPrefs19::OnInitDialog()
 	CheckRadioButton(IDC_HANDHISTORY_RADIO_CASHGAME, IDC_HANDHISTORY_RADIO_TOURNAMENT,
 		Preferences()->handhistory_tournament() ? IDC_HANDHISTORY_RADIO_TOURNAMENT : IDC_HANDHISTORY_RADIO_CASHGAME);
 
+	CheckDlgButton(IDC_HANDHISTORY_PROFILE, Preferences()->handhistory_profile() ? BST_CHECKED : BST_UNCHECKED);
+
 	return TRUE;  // return TRUE unless you set the focus to a control
 	// EXCEPTION: OCX Property Pages should return FALSE
 }
@@ -67,6 +69,7 @@ void CDlgSAPrefs19::OnOK()
 	Preferences()->SetValue(k_prefs_handhistory_generator_enable, _handhistory_generator_enable_Button.GetCheck() == BST_CHECKED ? true : false);
 
 	Preferences()->SetValue(k_prefs_handhistory_tournament, IsDlgButtonChecked(IDC_HANDHISTORY_RADIO_TOURNAMENT) == BST_CHECKED ? true : false);
+	Preferences()->SetValue(k_prefs_handhistory_profile, IsDlgButtonChecked(IDC_HANDHISTORY_PROFILE) == BST_CHECKED ? true : false);
 	if (p_handhistory_writer != NULL) {
 		p_handhistory_writer->ReloadSettings();
 	}

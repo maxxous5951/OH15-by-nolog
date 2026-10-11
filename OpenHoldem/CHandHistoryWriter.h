@@ -38,6 +38,7 @@
 #define INC_CHANDHISTORYWRITER_H
 
 #include <time.h>
+#include <vector>
 #include "CVirtualSymbolEngine.h"
 #include "HandHistoryCore.h"
 #include "HandHistoryFormat.h"
@@ -74,6 +75,8 @@ class CHandHistoryWriter: public CVirtualSymbolEngine {
 	void UpdateOnNewRound();
 	void UpdateOnMyTurn();
 	void UpdateOnHeartbeat();
+  // Action profile: remember the formula line of every action of the bot
+  void UpdateAfterAutoplayerAction(int autoplayer_action_code);
  public:
 	// Public accessors
 	bool EvaluateSymbol(const CString name, double *result, bool log = false);
@@ -117,6 +120,14 @@ public:
   int                 _level;
   double              _last_sblind, _last_bblind;
   int                 _warned_state;   // wrong selection already reported
+  // Action profile (optional second file): formula line of every action of the bot
+  struct ProfileNote {
+    int         action_code;
+    long long   time;
+    std::string text;
+  };
+  std::vector<ProfileNote> _notes;
+  void AttachNotes(hh::Hand *hand);
 };
 
 extern CHandHistoryWriter *p_handhistory_writer;

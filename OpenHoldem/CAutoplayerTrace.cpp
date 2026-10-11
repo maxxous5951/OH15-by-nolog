@@ -36,6 +36,8 @@
 CAutoplayerTrace *p_autoplayer_trace = NULL;
 
 CAutoplayerTrace::CAutoplayerTrace() {
+  _last_evaluated_relative_line_number = 0;
+  _last_line_tick = _main_line_tick = 0;
   Clear();
 }
 
@@ -166,6 +168,48 @@ void CAutoplayerTrace::BackPatchValueAndLine(
     executed_absolute_line,
     FilenameWithoutPath(path));
   _symboltrace_collection.SetAt(index, complete_message);
+}
+
+void CAutoplayerTrace::RecordFunctionLine(CString function_name,
+    CString function_text, int starting_line_of_function) {
+  ENT
+  int relative_line = _last_evaluated_relative_line_number;
+  if (relative_line < 1) return;
+  // Text of the evaluated line. The first line of the function text
+  // may be the header (##f$name##), in that case use the next one.
+  CString text, line;
+  if (!AfxExtractSubString(line, function_text, relative_line - 1, '\n')) return;
+  line.Trim();
+  if (line.Left(2) == "##") {
+    if (!AfxExtractSubString(line, function_text, relative_line, '\n')) return;
+    line.Trim();
+  }
+  if (line.IsEmpty()) return;
+  CString info;
+  info.Format("%s, line %d: %s", function_name,
+    starting_line_of_function + relative_line, line);
+  const bool is_main = (function_name == "f$preflop" || function_name == "f$flop"
+    || function_name == "f$turn" || function_name == "f$river");
+  if (is_main) {
+    _main_line_text = info;
+    _main_line_tick = GetTickCount();
+  } else {
+    _last_line_text = info;
+    _last_line_tick = GetTickCount();
+  }
+}
+
+CString CAutoplayerTrace::LastDecisionLine() {
+  ENT
+  // OpenPPL: the decision is in f$preflop ... (evaluated recently),
+  // else the last evaluated function (f$fold, f$call, ... of plain OH-script)
+  if (!_main_line_text.IsEmpty() && (GetTickCount() - _main_line_tick) < 5000) {
+    return _main_line_text;
+  }
+  if (!_last_line_text.IsEmpty() && (GetTickCount() - _last_line_tick) < 5000) {
+    return _last_line_text;
+  }
+  return "";
 }
 
 void CAutoplayerTrace::Indent(bool more) {

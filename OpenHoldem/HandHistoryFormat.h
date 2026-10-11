@@ -36,9 +36,11 @@ struct FormatOptions {
   // The buy-in can not be scraped, it can be set in the settings file.
   double      tournament_buyin;
   double      tournament_fee;
+  // Action profile: print Action::note (formula line) behind the action
+  bool        show_notes;
   FormatOptions() : site("PokerStars"), currency_symbol("$"),
                     currency_code("USD"), timezone("ET"),
-                    tournament_buyin(0), tournament_fee(0) {}
+                    tournament_buyin(0), tournament_fee(0), show_notes(false) {}
 };
 
 //------------------------------------------------------------------------------
@@ -273,6 +275,7 @@ inline std::string FormatPokerStars(const Hand &h, const FormatOptions &options 
       }
       if (x.allin && x.type != kFold && x.type != kCheck) line += " and is all-in";
       out += line + nl;
+      if (o.show_notes && !x.note.empty()) out += "(" + x.note + ")" + nl;
     }
   }
 

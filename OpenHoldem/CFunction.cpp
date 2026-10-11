@@ -119,6 +119,8 @@ double CFunction::Evaluate(bool log /* = false */) {
       p_autoplayer_trace->Indent(true);
       _cached_result = _parse_tree_node->Evaluate(log);
       _is_result_cached = true;
+      // For the action profile of the handhistory generator
+      p_autoplayer_trace->RecordFunctionLine(_name, _function_text, _starting_line_of_function);
       if (log) {
         p_autoplayer_trace->BackPatchValueAndLine(
           log_line, _cached_result, _starting_line_of_function, _file_path);

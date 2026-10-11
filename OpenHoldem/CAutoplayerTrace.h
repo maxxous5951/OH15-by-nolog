@@ -34,6 +34,12 @@ class CAutoplayerTrace : public CSpaceOptimizedGlobalObject {
  public:
   void SetLastEvaluatedRelativeLineNumber(int relative_line_number) { _last_evaluated_relative_line_number = relative_line_number; }
   int  GetLastEvaluatedRelativeLineNumber() { return _last_evaluated_relative_line_number; }
+ public:
+  // Formula line that led to the last decision (used by the action profile
+  // of the handhistory generator). Independent of Clear() / Print().
+  void RecordFunctionLine(CString function_name, CString function_text,
+    int starting_line_of_function);
+  CString LastDecisionLine();
  private:
   CString BestAction();
  private:
@@ -51,6 +57,11 @@ class CAutoplayerTrace : public CSpaceOptimizedGlobalObject {
   int _number_of_log_lines;
   CCritSec m_critsec;
   int _last_evaluated_relative_line_number;
+ private:
+  // Last evaluated function, and the main OpenPPL function (f$preflop...)
+  // that contains the "When ..." lines, if it was evaluated
+  CString _last_line_text, _main_line_text;
+  DWORD   _last_line_tick, _main_line_tick;
 };
 
 extern CAutoplayerTrace *p_autoplayer_trace;

@@ -87,6 +87,7 @@ struct Action {
   double     raise_by;   // for kRaise: increase over the previous bet
   bool       allin;
   int        street;     // 1 = preflop .. 4 = river
+  std::string note;      // optional: formula line that caused the action (action profile)
   Action() : seat(-1), type(kFold), amount(0), to(0), raise_by(0), allin(false), street(1) {}
 };
 

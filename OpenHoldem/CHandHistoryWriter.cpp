@@ -29,6 +29,7 @@
 #include "CEngineContainer.h"
 #include "CHandHistoryDealPhase.h"
 #include "CHandHistoryUncontested.h"
+#include "CAutoplayerTrace.h"
 #include "CScraper.h"
 #include "CSessionCounter.h"
 #include "CSymbolEngineDealerchair.h"
@@ -140,6 +141,57 @@ void CHandHistoryWriter::UpdateOnHeartbeat() {
   }
   _reconstructor.Feed(BuildSnapshot());
   WriteCompletedHands();
+}
+
+void CHandHistoryWriter::UpdateAfterAutoplayerAction(int autoplayer_action_code) {
+  if (!Preferences()->handhistory_generator_enable()
+      || !Preferences()->handhistory_profile()) {
+    return;
+  }
+  CString line = p_autoplayer_trace->LastDecisionLine();
+  if (line.IsEmpty()) return;
+  ProfileNote note;
+  note.action_code = autoplayer_action_code;
+  note.time = (long long) time(NULL);
+  note.text = (LPCTSTR)line;
+  _notes.push_back(note);
+  // Never grow without limit (e.g. if the hands are not recognized)
+  if (_notes.size() > 200) _notes.erase(_notes.begin(), _notes.begin() + 100);
+}
+
+// Assigns the remembered formula lines to the actions of the bot, in order.
+void CHandHistoryWriter::AttachNotes(hh::Hand *hand) {
+  const long long from = hand->start_time - 5;
+  size_t next = 0;
+  for (size_t a = 0; a < hand->actions.size(); a++) {
+    hh::Action &x = hand->actions[a];
+    if (x.seat != hand->hero) continue;
+    if (x.type != hh::kFold && x.type != hh::kCheck && x.type != hh::kCall
+        && x.type != hh::kBet && x.type != hh::kRaise) continue;
+    for (size_t n = next; n < _notes.size(); n++) {
+      const ProfileNote &note = _notes[n];
+      if (note.time < from) continue;
+      bool fits;
+      switch (note.action_code) {
+        case k_autoplayer_function_fold:  fits = (x.type == hh::kFold); break;
+        case k_autoplayer_function_check: fits = (x.type == hh::kCheck); break;
+        case k_autoplayer_function_call:  fits = (x.type == hh::kCall); break;
+        case k_autoplayer_function_allin: fits = (x.type != hh::kFold && x.type != hh::kCheck); break;
+        default: fits = (x.type == hh::kBet || x.type == hh::kRaise); break; // raise, betsize, betpot
+      }
+      if (fits) {
+        x.note = note.text;
+        next = n + 1;
+        break;
+      }
+    }
+  }
+  // Used and outdated notes are no longer needed
+  std::vector<ProfileNote> remaining;
+  for (size_t n = next; n < _notes.size(); n++) {
+    if (_notes[n].time >= from) remaining.push_back(_notes[n]);
+  }
+  _notes.swap(remaining);
 }
 
 void CHandHistoryWriter::WriteCompletedHands() {
@@ -265,6 +317,19 @@ void CHandHistoryWriter::WriteHand(hh::Hand hand) {
   if (hand.valid()) {
     path.Format("%s\\%s_%s.txt", directory.GetString(), tournament ? "HH_Tournament" : "HH", day);
     AppendToFile(path, hh::FormatPokerStars(hand, _format_options));
+    if (Preferences()->handhistory_profile()) {
+      // Same hand with the formula line behind every action of the bot,
+      // in a separate folder
+      AttachNotes(&hand);
+      hh::FormatOptions profile_options = _format_options;
+      profile_options.show_notes = true;
+      CString profile_directory = directory + "\\Profile";
+      SHCreateDirectoryEx(NULL, profile_directory.GetString(), NULL);
+      CString profile_path;
+      profile_path.Format("%s\\%s_%s.txt", profile_directory.GetString(),
+        tournament ? "HH_Profile_Tournament" : "HH_Profile", day);
+      AppendToFile(profile_path, hh::FormatPokerStars(hand, profile_options));
+    }
     write_log(Preferences()->debug_handhistory(), 
       "[HandHistory] hand %s written\n", id);
   } else {
