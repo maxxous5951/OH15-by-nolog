@@ -17,3 +17,14 @@ ddpoker_multiway_balance_lag.txt
   the pot, but not yet deducted from his stack, and another player (who folded)
   has exactly the same stack. Expected (DDPoker's own log): Antony folds,
   Trisana calls 33 and wins 140.
+
+ddpoker_unseen_raises.txt
+  DDPoker, three hands of a freeroll tournament (rejected_<date>.log, one block per
+  rejected hand; the hero cards of the last hand were added by hand).
+  * hand 1: the bet on the flop and the fold of the opponent happen between two
+    heartbeats, the hand ends without a showdown (Savanah bets 12, Edie folds).
+  * hand 2: a raise and the calls behind it on the flop are never seen
+    (Tawanna bets 6, Edie raises to 30, Savanah folds, Tawanna calls).
+  * hand 3: a 3-bet before the flop and a bet + call on the flop are never seen.
+    Who bet first on the flop can not be known (the stacks are the same), the
+    amounts and the pot are right.

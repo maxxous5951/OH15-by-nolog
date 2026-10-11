@@ -817,67 +817,147 @@ class Reconstructor {
     }
   }
 
-  // Players who are still marked as active but whose stack shows that they did
-  // not pay the missing chips (see DidNotPay()) folded - unless the stack is
-  // late: balance and pot are not always updated in the same heartbeat, e.g. the
-  // call of the last player is already in the pot but not yet deducted from his
-  // stack. The scraped pot tells the difference: it is compared with the pot
-  // that results from every combination of calls and folds of the suspects.
-  void InferFoldsFromStacks(const Snapshot &s, const std::vector<int> &order) {
-    std::vector<int> suspects;
-    for (size_t o = 0; o < order.size(); o++) {
-      int i = order[o];
-      if (in_hand_[i] && !folded_[i] && DidNotPay(i, s)) suspects.push_back(i);
+  // At the end of a betting round the stacks tell how many chips each player
+  // really put in during the round, even if the heartbeat missed raises, calls
+  // and folds (some tablemaps never clear the "active" flag of a folded player,
+  // and at fast tables several actions happen between two heartbeats).
+  //   * somebody who paid less than the highest amount did not call: he folded,
+  //     unless his stack is late (balance and pot are not always updated in the
+  //     same heartbeat). The scraped pot tells the difference: it is compared
+  //     with the pot of every combination of calls and folds of these suspects.
+  //   * the missing raises and calls are added in table order.
+  // If the pot does not fit any possibility the stacks are not trusted.
+  void ReconcileStreetFromStacks(const Snapshot &s) {
+    if (!opts_.check_stack_for_bets) return;
+    double paid[kMaxSeats];       // chips in the pot during this round
+    bool   known[kMaxSeats];      // paid[] comes from the stack
+    double visible = 0;           // bets of the next round that are already in front of the players
+    for (int i = 0; i < kMaxSeats; i++) { paid[i] = 0; known[i] = false; }
+    for (int i = 0; i < n_; i++) {
+      paid[i] = seat_bet_[i];
+      if (s.seat[i].seated && s.seat[i].bet > kEps) visible += s.seat[i].bet;
+    }
+    for (int i = 0; i < n_; i++) {
+      if (!in_hand_[i] || folded_[i] || !track_stack_[i] || !s.seat[i].seated) continue;
+      // balance + bet = stack before the bet of the next round
+      double by_stack = h_.start_stack[i] - (s.seat[i].balance + s.seat[i].bet) - contrib_[i];
+      known[i] = true;
+      if (by_stack > paid[i]) paid[i] = by_stack;
+    }
+    double level = cur_bet_;      // highest amount of this round
+    for (int i = 0; i < n_; i++)
+      if (in_hand_[i] && !folded_[i] && paid[i] > level) level = paid[i];
+    if (level < kEps) return;
+
+    std::vector<int> suspects;    // in action order
+    for (int k = 0; k < n_; k++) {
+      int i = (to_act_ + k) % n_;
+      if (!in_hand_[i] || folded_[i] || allin_[i] || !known[i]) continue;
+      bool stack_empty = (s.seat[i].balance + s.seat[i].bet) <= kEps;
+      if (!stack_empty && paid[i] + kEps < level) suspects.push_back(i);
     }
     const size_t k = suspects.size();
-    if (k == 0) return;
-    unsigned calls = 0;                                  // bit set = this suspect called
-    if (k <= 8 && s.pot > kEps) {
-      // pot if none of the suspects calls
+    if (k > 8) return;
+    unsigned calls = 0;           // bit set = this suspect called (stack late)
+    if (s.pot > kEps) {
+      // pot if all suspects fold, and chips that are certain
       double base = 0;
       for (int i = 0; i < n_; i++) {
         if (!in_hand_[i]) continue;
-        base += contrib_[i] + seat_bet_[i];
+        base += contrib_[i];
         bool suspect = false;
         for (size_t x = 0; x < k; x++) if (suspects[x] == i) suspect = true;
-        if (!suspect && !folded_[i] && !allin_[i] && seat_bet_[i] + kEps < cur_bet_)
-          base += cur_bet_ - seat_bet_[i];               // calls that are certain
+        if (suspect) continue;
+        if (folded_[i] || allin_[i] || known[i]) base += paid[i];
+        else base += level;       // stack unknown: assume that he called
       }
-      // Every combination of calls of the suspects, best fit with the scraped pot first
       std::vector<double> diff(1u << k);
       double best_diff = -1;
       for (unsigned m = 0; m < (1u << k); m++) {
         double pot = base;
         for (size_t x = 0; x < k; x++)
-          if (m & (1u << x)) pot += cur_bet_ - seat_bet_[suspects[x]];
-        diff[m] = fabs(pot - s.pot);
+          pot += (m & (1u << x)) ? level : paid[suspects[x]];
+        // the scraped pot may or may not contain the bets of the next round
+        double d1 = fabs(pot + visible - s.pot), d2 = fabs(pot - s.pot);
+        diff[m] = (d1 < d2) ? d1 : d2;
         if (best_diff < 0 || diff[m] < best_diff) best_diff = diff[m];
       }
       // The scraped pot must fit one of the possibilities, else it is not used
-      if (best_diff <= 0.02 * s.pot + kEps) {
-        std::vector<unsigned> tied;                      // equally good, fewest calls first
-        for (size_t fewest = 0; fewest <= k; fewest++)
-          for (unsigned m = 0; m < (1u << k); m++)
-            if (PopCount(m) == fewest && diff[m] <= best_diff + kEps) tied.push_back(m);
-        size_t choice = 0;
-        if (tied.size() > 1) {
-          // Ambiguous, e.g. two players with the same stack and only one of them called:
-          // the end of the hand decides, see FinishWithBestChoices()
-          size_t id = (size_t) ambiguity_index_++;
-          if (id >= ambiguity_sizes_.size()) ambiguity_sizes_.push_back((int) tied.size());
-          if (id < forced_.size() && forced_[id] >= 0 && (size_t) forced_[id] < tied.size()) choice = (size_t) forced_[id];
-        }
-        calls = tied[choice];
-        if (calls != 0) Note("pot " + Money(s.pot) + " shows that some players called although their stack is not reduced yet");
+      if (best_diff > 0.02 * s.pot + kEps) {
+        Note("pot " + Money(s.pot) + " does not fit the stacks, stacks not used");
+        return;
       }
+      std::vector<unsigned> tied;                      // equally good, fewest calls first
+      for (size_t fewest = 0; fewest <= k; fewest++)
+        for (unsigned m = 0; m < (1u << k); m++)
+          if (PopCount(m) == fewest && diff[m] <= best_diff + kEps) tied.push_back(m);
+      size_t choice = 0;
+      if (tied.size() > 1) {
+        // Ambiguous, e.g. two players with the same stack and only one of them called:
+        // the end of the hand decides, see FinishWithBestChoices()
+        size_t id = (size_t) ambiguity_index_++;
+        if (id >= ambiguity_sizes_.size()) ambiguity_sizes_.push_back((int) tied.size());
+        if (id < forced_.size() && forced_[id] >= 0 && (size_t) forced_[id] < tied.size()) choice = (size_t) forced_[id];
+      }
+      calls = tied[choice];
+      if (calls != 0) Note("pot " + Money(s.pot) + " shows that some players called although their stack is not reduced yet");
     }
+
+    // Final amount of every player in this round, and who folds
+    double target[kMaxSeats];
+    bool   folds[kMaxSeats];
+    for (int i = 0; i < kMaxSeats; i++) { target[i] = paid[i]; folds[i] = false; }
+    for (int i = 0; i < n_; i++)
+      if (in_hand_[i] && !folded_[i] && !allin_[i] && !known[i]) target[i] = level;
     for (size_t x = 0; x < k; x++) {
-      if (calls & (1u << x)) continue;
       int i = suspects[x];
-      Add(i, kFold, 0, seat_bet_[i], false);
-      folded_[i] = true;
-      fold_from_stack_[i] = true;
-      Note("seat " + Num(i + 1) + ": fold inferred from the stack (active flag not cleared)");
+      if (calls & (1u << x)) target[i] = level;
+      else folds[i] = true;
+    }
+    // Table order from the next player to act: raises first, then calls and folds
+    // of the players who face them (several passes, like at a real table)
+    for (int pass = 0; pass < 6; pass++) {
+      bool changed = false;
+      for (int j = 0; j < n_; j++) {
+        int i = (to_act_ + j) % n_;
+        if (!in_hand_[i] || folded_[i] || allin_[i]) continue;
+        bool empty = (s.seat[i].balance + s.seat[i].bet) <= kEps;
+        if (target[i] > cur_bet_ + kEps) {
+          double raise_by = target[i] - cur_bet_;
+          bool was_bet = (cur_bet_ < kEps);
+          Add(i, was_bet ? kBet : kRaise, target[i] - seat_bet_[i], target[i], empty,
+              was_bet ? target[i] : raise_by);
+          Note("seat " + Num(i + 1) + ": " + (was_bet ? "bet " : "raise to ") + Money(target[i]) +
+               " inferred from the stack");
+          cur_bet_ = target[i];
+          seat_bet_[i] = target[i];
+          for (int o = 0; o < n_; o++) if (o != i) acted_[o] = false;
+          acted_[i] = true;
+          if (empty) allin_[i] = true;
+          changed = true;
+        } else if (target[i] > seat_bet_[i] + kEps) {
+          Add(i, kCall, target[i] - seat_bet_[i], target[i], empty);
+          seat_bet_[i] = target[i];
+          acted_[i] = true;
+          if (empty) allin_[i] = true;
+          changed = true;
+        } else if (folds[i] && seat_bet_[i] + kEps < cur_bet_) {
+          Add(i, kFold, 0, seat_bet_[i], false);
+          folded_[i] = true;
+          fold_from_stack_[i] = true;
+          Note("seat " + Num(i + 1) + ": fold inferred from the stack (active flag not cleared)");
+          changed = true;
+        }
+      }
+      if (!changed) break;
+    }
+    // Whoever has still not folded although he did not pay
+    for (int i = 0; i < n_; i++) {
+      if (in_hand_[i] && !folded_[i] && folds[i]) {
+        Add(i, kFold, 0, seat_bet_[i], false);
+        folded_[i] = true;
+        fold_from_stack_[i] = true;
+      }
     }
   }
 
@@ -897,7 +977,7 @@ class Reconstructor {
         folded_[i] = true;
       }
     }
-    if (trust_balances) InferFoldsFromStacks(s, order);
+    if (trust_balances) ReconcileStreetFromStacks(s);
     int alive = Alive();
     if (alive <= 1) { over_ = true; return alive; }
     for (size_t o = 0; o < order.size(); o++) {
@@ -1017,6 +1097,44 @@ class Reconstructor {
 
   static size_t PopCount(unsigned v) { size_t c = 0; while (v) { c += v & 1u; v >>= 1; } return c; }
 
+  // A hand that ends before the river without a showdown, but the last bet and the
+  // folds happened between two heartbeats (the bet is returned to the winner, so
+  // it is never in front of a player when the hand is over). Evidence: the
+  // scraped pot is bigger than all the chips we know about, and exactly one
+  // player of those who are left won chips (see the stacks). He made the bet,
+  // the others folded.
+  bool FoldOutOnLastStreet(const Snapshot &s) {
+    if (s.pot <= kEps) return false;
+    double in_pot = 0;
+    for (int i = 0; i < n_; i++) if (in_hand_[i]) in_pot += contrib_[i] + seat_bet_[i];
+    double unseen = s.pot - in_pot;
+    if (unseen <= kEps) return false;
+    int winner = -1, winners = 0;
+    for (int i = 0; i < n_; i++) {
+      if (!in_hand_[i] || folded_[i]) continue;
+      double won = last_stack_[i] - h_.start_stack[i] + contrib_[i] + seat_bet_[i];
+      if (won > kEps) { winner = i; winners++; }
+    }
+    if (winners != 1) return false;
+    double to = seat_bet_[winner] + unseen;
+    if (to <= cur_bet_ + kEps) return false;
+    bool was_bet = (cur_bet_ < kEps);
+    Add(winner, was_bet ? kBet : kRaise, unseen, to, false, was_bet ? to : to - cur_bet_);
+    Note("seat " + Num(winner + 1) + ": " + (was_bet ? "bet " : "raise to ") + Money(to) +
+         " inferred from the pot, the others folded");
+    seat_bet_[winner] = to;
+    cur_bet_ = to;
+    for (int k = 1; k <= n_; k++) {
+      int i = (winner + k) % n_;
+      if (i == winner || !in_hand_[i] || folded_[i]) continue;
+      Add(i, kFold, 0, seat_bet_[i], false);
+      folded_[i] = true;
+      fold_from_stack_[i] = true;
+    }
+    over_ = true;
+    return true;
+  }
+
   // Completes the hand under the assumption that the players of 'ambiguous'
   // that are marked in 'fold_mask' folded and the others called.
   void Conclude(const Snapshot &s, const std::vector<int> &ambiguous, unsigned fold_mask,
@@ -1029,6 +1147,10 @@ class Reconstructor {
       }
     }
     int alive = Alive();
+    // No showdown without all board cards: the hand ended by folds
+    if (!over_ && alive >= 2 && h_.board_count < 5) {
+      if (FoldOutOnLastStreet(s)) alive = Alive();
+    }
     if (!over_ && alive >= 2) {
       // Showdown: the last round was closed by the unseen calls and checks
       InferClosingActions(s);

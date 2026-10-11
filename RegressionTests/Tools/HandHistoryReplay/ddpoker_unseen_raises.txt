@@ -1,0 +1,173 @@
+######## REJECTED HAND - not imported ########
+ - board incomplete (3 cards)
+##############################################
+PokerStars Hand #179170734502: Tournament #900000000, Freeroll Hold'em No Limit - Level I (1/2) - 2026/10/11 10:29:05 ET
+Table '900000000 1' 9-max Seat #5 is the button
+Seat 1: Alma (91 in chips)
+Seat 3: Edie (154 in chips)
+Seat 4: Onia (99 in chips)
+Seat 5: max (97 in chips)
+Seat 6: Savanah (59 in chips)
+Seat 8: Tawanna (100 in chips)
+Savanah: posts small blind 1
+Tawanna: posts big blind 2
+*** HOLE CARDS ***
+Dealt to max [Jc Kd]
+Alma: folds
+Edie: raises 6 to 8
+Onia: folds
+max: folds
+Tawanna: folds
+Savanah: calls 7
+*** FLOP *** [8c 3s Tc]
+Savanah: checks
+Edie: checks
+*** SHOW DOWN ***
+Savanah: mucks hand
+Edie: mucks hand
+Savanah collected 18 from pot
+*** SUMMARY ***
+Total pot 18 | Rake 0
+Board [8c 3s Tc]
+Seat 1: Alma folded before Flop (didn't bet)
+Seat 3: Edie mucked
+Seat 4: Onia folded before Flop (didn't bet)
+Seat 5: max (button) folded before Flop (didn't bet)
+Seat 6: Savanah (small blind) mucked
+Seat 8: Tawanna (big blind) folded before Flop
+
+---- snapshots (one line per change; # = decisions of the reconstructor) ----
+START +0s br=1 btn=5 pot=3.00 blinds=1.00/2.00 board=- | S1 Alma bal=91.00 bet=0.00 | S3 Edie bal=154.00 bet=0.00 | S4 Onia bal=99.00 bet=0.00 | S5* max bal=97.00 bet=0.00 | S6 Savanah bal=58.00 bet=1.00 | S8 Tawanna bal=98.00 bet=2.00
++3s br=1 btn=5 pot=11.00 blinds=1.00/2.00 board=- | S1 Alma bal=91.00 bet=0.00 | S3 Edie bal=146.00 bet=8.00 | S4 Onia bal=99.00 bet=0.00 | S5* max bal=97.00 bet=0.00 [Jc Kd] | S6 Savanah bal=58.00 bet=1.00 | S8 Tawanna bal=98.00 bet=2.00
+# seat 1: fold inferred from the stack (active flag not cleared)
++35s br=1 btn=5 pot=11.00 blinds=1.00/2.00 board=- | S1 Alma bal=91.00 bet=0.00 | S3 Edie bal=146.00 bet=8.00 | S4 Onia bal=99.00 bet=0.00 | S5* max bal=97.00 bet=0.00 | S6 Savanah bal=58.00 bet=0.00 | S8 Tawanna bal=98.00 bet=2.00
++38s br=2 btn=5 pot=18.00 blinds=1.00/2.00 board=8c 3s Tc | S1 Alma bal=91.00 bet=0.00 | S3 Edie bal=146.00 bet=0.00 | S4 Onia bal=99.00 bet=0.00 | S5* max bal=97.00 bet=0.00 | S6 Savanah bal=58.00 bet=0.00 | S8 Tawanna bal=98.00 bet=0.00
+# pot 18.00 shows that some players called although their stack is not reduced yet
+# seat 4: fold inferred from the stack (active flag not cleared)
+# seat 5: fold inferred from the stack (active flag not cleared)
+# seat 8: fold inferred from the stack (active flag not cleared)
++40s br=2 btn=5 pot=30.00 blinds=1.00/2.00 board=8c 3s Tc | S1 Alma bal=91.00 bet=0.00 | S3 Edie bal=146.00 bet=0.00 | S4 Onia bal=99.00 bet=0.00 | S5* max bal=97.00 bet=0.00 | S6 Savanah bal=69.00 bet=0.00 | S8 Tawanna bal=98.00 bet=0.00
+NEXT> +41s br=1 btn=6 pot=3.00 blinds=1.00/2.00 board=- | S1 Alma bal=89.00 bet=2.00 | S3 Edie bal=146.00 bet=0.00 | S4 Onia bal=99.00 bet=0.00 | S5* max bal=97.00 bet=0.00 [6h Ts] | S6 Savanah bal=69.00 bet=0.00 | S8 Tawanna bal=97.00 bet=1.00
+
+######## REJECTED HAND - not imported ########
+ - payout does not fit a single pot (6.00 and 182.00 collected)
+ - collected more than the pot
+##############################################
+PokerStars Hand #179170738603: Tournament #900000000, Freeroll Hold'em No Limit - Level I (1/2) - 2026/10/11 10:29:46 ET
+Table '900000000 1' 9-max Seat #6 is the button
+Seat 1: Alma (91 in chips)
+Seat 3: Edie (146 in chips)
+Seat 4: Onia (99 in chips)
+Seat 5: max (97 in chips)
+Seat 6: Savanah (69 in chips)
+Seat 8: Tawanna (98 in chips)
+Tawanna: posts small blind 1
+Alma: posts big blind 2
+*** HOLE CARDS ***
+Dealt to max [6h Ts]
+Edie: raises 6 to 8
+Onia: folds
+max: folds
+Savanah: calls 8
+Tawanna: calls 7
+Alma: calls 6
+*** FLOP *** [Kd 7c 2c]
+Tawanna: bets 6
+Alma: folds
+Savanah: folds
+Edie: calls 6
+*** TURN *** [Kd 7c 2c] [Ac]
+Tawanna: bets 60 and is all-in
+Edie: calls 60
+*** RIVER *** [Kd 7c 2c Ac] [3c]
+Edie: checks
+*** SHOW DOWN ***
+Tawanna: mucks hand
+Edie: mucks hand
+Alma collected 6 from pot
+Tawanna collected 182 from pot
+*** SUMMARY ***
+Total pot 164 | Rake 0
+Board [Kd 7c 2c Ac 3c]
+Seat 1: Alma (big blind) folded on the Flop
+Seat 3: Edie mucked
+Seat 4: Onia folded before Flop (didn't bet)
+Seat 5: max folded before Flop (didn't bet)
+Seat 6: Savanah (button) folded on the Flop
+Seat 8: Tawanna (small blind) mucked
+
+---- snapshots (one line per change; # = decisions of the reconstructor) ----
+START +0s br=1 btn=6 pot=3.00 blinds=1.00/2.00 board=- | S1 Alma bal=89.00 bet=2.00 | S3 Edie bal=146.00 bet=0.00 | S4 Onia bal=99.00 bet=0.00 | S5* max bal=97.00 bet=0.00 [6h Ts] | S6 Savanah bal=69.00 bet=0.00 | S8 Tawanna bal=97.00 bet=1.00
++2s br=1 btn=6 pot=11.00 blinds=1.00/2.00 board=- | S1 Alma bal=89.00 bet=2.00 | S3 Edie bal=138.00 bet=8.00 | S4 Onia bal=99.00 bet=0.00 | S5* max bal=97.00 bet=0.00 [6h Ts] | S6 Savanah bal=69.00 bet=0.00 | S8 Tawanna bal=97.00 bet=1.00
++7s br=1 btn=6 pot=26.00 blinds=1.00/2.00 board=- | S1 Alma bal=89.00 bet=0.00 | S3 Edie bal=138.00 bet=0.00 | S4 Onia bal=99.00 bet=0.00 | S5* max bal=97.00 bet=0.00 | S6 Savanah bal=61.00 bet=0.00 | S8 Tawanna bal=90.00 bet=0.00
++9s br=2 btn=6 pot=32.00 blinds=1.00/2.00 board=Kd 7c 2c | S1 Alma bal=89.00 bet=0.00 | S3 Edie bal=138.00 bet=0.00 | S4 Onia bal=99.00 bet=0.00 | S5* max bal=97.00 bet=0.00 | S6 Savanah bal=61.00 bet=0.00 | S8 Tawanna bal=84.00 bet=6.00
+# pot 32.00 shows that some players called although their stack is not reduced yet
+# seat 4: fold inferred from the stack (active flag not cleared)
+# seat 5: fold inferred from the stack (active flag not cleared)
++12s br=2 btn=6 pot=86.00 blinds=1.00/2.00 board=Kd 7c 2c | S1 Alma bal=89.00 bet=0.00 | S3 Edie bal=108.00 bet=0.00 | S4 Onia bal=99.00 bet=0.00 | S5* max bal=97.00 bet=0.00 | S6 Savanah bal=61.00 bet=0.00 | S8 Tawanna bal=60.00 bet=0.00
++14s br=3 btn=6 pot=146.00 blinds=1.00/2.00 board=Kd 7c 2c Ac | S1 Alma bal=89.00 bet=0.00 | S3 Edie bal=108.00 bet=0.00 | S4 Onia bal=99.00 bet=0.00 | S5* max bal=97.00 bet=0.00 | S6 Savanah bal=61.00 bet=0.00 | S8 Tawanna bal=0.00 bet=60.00
+# seat 1: fold inferred from the stack (active flag not cleared)
+# seat 6: fold inferred from the stack (active flag not cleared)
++15s br=4 btn=6 pot=206.00 blinds=1.00/2.00 board=Kd 7c 2c Ac 3c | S1 Alma bal=89.00 bet=0.00 | S3 Edie bal=48.00 bet=0.00 | S4 Onia bal=99.00 bet=0.00 | S5* max bal=97.00 bet=0.00 | S6 Savanah bal=61.00 bet=0.00 | S8 Tawanna bal=206.00 bet=0.00
+NEXT> +17s br=1 btn=8 pot=3.00 blinds=1.00/2.00 board=- | S1 Alma bal=88.00 bet=1.00 | S3 Edie bal=46.00 bet=2.00 | S4 Onia bal=99.00 bet=0.00 | S5* max bal=97.00 bet=0.00 [7s 8s] | S6 Savanah bal=61.00 bet=0.00 | S8 Tawanna bal=206.00 bet=0.00
+
+######## REJECTED HAND - not imported ########
+ - collected more than the pot
+##############################################
+PokerStars Hand #179170742205: Tournament #900000000, Freeroll Hold'em No Limit - Level I (1/2) - 2026/10/11 10:30:22 ET
+Table '900000000 1' 9-max Seat #1 is the button
+Seat 1: Alma (41 in chips)
+Seat 3: Edie (126 in chips)
+Seat 4: Onia (84 in chips)
+Seat 5: max (97 in chips)
+Seat 6: Savanah (46 in chips)
+Seat 8: Tawanna (206 in chips)
+Edie: posts small blind 1
+Onia: posts big blind 2
+*** HOLE CARDS ***
+Dealt to max [9d 8c]
+max: folds
+Savanah: raises 6 to 8
+Tawanna: folds
+Alma: folds
+Onia: folds
+Edie: calls 7
+*** FLOP *** [7d Qc 4s]
+Edie: checks
+Savanah: checks
+*** TURN *** [7d Qc 4s] [7c]
+Edie: checks
+Savanah: checks
+*** RIVER *** [7d Qc 4s 7c] [5h]
+Edie: checks
+Savanah: checks
+*** SHOW DOWN ***
+Edie: mucks hand
+Savanah: mucks hand
+Savanah collected 56 from pot
+*** SUMMARY ***
+Total pot 18 | Rake 0
+Board [7d Qc 4s 7c 5h]
+Seat 1: Alma (button) folded before Flop (didn't bet)
+Seat 3: Edie (small blind) mucked
+Seat 4: Onia (big blind) folded before Flop
+Seat 5: max folded before Flop (didn't bet)
+Seat 6: Savanah mucked
+Seat 8: Tawanna folded before Flop (didn't bet)
+
+---- snapshots (one line per change; # = decisions of the reconstructor) ----
+START +0s br=1 btn=1 pot=3.00 blinds=1.00/2.00 board=- | S1 Alma bal=41.00 bet=0.00 | S3 Edie bal=125.00 bet=1.00 | S4 Onia bal=82.00 bet=2.00 | S5* max bal=97.00 bet=0.00 [9d 8c] | S6 Savanah bal=46.00 bet=0.00 | S8 Tawanna bal=206.00 bet=0.00
++14s br=1 btn=1 pot=11.00 blinds=1.00/2.00 board=- | S1 Alma bal=41.00 bet=0.00 | S3 Edie bal=125.00 bet=0.00 | S4 Onia bal=82.00 bet=2.00 | S5* max bal=97.00 bet=0.00 | S6 Savanah bal=38.00 bet=8.00 | S8 Tawanna bal=206.00 bet=0.00
+# seat 5: fold inferred from the stack (active flag not cleared)
++16s br=1 btn=1 pot=30.00 blinds=1.00/2.00 board=- | S1 Alma bal=41.00 bet=0.00 | S3 Edie bal=112.00 bet=0.00 | S4 Onia bal=82.00 bet=0.00 | S5* max bal=97.00 bet=0.00 | S6 Savanah bal=32.00 bet=0.00 | S8 Tawanna bal=206.00 bet=0.00
++18s br=2 btn=1 pot=30.00 blinds=1.00/2.00 board=7d Qc 4s | S1 Alma bal=41.00 bet=0.00 | S3 Edie bal=112.00 bet=0.00 | S4 Onia bal=82.00 bet=0.00 | S5* max bal=97.00 bet=0.00 | S6 Savanah bal=32.00 bet=0.00 | S8 Tawanna bal=206.00 bet=0.00
+# seat 8: fold inferred from the stack (active flag not cleared)
+# seat 1: fold inferred from the stack (active flag not cleared)
+# seat 4: fold inferred from the stack (active flag not cleared)
++20s br=2 btn=1 pot=68.00 blinds=1.00/2.00 board=7d Qc 4s | S1 Alma bal=41.00 bet=0.00 | S3 Edie bal=93.00 bet=0.00 | S4 Onia bal=82.00 bet=0.00 | S5* max bal=97.00 bet=0.00 | S6 Savanah bal=13.00 bet=0.00 | S8 Tawanna bal=206.00 bet=0.00
++22s br=3 btn=1 pot=81.00 blinds=1.00/2.00 board=7d Qc 4s 7c | S1 Alma bal=41.00 bet=0.00 | S3 Edie bal=93.00 bet=0.00 | S4 Onia bal=82.00 bet=0.00 | S5* max bal=97.00 bet=0.00 | S6 Savanah bal=0.00 bet=13.00 | S8 Tawanna bal=206.00 bet=0.00
+# seat 6: bet 13.00 ignored, stack is 0.00 but should be 25.00 if it was a bet
++24s br=4 btn=1 pot=94.00 blinds=1.00/2.00 board=7d Qc 4s 7c 5h | S1 Alma bal=41.00 bet=0.00 | S3 Edie bal=80.00 bet=0.00 | S4 Onia bal=82.00 bet=0.00 | S5* max bal=97.00 bet=0.00 | S6 Savanah bal=0.00 bet=0.00 | S8 Tawanna bal=206.00 bet=0.00
++25s br=4 btn=1 pot=94.00 blinds=1.00/2.00 board=7d Qc 4s 7c 5h | S1 Alma bal=41.00 bet=0.00 | S3 Edie bal=80.00 bet=0.00 | S4 Onia bal=82.00 bet=0.00 | S5* max bal=97.00 bet=0.00 | S6 Savanah bal=94.00 bet=0.00 | S8 Tawanna bal=206.00 bet=0.00
+NEXT> +26s br=1 btn=3 pot=3.00 blinds=1.00/2.00 board=- | S1 Alma bal=41.00 bet=0.00 | S3 Edie bal=80.00 bet=0.00 | S4 Onia bal=81.00 bet=1.00 | S5* max bal=95.00 bet=2.00 [6h 4h] | S6 Savanah bal=94.00 bet=0.00 | S8 Tawanna bal=206.00 bet=0.00
+

@@ -46,8 +46,17 @@ int main(int argc, char **argv) {
   bool tournament = argc > 2 && std::string(argv[2]) == "t";
   Reconstructor r; Options o; if (tournament) o.max_rake = 0.01; r.SetOptions(o);
   int fed = 0;
+  std::vector<Hand> all;
+  // The trace of a rejected log only contains the snapshots of the hands that were
+  // rejected, so every block ("######## REJECTED HAND") starts with a fresh reconstructor.
+  struct Drain { static void Run(Reconstructor &rc, std::vector<Hand> &out) { Hand x; while (rc.PopCompleted(&x)) out.push_back(x); } };
   while (std::getline(f, line)) {
     if (!line.empty() && line[line.size()-1] == '\r') line.resize(line.size()-1);
+    if (line.compare(0, 8, "########") == 0 && line.find("REJECTED") != std::string::npos) {
+      Drain::Run(r, all);
+      r = Reconstructor(); r.SetOptions(o);
+      continue;
+    }
     if (line.compare(0, 5, "START") != 0 && line.compare(0, 1, "+") != 0 && line.compare(0, 5, "NEXT>") != 0) continue;
     Snapshot s; bool is_next;
     if (!ParseLine(line, &s, &is_next)) { std::cerr << "unparsed: " << line.substr(0, 60) << "\n"; continue; }
@@ -55,8 +64,10 @@ int main(int argc, char **argv) {
     if (is_next) { for (int k = 0; k < 3; k++) r.Feed(s); }   // the new hand stays on the table for a while
   }
   // last hand: let the table idle
-  Hand h; int count = 0;
-  while (r.PopCompleted(&h)) {
+  Drain::Run(r, all);
+  int count = 0;
+  for (size_t n = 0; n < all.size(); n++) {
+    Hand h = all[n];
     ++count;
     h.hand_id = std::string("1000") + char('0' + count); h.timestamp = "2026/10/11 10:00:00";
     h.tournament = tournament; h.tournament_id = "900000001"; h.table_name = "900000001 1";
