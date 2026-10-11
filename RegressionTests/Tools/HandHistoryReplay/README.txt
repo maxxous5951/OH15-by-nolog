@@ -34,3 +34,16 @@ ddpoker_headsup_instant_folds.txt
   while the reconstructor still waits for the blinds. The snapshots seen in that
   time are buffered and replayed into the next hand, and the end stacks are taken
   from the first snapshot of the new hand, so no hand is lost or rejected.
+
+ddpoker_stale_start_snapshot.txt
+  Heads-up. The first snapshot of a hand still shows the blinds of the previous level
+  (15/25) and no hole cards; the second one has 25/50 and the cards. The change of the
+  blinds used to end the hand (rejected: "hero cards unknown") and the real hand was lost.
+  Now a hand in which nothing but the start has been seen is simply started again
+  ("RESTART>" in the trace). Expected: one VALID hand.
+
+ddpoker_hand_start_transitions.txt
+  Real rejected_<date>.log of a 10 player tournament (all rejected hands are the same
+  problem: stale button / blinds in the first snapshot, see above). The log only contains
+  the snapshots of the rejected hands, so it can no longer be completed by the replay
+  tool: it is kept as a reference of the data.

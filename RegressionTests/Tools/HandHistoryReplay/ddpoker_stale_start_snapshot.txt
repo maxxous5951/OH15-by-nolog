@@ -1,0 +1,9 @@
+Heads-up, DDPoker tournament. The first snapshot of a hand still has the blind sizes
+(15/25) of the previous level and no hole cards, the next one has 25/50 and the cards:
+the hand must not be ended (and lost) by that change.
+Expected: ONE valid hand, small blind 25 (button = max), max calls 25 and folds, Esmerald collects 50.
+START +0s br=1 btn=5 pot=75.00 blinds=15.00/25.00 board=- | S5* max bal=100.00 bet=25.00 | S10 Esmerald bal=825.00 bet=50.00
++1s br=1 btn=5 pot=75.00 blinds=25.00/50.00 board=- | S5* max bal=100.00 bet=25.00 [2c Ks] | S10 Esmerald bal=825.00 bet=50.00
++3s br=1 btn=5 pot=75.00 blinds=25.00/50.00 board=- | S5* max(out) bal=100.00 bet=25.00 [2c Ks] | S10 Esmerald bal=825.00 bet=50.00
++5s br=1 btn=5 pot=0.00 blinds=25.00/50.00 board=- | S5* max bal=100.00 bet=0.00 | S10 Esmerald bal=900.00 bet=0.00
++12s br=1 btn=10 pot=75.00 blinds=25.00/50.00 board=- | S5* max bal=50.00 bet=50.00 [Ah Kd] | S10 Esmerald bal=875.00 bet=25.00

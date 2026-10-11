@@ -173,7 +173,7 @@ struct Options {
 
 class Reconstructor {
  public:
-  Reconstructor() : completed_idle_(0), replaying_(false) { Reset(); }
+  Reconstructor() : completed_idle_(0), fresh_(false), replaying_(false) { Reset(); }
 
   // Forget the hand in progress (new connection to a table).
   // Hands that are already finished stay available through PopCompleted().
@@ -208,6 +208,17 @@ class Reconstructor {
     bool started_now = false;
 
     if (state_ == kRunning) {
+      // The first snapshot of a hand is often not complete: the button and the blind
+      // sizes still belong to the previous hand, the hole cards are not visible yet.
+      // If nothing has happened since the start (no chips moved, no payout)
+      // the hand is not over, the first snapshot was only wrong: start again.
+      if (!closing_ && fresh_ && !over_ && MonotoneFromStart(s) && NewHandSignal(s, hint)) {
+        Trace(s, "RESTART> ");
+        const Snapshot again = s;
+        Reset();
+        Feed(again);
+        return;
+      }
       if (closing_ || NewHandSignal(s, hint)) {
         // The old hand is over. Its end stacks are taken from the first snapshot
         // of the new hand (balance + bet = stacks before the new blinds), but
@@ -254,6 +265,7 @@ class Reconstructor {
     if (state_ == kRunning) {
       if (!started_now && have_last_ && !SameState(s, last_)) Trace(s, "");
       Update(s);
+      if (fresh_ && !MonotoneFromStart(s)) fresh_ = false;
       if (history_valid_) {
         if (history_.size() < kMaxHistory) history_.push_back(s);
         else { history_valid_ = false; history_.clear(); }
@@ -310,6 +322,8 @@ class Reconstructor {
   // of the hand are kept, so the hand can be replayed with every possibility
   // when it is over, and the one that leaves the fewest inconsistencies wins.
   std::vector<Snapshot> history_;
+  Snapshot start_snap_;                    // first snapshot of the hand in progress
+  bool     fresh_;                         // nothing but the start was seen so far (see Feed)
   std::vector<Snapshot> closing_buffer_;   // snapshots seen while waiting for the blinds of the next hand
   bool     history_valid_;
   std::vector<int> ambiguity_sizes_;  // number of equally good possibilities of each ambiguity
@@ -558,6 +572,20 @@ class Reconstructor {
     return false;
   }
 
+  // No chips have been paid out since the start of the hand, and no card was dealt:
+  // the snapshot can still belong to the same, just starting hand.
+  bool MonotoneFromStart(const Snapshot &s) const {
+    if (s.betround != 1) return false;
+    for (int c = 0; c < 5; c++) if (!s.board[c].empty()) return false;
+    for (int i = 0; i < start_snap_.nseats && i < kMaxSeats; i++) {
+      const SeatSnapshot &a = start_snap_.seat[i];
+      const SeatSnapshot &b = s.seat[i];
+      if (a.seated != b.seated) return false;
+      if (b.seated && b.balance + b.bet > a.balance + a.bet + kEps) return false;
+    }
+    return true;
+  }
+
   // The hand in progress is over; 'next' (if any) is the first snapshot of the next hand
   void FinishCurrent(const Snapshot *next) {
     if (state_ != kRunning) return;
@@ -598,6 +626,7 @@ class Reconstructor {
     h_.Clear();
     history_.clear(); history_valid_ = true;
     ambiguity_sizes_.clear(); ambiguity_index_ = 0;
+    start_snap_ = s; fresh_ = true;
     n_ = s.nseats;
     h_.nseats = n_; h_.dealer = s.dealer; h_.hero = s.hero;
     h_.start_time = s.time;
