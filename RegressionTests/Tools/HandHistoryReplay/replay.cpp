@@ -61,7 +61,6 @@ int main(int argc, char **argv) {
     Snapshot s; bool is_next;
     if (!ParseLine(line, &s, &is_next)) { std::cerr << "unparsed: " << line.substr(0, 60) << "\n"; continue; }
     r.Feed(s); fed++;
-    if (is_next) { for (int k = 0; k < 3; k++) r.Feed(s); }   // the new hand stays on the table for a while
   }
   // last hand: let the table idle
   Drain::Run(r, all);

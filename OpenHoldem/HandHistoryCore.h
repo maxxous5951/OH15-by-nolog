@@ -188,6 +188,7 @@ class Reconstructor {
     closing_beats_ = 0;
     scraped_sb_ = scraped_bb_ = 0;
     history_.clear(); history_valid_ = true;
+    closing_buffer_.clear();
     ambiguity_sizes_.clear(); ambiguity_index_ = 0;
   }
 
@@ -212,16 +213,26 @@ class Reconstructor {
         // balance and bet are not always updated in the same heartbeat: a blind
         // may have left the stack while its bet is not visible yet.
         // Therefore wait a few heartbeats until the blinds are visible.
+        // All snapshots of the waiting time are kept: they belong to the next hand
+        // (heads-up with instant folds the next hand can even be over within this
+        // time) and they are fed to it afterwards.
+        closing_buffer_.push_back(s);
+        Trace(s, "NEXT> ");
         if (BlindsVisible(s) || closing_beats_ >= kClosingBeats) {
-          Trace(s, "NEXT> ");
-          FinishCurrent(&s);
+          // The stacks must come from the FIRST snapshot of the new hand,
+          // later ones may already contain the winnings of the next hand
+          const Snapshot first = closing_buffer_.front();
+          FinishCurrent(&first);
           closing_ = false;
           closing_beats_ = 0;
           state_ = kWaitingForBlinds;
+          std::vector<Snapshot> replay;
+          replay.swap(closing_buffer_);
+          for (size_t i = 0; i < replay.size(); i++) Feed(replay[i]);
+          return;
         } else {
           closing_ = true;
           closing_beats_++;
-          Trace(s, "NEXT> ");
           return;       // 'last_' stays the last snapshot of the finished hand
         }
       }
@@ -298,6 +309,7 @@ class Reconstructor {
   // of the hand are kept, so the hand can be replayed with every possibility
   // when it is over, and the one that leaves the fewest inconsistencies wins.
   std::vector<Snapshot> history_;
+  std::vector<Snapshot> closing_buffer_;   // snapshots seen while waiting for the blinds of the next hand
   bool     history_valid_;
   std::vector<int> ambiguity_sizes_;  // number of equally good possibilities of each ambiguity
   std::vector<int> forced_;           // replay: possibility chosen for each ambiguity

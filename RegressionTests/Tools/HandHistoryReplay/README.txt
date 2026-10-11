@@ -28,3 +28,9 @@ ddpoker_unseen_raises.txt
   * hand 3: a 3-bet before the flop and a bet + call on the flop are never seen.
     Who bet first on the flop can not be known (the stacks are the same), the
     amounts and the pot are right.
+
+ddpoker_headsup_instant_folds.txt
+  Heads-up, very fast play with instant folds: the next hand starts (or ends)
+  while the reconstructor still waits for the blinds. The snapshots seen in that
+  time are buffered and replayed into the next hand, and the end stacks are taken
+  from the first snapshot of the new hand, so no hand is lost or rejected.
