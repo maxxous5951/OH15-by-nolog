@@ -299,6 +299,7 @@ class Reconstructor {
   bool     allin_[kMaxSeats];
   bool     in_hand_[kMaxSeats];
   bool     reappeared_[kMaxSeats];
+  bool     fold_from_stack_[kMaxSeats];// fold inferred from the stack: the 'active' flag of this seat is not reliable
   double   last_stack_[kMaxSeats];   // chips behind at the last snapshot
   bool     closing_;                  // old hand is over, waiting for the blinds of the next one
   int      closing_beats_;
@@ -336,6 +337,22 @@ class Reconstructor {
   void Problem(const std::string &text) { h_.problems.push_back(text); }
 
   // ---- plausibility of what the scraper sees ----------------------------------
+
+  // Some tablemaps never clear the "active" flag of a player who folded.
+  // The stack is more reliable: somebody who has not matched the highest bet
+  // and whose stack did not shrink by (more than half of) the missing amount
+  // did not call, so he must have folded. Used when the actions are inferred
+  // (end of a betting round, or a raise in front of players that did not act).
+  // Not used at the end of the hand: a payout makes the stack grow.
+  bool DidNotPay(int i, const Snapshot &s) const {
+    if (!opts_.check_stack_for_bets || !track_stack_[i] || allin_[i]) return false;
+    if (!s.seat[i].seated) return false;
+    if (seat_bet_[i] + kEps >= cur_bet_) return false;          // nothing to pay
+    double missing  = cur_bet_ - seat_bet_[i];
+    double seen     = contrib_[i] + seat_bet_[i];               // chips we know about
+    double paid_now = h_.start_stack[i] - s.seat[i].balance;    // chips the stack says
+    return paid_now < seen + 0.5 * missing;
+  }
 
   // At least two bets in front of players: the blinds of a new hand
   static bool BlindsVisible(const Snapshot &s) {
@@ -560,6 +577,7 @@ class Reconstructor {
     for (int i = 0; i < kMaxSeats; i++) {
       seat_bet_[i] = contrib_[i] = 0;
       acted_[i] = folded_[i] = allin_[i] = in_hand_[i] = reappeared_[i] = false;
+      fold_from_stack_[i] = false;
       last_stack_[i] = 0;
       blind_observed_[i] = track_stack_[i] = false;
       ignored_bet_[i] = 0;
@@ -681,7 +699,7 @@ class Reconstructor {
     // A player who folded must not come back
     for (int i = 0; i < n_; i++) {
       if (in_hand_[i] && folded_[i] && s.seat[i].active && s.betround == street_ &&
-          !reappeared_[i]) {
+          !reappeared_[i] && !fold_from_stack_[i]) {
         reappeared_[i] = true;
         Problem("seat " + Num(i + 1) + " is active again after folding");
       }
@@ -750,6 +768,12 @@ class Reconstructor {
         if (!CanAct(j) || acted_[j]) continue;
         if (seat_bet_[j] + kEps >= cur_bet_) {
           Add(j, kCheck, 0, seat_bet_[j], false);
+        } else if (DidNotPay(j, s)) {
+          // Folded in front of the raise (the "active" flag did not show it)
+          Add(j, kFold, 0, seat_bet_[j], false);
+          folded_[j] = true;
+          fold_from_stack_[j] = true;
+          Note("seat " + Num(j + 1) + ": fold inferred from the stack (active flag not cleared)");
         } else {
           Problem("action order unclear in front of seat " + Num(i + 1));
         }
@@ -776,7 +800,9 @@ class Reconstructor {
 
   // At the end of a round the missing folds, calls and checks are inferred.
   // Returns the number of players still in the hand.
-  int InferClosingActions(const Snapshot &s) {
+  // With 'trust_balances' a player whose stack shows that he did not pay the
+  // missing chips is a fold, even if he is still marked as active.
+  int InferClosingActions(const Snapshot &s, bool trust_balances = false) {
     // Folds first: they decide whether the round ended by everybody folding
     std::vector<int> order;
     for (int k = 0; k < n_; k++) order.push_back((to_act_ + k) % n_);
@@ -786,6 +812,11 @@ class Reconstructor {
       if (!s.seat[i].active) {
         Add(i, kFold, 0, seat_bet_[i], false);
         folded_[i] = true;
+      } else if (trust_balances && DidNotPay(i, s)) {
+        Add(i, kFold, 0, seat_bet_[i], false);
+        folded_[i] = true;
+        fold_from_stack_[i] = true;
+        Note("seat " + Num(i + 1) + ": fold inferred from the stack (active flag not cleared)");
       }
     }
     int alive = Alive();
@@ -810,7 +841,7 @@ class Reconstructor {
 
   // Move to the next betting round. Returns false if that is not possible.
   bool CloseStreet(const Snapshot &s) {
-    int alive = InferClosingActions(s);
+    int alive = InferClosingActions(s, true);
     if (alive <= 1) return false;
     double total = 0;
     for (int i = 0; i < n_; i++) {
