@@ -52,19 +52,9 @@ def read_hands(path):
             r = parse_hand(block)
             if r: yield r
 
-def main(argv):
-    csv_out = None
-    if "--csv" in argv:
-        i = argv.index("--csv"); csv_out = argv[i + 1]; del argv[i:i + 2]
-    files = []
-    for a in argv:
-        if os.path.isdir(a):
-            files += glob.glob(os.path.join(a, "**", "HH_Profile*.txt"), recursive=True)
-        else:
-            files.append(a)
-    if not files:
-        print(__doc__); return 1
-    stat = defaultdict(lambda: [0, 0.0, 0, 0.0])   # mains, net, mains(derniere), net(derniere)
+def analyze(files):
+    """-> (stat, mains, net_total, mains_sans_ligne); stat[ligne] = [mains, net, mains_derniere, net_derniere]"""
+    stat = defaultdict(lambda: [0, 0.0, 0, 0.0])
     total_hands = 0; total_net = 0.0; no_note = 0
     for f in sorted(files):
         for net, notes in read_hands(f):
@@ -73,6 +63,25 @@ def main(argv):
             for n in set(notes):
                 stat[n][0] += 1; stat[n][1] += net
             stat[notes[-1]][2] += 1; stat[notes[-1]][3] += net
+    return stat, total_hands, total_net, no_note
+
+def find_files(paths):
+    files = []
+    for a in paths:
+        if os.path.isdir(a):
+            files += glob.glob(os.path.join(a, "**", "HH_Profile*.txt"), recursive=True)
+        else:
+            files.append(a)
+    return files
+
+def main(argv):
+    csv_out = None
+    if "--csv" in argv:
+        i = argv.index("--csv"); csv_out = argv[i + 1]; del argv[i:i + 2]
+    files = find_files(argv)
+    if not files:
+        print(__doc__); return 1
+    stat, total_hands, total_net, no_note = analyze(files)
     rows = sorted(stat.items(), key=lambda kv: kv[1][1])
     print("%d mains, resultat total %+.2f (%d sans ligne de profil)\n" % (total_hands, total_net, no_note))
     print("%8s %10s %9s | %8s %10s | ligne" % ("mains", "net", "moy/main", "derniere", "net"))
