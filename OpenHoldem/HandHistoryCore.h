@@ -7,7 +7,8 @@
 //
 //******************************************************************************
 //
-// Purpose: Core of the hand history generator (NL Hold'em cash games).
+// Purpose: Core of the hand history generator (NL Hold'em cash games and
+//   tournaments; the reconstruction is identical, only the output differs).
 //
 //   OpenHoldem only sees the table once per heartbeat. This module takes these
 //   "snapshots", reconstructs the actions of the hand and checks that the
@@ -93,6 +94,11 @@ struct Hand {
   // Filled in by the caller
   std::string hand_id, table_name, timestamp;
   long long   start_time;
+  // Tournament hands (set by the caller, see HandHistoryFormat.h):
+  // chips instead of money, no rake, "Tournament #id ... Level x" in the header
+  bool        tournament;
+  std::string tournament_id;
+  int         level;                    // blind level, 1 = first level
   // Table
   int    nseats, dealer, hero, sb_seat, bb_seat;
   double sblind, bblind, ante;
@@ -130,6 +136,7 @@ struct Hand {
   void Clear() {
     hand_id = table_name = timestamp = "";
     start_time = 0;
+    tournament = false; tournament_id = ""; level = 1;
     nseats = 0; dealer = hero = sb_seat = bb_seat = -1;
     sblind = bblind = ante = 0;
     for (int i = 0; i < kMaxSeats; i++) {

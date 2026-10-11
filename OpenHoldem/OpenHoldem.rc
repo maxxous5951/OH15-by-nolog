@@ -824,6 +824,11 @@ FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
     CONTROL         "Enable handhistory generator",IDC_HANDHISTORY_GENERATOR_ENABLE,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,4,8,116,8
+    GROUPBOX        "Type of the games to record",IDC_STATIC,4,26,166,50
+    CONTROL         "Cash game",IDC_HANDHISTORY_RADIO_CASHGAME,"Button",
+                    BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,12,40,150,8
+    CONTROL         "Tournament",IDC_HANDHISTORY_RADIO_TOURNAMENT,"Button",
+                    BS_AUTORADIOBUTTON,12,56,150,8
 END
 
 IDD_SAPREFS20 DIALOGEX 0, 0, 550, 450

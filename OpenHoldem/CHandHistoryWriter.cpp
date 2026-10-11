@@ -32,6 +32,7 @@
 #include "CScraper.h"
 #include "CSessionCounter.h"
 #include "CSymbolEngineDealerchair.h"
+#include "CSymbolEngineIsTournament.h"
 #include "CSymbolEngineTableLimits.h"
 #include "CSymbolEngineUserchair.h"
 #include "CTableState.h"
@@ -49,10 +50,15 @@ CHandHistoryWriter::CHandHistoryWriter() {
   assert(p_handhistory_deal_phase != NULL);
   assert(p_handhistory_uncontested != NULL);
   _hand_counter = 0;
-  // The scraped pot is not reliable at every casino, 
+  _level = 1;
+  _last_sblind = _last_bblind = 0;
+  _warned_state = -1;
+  // The scraped pot is not reliable at every casino,
   // therefore it is not used to reject hands (yet).
   _options.check_pot = false;
   _reconstructor.SetOptions(_options);
+  // Cash game or tournament, as selected by the user
+  ReloadSettings();
 }
 
 CHandHistoryWriter::~CHandHistoryWriter() {
@@ -63,6 +69,70 @@ void CHandHistoryWriter::InitOnStartup() {
 
 void CHandHistoryWriter::UpdateOnConnection() {
   _reconstructor.Reset();
+  ReloadSettings();
+}
+
+//------------------------------------------------------------------------------
+// Settings: cash game or tournament
+//------------------------------------------------------------------------------
+
+CString CHandHistoryWriter::SettingsPath() {
+  CString directory;
+  directory.Format("%s\\Hand_Histories", OpenHoldemDirectory().GetString());
+  SHCreateDirectoryEx(NULL, directory.GetString(), NULL);
+  return directory + "\\HH_Settings.ini";
+}
+
+hh::Settings CHandHistoryWriter::LoadSettings() {
+  hh::Settings settings;     // default: cash game, as before tournaments were supported
+  CString path = SettingsPath();
+  char buffer[64];
+  GetPrivateProfileString("HandHistory", "game_type", "cash", buffer, sizeof(buffer), path.GetString());
+  if (_stricmp(buffer, "tournament") == 0) {
+    settings.game_type = hh::kTournament;
+  }
+  GetPrivateProfileString("HandHistory", "tournament_id", "0", buffer, sizeof(buffer), path.GetString());
+  settings.tournament_id = _strtoui64(buffer, NULL, 10);
+  GetPrivateProfileString("HandHistory", "buyin", "0", buffer, sizeof(buffer), path.GetString());
+  settings.buyin = atof(buffer);
+  GetPrivateProfileString("HandHistory", "fee", "0", buffer, sizeof(buffer), path.GetString());
+  settings.fee = atof(buffer);
+  if (settings.buyin < 0) settings.buyin = 0;
+  if (settings.fee < 0)   settings.fee = 0;
+  return settings;
+}
+
+void CHandHistoryWriter::SaveSettings(const hh::Settings &settings) {
+  CString path = SettingsPath();
+  char buffer[64];
+  WritePrivateProfileString("HandHistory", "game_type",
+    (settings.game_type == hh::kTournament) ? "tournament" : "cash", path.GetString());
+  sprintf_s(buffer, sizeof(buffer), "%I64u", settings.tournament_id);
+  WritePrivateProfileString("HandHistory", "tournament_id", buffer, path.GetString());
+  sprintf_s(buffer, sizeof(buffer), "%.2f", settings.buyin);
+  WritePrivateProfileString("HandHistory", "buyin", buffer, path.GetString());
+  sprintf_s(buffer, sizeof(buffer), "%.2f", settings.fee);
+  WritePrivateProfileString("HandHistory", "fee", buffer, path.GetString());
+}
+
+void CHandHistoryWriter::ReloadSettings() {
+  hh::Settings old_settings = _settings;
+  _settings = LoadSettings();
+  if (_settings.game_type != old_settings.game_type) {
+    // Blind levels belong to one tournament
+    _level = 1;
+    _last_sblind = _last_bblind = 0;
+    _warned_state = -1;
+  }
+  // Tournaments have no rake: everything that is missing from the pot is an error
+  hh::Options defaults;
+  _options.max_rake = (_settings.game_type == hh::kTournament) ? 0.01 : defaults.max_rake;
+  _reconstructor.SetOptions(_options);
+  _format_options.tournament_buyin = _settings.buyin;
+  _format_options.tournament_fee   = _settings.fee;
+  write_log(Preferences()->debug_handhistory(),
+    "[HandHistory] game type: %s\n",
+    (_settings.game_type == hh::kTournament) ? "tournament" : "cash game");
 }
 
 void CHandHistoryWriter::UpdateOnHandreset() {
@@ -165,10 +235,49 @@ void CHandHistoryWriter::WriteHand(hh::Hand hand) {
   title.Replace("'", " ");
   hand.table_name = (LPCTSTR)title;
 
+  // Cash game or tournament: as selected by the user, never guessed.
+  const bool tournament = (_settings.game_type == hh::kTournament);
+  hand.tournament = tournament;
+  if (tournament) {
+    unsigned long long tournament_id = _settings.tournament_id;
+    if (tournament_id == 0) {
+      tournament_id = 900000000ULL + (unsigned long long) p_sessioncounter->session_id();
+    }
+    char tid[32];
+    sprintf_s(tid, sizeof(tid), "%I64u", tournament_id);
+    hand.tournament_id = tid;
+    hand.table_name = std::string(tid) + " 1";   // like PokerStars: "<tournament-ID> <table number>"
+    // The blind level is not scraped: count the changes of the blinds.
+    // Only reliable hands are used, the blinds of a rejected hand may be guesses.
+    if (hand.valid() && hand.sblind > 0 && hand.bblind > 0) {
+      if (_last_sblind > 0 && _last_bblind > 0 &&
+          (fabs(hand.sblind - _last_sblind) > hh::kEps || fabs(hand.bblind - _last_bblind) > hh::kEps)) {
+        ++_level;
+      }
+      _last_sblind = hand.sblind;
+      _last_bblind = hand.bblind;
+    }
+    hand.level = _level;
+  }
+  // The user is told once if the selection does not fit to what OpenHoldem detected
+  // (istournament is a heuristic, therefore it is only a warning)
+  {
+    const bool detected = p_engine_container->symbol_engine_istournament()->istournament();
+    const int state = (tournament ? 2 : 0) + (detected ? 1 : 0);
+    if (detected != tournament && _warned_state != state) {
+      _warned_state = state;
+      write_log(k_always_log_errors,
+        "[HandHistory] WARNING: handhistories are written for a %s, but OpenHoldem detected a %s. "
+        "Please check the selection in Preferences / Handhistory Generator.\n",
+        tournament ? "tournament" : "cash game",
+        detected ? "tournament" : "cash game");
+    }
+  }
+
   CString directory = OutputDirectory();
   CString path;
   if (hand.valid()) {
-    path.Format("%s\\HH_%s.txt", directory.GetString(), day);
+    path.Format("%s\\%s_%s.txt", directory.GetString(), tournament ? "HH_Tournament" : "HH", day);
     AppendToFile(path, hh::FormatPokerStars(hand, _format_options));
     write_log(Preferences()->debug_handhistory(), 
       "[HandHistory] hand %s written\n", id);

@@ -17,6 +17,7 @@
 #include "stdafx.h"
 #include "DialogSAPrefs19.h"
 
+#include "CHandHistoryWriter.h"
 #include "SAPrefsSubDlg.h"
 
 
@@ -53,6 +54,11 @@ BOOL CDlgSAPrefs19::OnInitDialog()
 
 	_handhistory_generator_enable_Button.SetCheck(Preferences()->handhistory_generator_enable());
 
+	// Cash game or tournament: remembered in Hand_Histories\HH_Settings.ini
+	hh::Settings settings = CHandHistoryWriter::LoadSettings();
+	CheckRadioButton(IDC_HANDHISTORY_RADIO_CASHGAME, IDC_HANDHISTORY_RADIO_TOURNAMENT,
+		(settings.game_type == hh::kTournament) ? IDC_HANDHISTORY_RADIO_TOURNAMENT : IDC_HANDHISTORY_RADIO_CASHGAME);
+
 	return TRUE;  // return TRUE unless you set the focus to a control
 	// EXCEPTION: OCX Property Pages should return FALSE
 }
@@ -60,6 +66,14 @@ BOOL CDlgSAPrefs19::OnInitDialog()
 void CDlgSAPrefs19::OnOK()
 {
 	Preferences()->SetValue(k_prefs_handhistory_generator_enable, _handhistory_generator_enable_Button.GetCheck() == BST_CHECKED ? true : false);
+
+	// Load first to keep the other values of the file (tournament-ID, buy-in, fee)
+	hh::Settings settings = CHandHistoryWriter::LoadSettings();
+	settings.game_type = (IsDlgButtonChecked(IDC_HANDHISTORY_RADIO_TOURNAMENT) == BST_CHECKED) ? hh::kTournament : hh::kCashGame;
+	CHandHistoryWriter::SaveSettings(settings);
+	if (p_handhistory_writer != NULL) {
+		p_handhistory_writer->ReloadSettings();
+	}
 
 	CSAPrefsSubDlg::OnOK();
 }

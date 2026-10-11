@@ -32,8 +32,13 @@ struct FormatOptions {
   std::string currency_symbol; // "$"
   std::string currency_code;   // "USD"
   std::string timezone;        // label printed behind the time
+  // Tournaments (Hand::tournament): buy-in and fee, both 0 = freeroll.
+  // The buy-in can not be scraped, it can be set in the settings file.
+  double      tournament_buyin;
+  double      tournament_fee;
   FormatOptions() : site("PokerStars"), currency_symbol("$"),
-                    currency_code("USD"), timezone("ET") {}
+                    currency_code("USD"), timezone("ET"),
+                    tournament_buyin(0), tournament_fee(0) {}
 };
 
 //------------------------------------------------------------------------------
@@ -172,6 +177,25 @@ inline std::string StreetName(int street) {
   return street == 1 ? "Flop" : street == 2 ? "Flop" : street == 3 ? "Turn" : "River";
 }
 
+// Blind level like PokerStars: I, II, III, IV, ..., XL, ...
+inline std::string RomanNumeral(int n) {
+  if (n < 1) n = 1;
+  static const int    value[]  = { 1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1 };
+  static const char  *symbol[] = { "M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I" };
+  std::string s;
+  for (int i = 0; i < 13; i++) while (n >= value[i]) { s += symbol[i]; n -= value[i]; }
+  return s;
+}
+
+// "$9.00+$1.00 USD" or "Freeroll"
+inline std::string BuyInText(const FormatOptions &o) {
+  if (o.tournament_buyin <= 0 && o.tournament_fee <= 0) return "Freeroll";
+  char b[96];
+  snprintf(b, sizeof(b), "%s%.2f+%s%.2f %s", o.currency_symbol.c_str(), o.tournament_buyin,
+           o.currency_symbol.c_str(), o.tournament_fee, o.currency_code.c_str());
+  return b;
+}
+
 inline std::string CardsText(const std::string &a, const std::string &b) { return "[" + a + " " + b + "]"; }
 
 inline std::string BoardText(const Hand &h, int from, int to) {   // cards [from, to)
@@ -182,14 +206,24 @@ inline std::string BoardText(const Hand &h, int from, int to) {   // cards [from
 
 } // namespace detail
 
-inline std::string FormatPokerStars(const Hand &h, const FormatOptions &o = FormatOptions()) {
+inline std::string FormatPokerStars(const Hand &h, const FormatOptions &options = FormatOptions()) {
   using namespace detail;
   std::string out;
   const char *nl = "\r\n";
+  // Tournaments are played with chips: no currency symbol for the amounts
+  FormatOptions o = options;
+  if (h.tournament) o.currency_symbol = "";
 
   // ---- header ----
-  out += o.site + " Hand #" + h.hand_id + ":  Hold'em No Limit (" + Money(h.sblind, o) + "/" +
-         Money(h.bblind, o) + " " + o.currency_code + ") - " + h.timestamp + " " + o.timezone + nl;
+  if (h.tournament) {
+    // PokerStars Hand #123: Tournament #456, $9.00+$1.00 USD Hold'em No Limit - Level I (10/20) - 2026/10/11 09:32:00 ET
+    out += o.site + " Hand #" + h.hand_id + ": Tournament #" + h.tournament_id + ", " +
+           BuyInText(options) + " Hold'em No Limit - Level " + RomanNumeral(h.level) + " (" +
+           Money(h.sblind, o) + "/" + Money(h.bblind, o) + ") - " + h.timestamp + " " + o.timezone + nl;
+  } else {
+    out += o.site + " Hand #" + h.hand_id + ":  Hold'em No Limit (" + Money(h.sblind, o) + "/" +
+           Money(h.bblind, o) + " " + o.currency_code + ") - " + h.timestamp + " " + o.timezone + nl;
+  }
   const char *max_text = (h.nseats <= 2) ? "2-max" : (h.nseats <= 6) ? "6-max" : "9-max";
   char tmp[64];
   snprintf(tmp, sizeof(tmp), " %s Seat #%d is the button", max_text, h.dealer + 1);
