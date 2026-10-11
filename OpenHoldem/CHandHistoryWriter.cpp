@@ -84,13 +84,12 @@ CString CHandHistoryWriter::SettingsPath() {
 }
 
 hh::Settings CHandHistoryWriter::LoadSettings() {
-  hh::Settings settings;     // default: cash game, as before tournaments were supported
+  hh::Settings settings;
+  // Cash game (default) or tournament: preference, selected by the user
+  settings.game_type = Preferences()->handhistory_tournament() ? hh::kTournament : hh::kCashGame;
+  // Optional values for tournaments, edited by hand
   CString path = SettingsPath();
   char buffer[64];
-  GetPrivateProfileString("HandHistory", "game_type", "cash", buffer, sizeof(buffer), path.GetString());
-  if (_stricmp(buffer, "tournament") == 0) {
-    settings.game_type = hh::kTournament;
-  }
   GetPrivateProfileString("HandHistory", "tournament_id", "0", buffer, sizeof(buffer), path.GetString());
   settings.tournament_id = _strtoui64(buffer, NULL, 10);
   GetPrivateProfileString("HandHistory", "buyin", "0", buffer, sizeof(buffer), path.GetString());
@@ -100,19 +99,6 @@ hh::Settings CHandHistoryWriter::LoadSettings() {
   if (settings.buyin < 0) settings.buyin = 0;
   if (settings.fee < 0)   settings.fee = 0;
   return settings;
-}
-
-void CHandHistoryWriter::SaveSettings(const hh::Settings &settings) {
-  CString path = SettingsPath();
-  char buffer[64];
-  WritePrivateProfileString("HandHistory", "game_type",
-    (settings.game_type == hh::kTournament) ? "tournament" : "cash", path.GetString());
-  sprintf_s(buffer, sizeof(buffer), "%I64u", settings.tournament_id);
-  WritePrivateProfileString("HandHistory", "tournament_id", buffer, path.GetString());
-  sprintf_s(buffer, sizeof(buffer), "%.2f", settings.buyin);
-  WritePrivateProfileString("HandHistory", "buyin", buffer, path.GetString());
-  sprintf_s(buffer, sizeof(buffer), "%.2f", settings.fee);
-  WritePrivateProfileString("HandHistory", "fee", buffer, path.GetString());
 }
 
 void CHandHistoryWriter::ReloadSettings() {

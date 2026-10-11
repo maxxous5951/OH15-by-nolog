@@ -133,6 +133,7 @@ enum {
   k_prefs_configurationcheck_input_settings,
   k_prefs_configurationcheck_font_settings,
   k_prefs_handhistory_generator_enable,
+  k_prefs_handhistory_tournament,
   k_prefs_simple_window_title,
   k_prefs_table_positioner_always_keep_position,
   // Int values
@@ -322,6 +323,8 @@ public:
   const int lazy_scraping_when_to_scrape() { return prefs_numerical_values[k_prefs_lazy_scraping_when_to_scrape]; }
   // Handhistory generator
   const bool handhistory_generator_enable() { return prefs_numerical_values[k_prefs_handhistory_generator_enable]; }
+  // false = cash game (default), true = tournament
+  const bool handhistory_tournament() { return prefs_numerical_values[k_prefs_handhistory_tournament]; }
   // Table Positioner
   const int table_positioner_options() { return prefs_numerical_values[k_prefs_table_positioner_options]; }
   const bool table_positioner_always_keep_position() { return prefs_numerical_values[k_prefs_table_positioner_always_keep_position]; }

@@ -27,9 +27,10 @@
 // Enabled by the preference "handhistory_generator_enable".
 //
 // Cash game or tournament is chosen by the user (radio buttons on the page
-// "Handhistory Generator" of the preferences, never guessed) and remembered in
-//       OpenHoldem\Hand_Histories\HH_Settings.ini
-// This file also contains optional values for tournaments (see hh::Settings).
+// "Handhistory Generator" of the preferences, never guessed) and remembered
+// in the preference "handhistory_tournament".
+// The optional values for tournaments (tournament-ID, buy-in, fee) can be
+// set in OpenHoldem\Hand_Histories\HH_Settings.ini (see hh::Settings).
 //
 //******************************************************************************
 
@@ -47,8 +48,8 @@ namespace hh {
 
 enum GameType { kCashGame = 0, kTournament = 1 };
 
-// What the user selected. Stored in Hand_Histories\HH_Settings.ini, section [HandHistory]:
-//   game_type=cash | tournament
+// What the user selected: game_type comes from the preferences,
+// the optional values from Hand_Histories\HH_Settings.ini, section [HandHistory]:
 //   tournament_id=0     0 = automatic (900000000 + session-ID), else the ID of the tournament
 //   buyin=0.00          tournament buy-in, 0 and fee 0 = "Freeroll"
 //   fee=0.00            tournament fee
@@ -78,11 +79,10 @@ class CHandHistoryWriter: public CVirtualSymbolEngine {
 	bool EvaluateSymbol(const CString name, double *result, bool log = false);
   CString SymbolsProvided();
  public:
-  // Cash game / tournament selection, persistent across sessions.
-  // Used by the preferences dialog; ReloadSettings() has to be called
-  // (if the writer exists) after SaveSettings().
+  // Cash game / tournament selection (preferences) and optional values.
+  // ReloadSettings() has to be called by the preferences dialog (if the writer exists)
+  // after the selection was changed.
   static hh::Settings LoadSettings();
-  static void SaveSettings(const hh::Settings &settings);
   void ReloadSettings();
 public:
   // The following functions are called by the old hand-history modules.
