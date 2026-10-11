@@ -172,7 +172,7 @@ struct Options {
 
 class Reconstructor {
  public:
-  Reconstructor() : completed_idle_(0) { Reset(); }
+  Reconstructor() : completed_idle_(0), replaying_(false) { Reset(); }
 
   // Forget the hand in progress (new connection to a table).
   // Hands that are already finished stay available through PopCompleted().
@@ -187,6 +187,8 @@ class Reconstructor {
     closing_ = false;
     closing_beats_ = 0;
     scraped_sb_ = scraped_bb_ = 0;
+    history_.clear(); history_valid_ = true;
+    ambiguity_sizes_.clear(); ambiguity_index_ = 0;
   }
 
   void SetOptions(const Options &options) { opts_ = options; }
@@ -240,10 +242,14 @@ class Reconstructor {
     if (state_ == kRunning) {
       if (!started_now && have_last_ && !SameState(s, last_)) Trace(s, "");
       Update(s);
+      if (history_valid_) {
+        if (history_.size() < kMaxHistory) history_.push_back(s);
+        else { history_valid_ = false; history_.clear(); }
+      }
       // A finished hand on a table that does not change any more is written
       // without waiting for the next hand (e.g. last hand of a session).
       if (SameState(s, last_)) idle_++; else idle_ = 0;
-      if (idle_ == kIdleBeats) FinalizeIfConsistent();
+      if (!replaying_ && idle_ == kIdleBeats) FinalizeIfConsistent();
     }
     last_ = s; have_last_ = true;
   }
@@ -287,6 +293,17 @@ class Reconstructor {
   int      completed_idle_;
   Options  opts_;
   std::vector<Hand> completed_;
+  // Some decisions are ambiguous when the hand is reconstructed (two players have
+  // the same stack and the pot says that only one of them called). The snapshots
+  // of the hand are kept, so the hand can be replayed with every possibility
+  // when it is over, and the one that leaves the fewest inconsistencies wins.
+  std::vector<Snapshot> history_;
+  bool     history_valid_;
+  std::vector<int> ambiguity_sizes_;  // number of equally good possibilities of each ambiguity
+  std::vector<int> forced_;           // replay: possibility chosen for each ambiguity
+  int      ambiguity_index_;
+  bool     replaying_;                // this is a replay (no replay inside a replay, no idle-finish)
+  static const size_t kMaxHistory = 1500;
   bool     over_;                     // only one player left
   int      n_;                        // number of chairs
   int      street_;
@@ -566,6 +583,8 @@ class Reconstructor {
     if (dealt < 2 || !any_bet || s.dealer < 0 || s.dealer >= s.nseats) return false;
 
     h_.Clear();
+    history_.clear(); history_valid_ = true;
+    ambiguity_sizes_.clear(); ambiguity_index_ = 0;
     n_ = s.nseats;
     h_.nseats = n_; h_.dealer = s.dealer; h_.hero = s.hero;
     h_.start_time = s.time;
@@ -798,6 +817,70 @@ class Reconstructor {
     }
   }
 
+  // Players who are still marked as active but whose stack shows that they did
+  // not pay the missing chips (see DidNotPay()) folded - unless the stack is
+  // late: balance and pot are not always updated in the same heartbeat, e.g. the
+  // call of the last player is already in the pot but not yet deducted from his
+  // stack. The scraped pot tells the difference: it is compared with the pot
+  // that results from every combination of calls and folds of the suspects.
+  void InferFoldsFromStacks(const Snapshot &s, const std::vector<int> &order) {
+    std::vector<int> suspects;
+    for (size_t o = 0; o < order.size(); o++) {
+      int i = order[o];
+      if (in_hand_[i] && !folded_[i] && DidNotPay(i, s)) suspects.push_back(i);
+    }
+    const size_t k = suspects.size();
+    if (k == 0) return;
+    unsigned calls = 0;                                  // bit set = this suspect called
+    if (k <= 8 && s.pot > kEps) {
+      // pot if none of the suspects calls
+      double base = 0;
+      for (int i = 0; i < n_; i++) {
+        if (!in_hand_[i]) continue;
+        base += contrib_[i] + seat_bet_[i];
+        bool suspect = false;
+        for (size_t x = 0; x < k; x++) if (suspects[x] == i) suspect = true;
+        if (!suspect && !folded_[i] && !allin_[i] && seat_bet_[i] + kEps < cur_bet_)
+          base += cur_bet_ - seat_bet_[i];               // calls that are certain
+      }
+      // Every combination of calls of the suspects, best fit with the scraped pot first
+      std::vector<double> diff(1u << k);
+      double best_diff = -1;
+      for (unsigned m = 0; m < (1u << k); m++) {
+        double pot = base;
+        for (size_t x = 0; x < k; x++)
+          if (m & (1u << x)) pot += cur_bet_ - seat_bet_[suspects[x]];
+        diff[m] = fabs(pot - s.pot);
+        if (best_diff < 0 || diff[m] < best_diff) best_diff = diff[m];
+      }
+      // The scraped pot must fit one of the possibilities, else it is not used
+      if (best_diff <= 0.02 * s.pot + kEps) {
+        std::vector<unsigned> tied;                      // equally good, fewest calls first
+        for (size_t fewest = 0; fewest <= k; fewest++)
+          for (unsigned m = 0; m < (1u << k); m++)
+            if (PopCount(m) == fewest && diff[m] <= best_diff + kEps) tied.push_back(m);
+        size_t choice = 0;
+        if (tied.size() > 1) {
+          // Ambiguous, e.g. two players with the same stack and only one of them called:
+          // the end of the hand decides, see FinishWithBestChoices()
+          size_t id = (size_t) ambiguity_index_++;
+          if (id >= ambiguity_sizes_.size()) ambiguity_sizes_.push_back((int) tied.size());
+          if (id < forced_.size() && forced_[id] >= 0 && (size_t) forced_[id] < tied.size()) choice = (size_t) forced_[id];
+        }
+        calls = tied[choice];
+        if (calls != 0) Note("pot " + Money(s.pot) + " shows that some players called although their stack is not reduced yet");
+      }
+    }
+    for (size_t x = 0; x < k; x++) {
+      if (calls & (1u << x)) continue;
+      int i = suspects[x];
+      Add(i, kFold, 0, seat_bet_[i], false);
+      folded_[i] = true;
+      fold_from_stack_[i] = true;
+      Note("seat " + Num(i + 1) + ": fold inferred from the stack (active flag not cleared)");
+    }
+  }
+
   // At the end of a round the missing folds, calls and checks are inferred.
   // Returns the number of players still in the hand.
   // With 'trust_balances' a player whose stack shows that he did not pay the
@@ -812,13 +895,9 @@ class Reconstructor {
       if (!s.seat[i].active) {
         Add(i, kFold, 0, seat_bet_[i], false);
         folded_[i] = true;
-      } else if (trust_balances && DidNotPay(i, s)) {
-        Add(i, kFold, 0, seat_bet_[i], false);
-        folded_[i] = true;
-        fold_from_stack_[i] = true;
-        Note("seat " + Num(i + 1) + ": fold inferred from the stack (active flag not cleared)");
       }
     }
+    if (trust_balances) InferFoldsFromStacks(s, order);
     int alive = Alive();
     if (alive <= 1) { over_ = true; return alive; }
     for (size_t o = 0; o < order.size(); o++) {
@@ -864,7 +943,41 @@ class Reconstructor {
 
   // ---- end of the hand -----------------------------------------------------
 
+  // Replays the hand with every combination of the possibilities of the ambiguities
+  // and keeps the result with the fewest problems. False if that is not possible.
+  bool FinishWithBestChoices(const Options &options) {
+    size_t total = 1;
+    for (size_t a = 0; a < ambiguity_sizes_.size(); a++) {
+      total *= (size_t) ambiguity_sizes_[a];
+      if (total > 64) return false;
+    }
+    bool have_best = false;
+    Hand best;
+    for (size_t c = 0; c < total && !(have_best && best.problems.empty()); c++) {
+      Reconstructor trial;
+      trial.opts_ = opts_;
+      trial.replaying_ = true;
+      size_t rest = c;
+      for (size_t a = 0; a < ambiguity_sizes_.size(); a++) {
+        trial.forced_.push_back((int)(rest % (size_t) ambiguity_sizes_[a]));
+        rest /= (size_t) ambiguity_sizes_[a];
+      }
+      for (size_t k = 0; k < history_.size(); k++) trial.Feed(history_[k]);
+      if (trial.state_ != kRunning) continue;
+      for (int i = 0; i < kMaxSeats; i++) trial.last_stack_[i] = last_stack_[i];
+      trial.FinishHand(options);
+      if (!have_best || trial.h_.problems.size() < best.problems.size()) { best = trial.h_; have_best = true; }
+    }
+    if (!have_best) return false;
+    if (!h_.trace.empty() && h_.trace.back().compare(0, 5, "NEXT>") == 0) best.trace.push_back(h_.trace.back());
+    h_ = best;
+    return true;
+  }
+
   void FinishHand(const Options &options) {
+    if (!replaying_ && history_valid_ && !history_.empty() && !ambiguity_sizes_.empty()) {
+      if (FinishWithBestChoices(options)) return;
+    }
     const Snapshot &s = last_;
     std::vector<int> ambiguous;
     unsigned chosen = 0;
@@ -888,7 +1001,10 @@ class Reconstructor {
         for (size_t folds = 0; folds <= ambiguous.size(); folds++) {
           for (unsigned m = 0; m < total; m++) {
             if (PopCount(m) != folds) continue;
+            std::vector<Snapshot> keep;                   // no need to copy the history
+            keep.swap(history_);
             Reconstructor trial = *this;
+            keep.swap(history_);
             trial.Conclude(s, ambiguous, m, options);
             size_t n = trial.h_.problems.size();
             if (!have_best || n < best_problems) { have_best = true; best_problems = n; chosen = m; }

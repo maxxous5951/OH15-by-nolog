@@ -12,7 +12,7 @@ static bool ParseLine(const std::string &line, Snapshot *out, bool *is_next) {
   std::string head = (first == std::string::npos) ? line : line.substr(0, first);
   *is_next = (head.compare(0, 5, "NEXT>") == 0);
   size_t p = head.find('+'); if (p == std::string::npos) return false;
-  Snapshot s; s.nseats = 9;
+  Snapshot s; s.nseats = 10;   // DDPoker has 10 seats
   int secs = 0, btn = 0; char board[128] = {0};
   if (sscanf(head.c_str() + p, "+%ds br=%d btn=%d pot=%lf blinds=%lf/%lf board=%127[^\n]",
              &secs, &s.betround, &btn, &s.pot, &s.sblind, &s.bblind, board) < 6) return false;

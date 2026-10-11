@@ -1,0 +1,63 @@
+######## REJECTED HAND - not imported ########
+ - collected more than the pot
+##############################################
+PokerStars Hand #179170653704: Tournament #900000000, Freeroll Hold'em No Limit - Level III (1/2) - 2026/10/11 10:15:37 ET
+Table '900000000 1' 9-max Seat #3 is the button
+Seat 3: Hanes (100 in chips)
+Seat 4: Antony (100 in chips)
+Seat 5: max (100 in chips)
+Seat 6: Trisana (100 in chips)
+Seat 9: Latisha (100 in chips)
+Seat 10: Early (100 in chips)
+Antony: posts small blind 1
+max: posts big blind 2
+*** HOLE CARDS ***
+Dealt to max [Qc 9c]
+Trisana: raises 6 to 8
+Latisha: raises 8 to 16
+Early: folds
+Hanes: folds
+Antony: raises 8 to 24
+max: folds
+Trisana: calls 16
+Latisha: calls 8
+*** FLOP *** [7h Kc As]
+Antony: checks
+Trisana: checks
+Latisha: checks
+*** TURN *** [7h Kc As] [3h]
+Antony: checks
+Trisana: checks
+Latisha: bets 33
+Antony: folds
+Trisana: folds
+*** RIVER *** [7h Kc As 3h] [9s]
+Uncalled bet (33) returned to Latisha
+Trisana collected 107 from pot
+*** SUMMARY ***
+Total pot 74 | Rake 0
+Board [7h Kc As 3h 9s]
+Seat 3: Hanes (button) folded before Flop (didn't bet)
+Seat 4: Antony (small blind) folded on the Turn
+Seat 5: max (big blind) folded before Flop
+Seat 6: Trisana folded on the Turn
+Seat 9: Latisha
+Seat 10: Early folded before Flop (didn't bet)
+
+---- snapshots (one line per change; # = decisions of the reconstructor) ----
+START +0s br=1 btn=3 pot=3.00 blinds=1.00/2.00 board=- | S3 Hanes bal=100.00 bet=0.00 | S4 Antony bal=99.00 bet=1.00 | S5* max bal=98.00 bet=2.00 [Qc 9c] | S6 Trisana bal=100.00 bet=0.00 | S9 Latisha bal=100.00 bet=0.00 | S10 Early bal=100.00 bet=0.00
++4s br=1 btn=3 pot=27.00 blinds=1.00/2.00 board=- | S3 Hanes bal=100.00 bet=0.00 | S4 Antony bal=99.00 bet=0.00 | S5* max bal=98.00 bet=2.00 [Qc 9c] | S6 Trisana bal=92.00 bet=8.00 | S9 Latisha bal=84.00 bet=16.00 | S10 Early bal=100.00 bet=0.00
++5s br=1 btn=3 pot=50.00 blinds=1.00/2.00 board=- | S3 Hanes bal=100.00 bet=0.00 | S4 Antony bal=76.00 bet=24.00 | S5* max bal=98.00 bet=2.00 [Qc 9c] | S6 Trisana bal=92.00 bet=8.00 | S9 Latisha bal=84.00 bet=16.00 | S10 Early bal=100.00 bet=0.00
+# seat 10: fold inferred from the stack (active flag not cleared)
+# seat 3: fold inferred from the stack (active flag not cleared)
++8s br=1 btn=3 pot=50.00 blinds=1.00/2.00 board=- | S3 Hanes bal=100.00 bet=0.00 | S4 Antony bal=76.00 bet=24.00 | S5* max bal=98.00 bet=0.00 | S6 Trisana bal=92.00 bet=0.00 | S9 Latisha bal=84.00 bet=16.00 | S10 Early bal=100.00 bet=0.00
++10s br=2 btn=3 pot=74.00 blinds=1.00/2.00 board=7h Kc As | S3 Hanes bal=100.00 bet=0.00 | S4 Antony bal=76.00 bet=0.00 | S5* max bal=98.00 bet=0.00 | S6 Trisana bal=76.00 bet=0.00 | S9 Latisha bal=76.00 bet=0.00 | S10 Early bal=100.00 bet=0.00
+# seat 5: fold inferred from the stack (active flag not cleared)
++15s br=3 btn=3 pot=74.00 blinds=1.00/2.00 board=7h Kc As 3h | S3 Hanes bal=100.00 bet=0.00 | S4 Antony bal=76.00 bet=0.00 | S5* max bal=98.00 bet=0.00 | S6 Trisana bal=76.00 bet=0.00 | S9 Latisha bal=76.00 bet=0.00 | S10 Early bal=100.00 bet=0.00
++17s br=3 btn=3 pot=107.00 blinds=1.00/2.00 board=7h Kc As 3h | S3 Hanes bal=100.00 bet=0.00 | S4 Antony bal=76.00 bet=0.00 | S5* max bal=98.00 bet=0.00 | S6 Trisana bal=76.00 bet=0.00 | S9 Latisha bal=43.00 bet=33.00 | S10 Early bal=100.00 bet=0.00
++19s br=4 btn=3 pot=140.00 blinds=1.00/2.00 board=7h Kc As 3h 9s | S3 Hanes bal=100.00 bet=0.00 | S4 Antony bal=76.00 bet=0.00 | S5* max bal=98.00 bet=0.00 | S6 Trisana bal=76.00 bet=0.00 | S9 Latisha bal=43.00 bet=0.00 | S10 Early bal=100.00 bet=0.00
+# seat 4: fold inferred from the stack (active flag not cleared)
+# seat 6: fold inferred from the stack (active flag not cleared)
++21s br=4 btn=3 pot=140.00 blinds=1.00/2.00 board=7h Kc As 3h 9s | S3 Hanes bal=100.00 bet=0.00 | S4 Antony bal=76.00 bet=0.00 | S5* max bal=98.00 bet=0.00 | S6 Trisana bal=183.00 bet=0.00 | S9 Latisha bal=43.00 bet=0.00 | S10 Early bal=100.00 bet=0.00
+NEXT> +23s br=1 btn=4 pot=3.00 blinds=1.00/2.00 board=- | S3 Hanes bal=100.00 bet=0.00 | S4 Antony bal=76.00 bet=0.00 | S5* max bal=97.00 bet=1.00 [3h 4h] | S6 Trisana bal=181.00 bet=2.00 | S9 Latisha bal=43.00 bet=0.00 | S10 Early bal=100.00 bet=0.00
+

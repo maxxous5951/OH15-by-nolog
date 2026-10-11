@@ -1,0 +1,133 @@
+######## REJECTED HAND - not imported ########
+ - payout does not fit a single pot (6.00 and 18.00 collected)
+##############################################
+PokerStars Hand #179170571100: Tournament #900000001, Freeroll Hold'em No Limit - Level I (1/2) - 2026/10/11 10:01:51 ET
+Table '900000001 1' 9-max Seat #7 is the button
+Seat 1: Taia (100 in chips)
+Seat 2: Denzil (111 in chips)
+Seat 4: Anibal (92 in chips)
+Seat 5: max (100 in chips)
+Seat 7: Aramis (99 in chips)
+Seat 8: Maursio (98 in chips)
+Maursio: posts small blind 1
+Taia: posts big blind 2
+*** HOLE CARDS ***
+Dealt to max [7d 2c]
+Denzil: raises 6 to 8
+Anibal: calls 8
+max: calls 8
+Aramis: calls 8
+Maursio: calls 7
+Taia: calls 6
+*** FLOP *** [4h 9c Tc]
+Maursio: checks
+Taia: checks
+Denzil: checks
+Anibal: checks
+max: checks
+Aramis: checks
+*** TURN *** [4h 9c Tc] [9h]
+Maursio: checks
+Taia: checks
+Denzil: checks
+Anibal: checks
+max: checks
+Aramis: checks
+*** RIVER *** [4h 9c Tc 9h] [Td]
+Maursio: checks
+Taia: checks
+Denzil: checks
+Anibal: checks
+max: checks
+Aramis: checks
+*** SHOW DOWN ***
+Maursio: mucks hand
+Taia: mucks hand
+Denzil: mucks hand
+Anibal: mucks hand
+max: shows [7d 2c] (two pair, Tens and Nines)
+Aramis: mucks hand
+Taia collected 6 from pot
+Denzil collected 18 from pot
+Anibal collected 8 from pot
+max collected 8 from pot
+Aramis collected 8 from pot
+*** SUMMARY ***
+Total pot 48 | Rake 0
+Board [4h 9c Tc 9h Td]
+Seat 1: Taia (big blind) mucked
+Seat 2: Denzil mucked
+Seat 4: Anibal mucked
+Seat 5: max showed [7d 2c] and won (8) with two pair, Tens and Nines
+Seat 7: Aramis (button) mucked
+Seat 8: Maursio (small blind) mucked
+
+---- snapshots (one line per change; # = decisions of the reconstructor) ----
+START +0s br=1 btn=7 pot=11.00 blinds=1.00/2.00 board=- | S1 Taia bal=98.00 bet=2.00 | S2 Denzil bal=103.00 bet=8.00 | S4 Anibal bal=92.00 bet=0.00 | S5* max bal=100.00 bet=0.00 [7d 2c] | S7 Aramis bal=99.00 bet=0.00 | S8 Maursio bal=97.00 bet=1.00
++10s br=1 btn=7 pot=18.00 blinds=1.00/2.00 board=- | S1 Taia bal=98.00 bet=0.00 | S2 Denzil bal=103.00 bet=0.00 | S4 Anibal bal=92.00 bet=0.00 | S5* max bal=100.00 bet=0.00 | S7 Aramis bal=99.00 bet=0.00 | S8 Maursio bal=90.00 bet=0.00
++12s br=2 btn=7 pot=18.00 blinds=1.00/2.00 board=4h 9c Tc | S1 Taia bal=98.00 bet=0.00 | S2 Denzil bal=103.00 bet=0.00 | S4 Anibal bal=92.00 bet=0.00 | S5* max bal=100.00 bet=0.00 | S7 Aramis bal=99.00 bet=0.00 | S8 Maursio bal=90.00 bet=0.00
++14s br=3 btn=7 pot=18.00 blinds=1.00/2.00 board=4h 9c Tc 9h | S1 Taia bal=98.00 bet=0.00 | S2 Denzil bal=103.00 bet=0.00 | S4 Anibal bal=92.00 bet=0.00 | S5* max bal=100.00 bet=0.00 | S7 Aramis bal=99.00 bet=0.00 | S8 Maursio bal=90.00 bet=0.00
++16s br=4 btn=7 pot=18.00 blinds=1.00/2.00 board=4h 9c Tc 9h Td | S1 Taia bal=98.00 bet=0.00 | S2 Denzil bal=103.00 bet=0.00 | S4 Anibal bal=92.00 bet=0.00 | S5* max bal=100.00 bet=0.00 | S7 Aramis bal=99.00 bet=0.00 | S8 Maursio bal=90.00 bet=0.00
++18s br=4 btn=7 pot=18.00 blinds=1.00/2.00 board=4h 9c Tc 9h Td | S1 Taia bal=98.00 bet=0.00 | S2 Denzil bal=121.00 bet=0.00 | S4 Anibal bal=92.00 bet=0.00 | S5* max bal=100.00 bet=0.00 | S7 Aramis bal=99.00 bet=0.00 | S8 Maursio bal=90.00 bet=0.00
+NEXT> +22s br=1 btn=8 pot=3.00 blinds=1.00/2.00 board=- | S1 Taia bal=97.00 bet=1.00 | S2 Denzil bal=119.00 bet=2.00 | S4 Anibal bal=92.00 bet=0.00 | S5* max bal=100.00 bet=0.00 [Td As] | S7 Aramis bal=99.00 bet=0.00 | S8 Maursio bal=90.00 bet=0.00
+
+######## REJECTED HAND - not imported ########
+ - action order unclear in front of seat 5
+ - payout does not fit a single pot (9.00 and 25.00 collected)
+##############################################
+PokerStars Hand #179170573301: Tournament #900000001, Freeroll Hold'em No Limit - Level I (1/2) - 2026/10/11 10:02:13 ET
+Table '900000001 1' 9-max Seat #8 is the button
+Seat 1: Taia (98 in chips)
+Seat 2: Denzil (121 in chips)
+Seat 4: Anibal (92 in chips)
+Seat 5: max (100 in chips)
+Seat 7: Aramis (99 in chips)
+Seat 8: Maursio (90 in chips)
+Taia: posts small blind 1
+Denzil: posts big blind 2
+*** HOLE CARDS ***
+Dealt to max [Td As]
+max: raises 3 to 5
+Aramis: raises 6 to 11
+Maursio: calls 11
+Taia: calls 10
+Denzil: calls 9
+Anibal: calls 11
+max: calls 6
+*** FLOP *** [6s 5d Jc]
+Taia: checks
+Denzil: checks
+Anibal: checks
+max: checks
+Aramis: bets 15
+Taia: folds
+Denzil: folds
+Anibal: folds
+max: folds
+Maursio: folds
+Uncalled bet (15) returned to Aramis
+Taia collected 10 from pot
+Denzil collected 9 from pot
+Anibal collected 11 from pot
+Aramis collected 25 from pot
+Maursio collected 11 from pot
+*** SUMMARY ***
+Total pot 66 | Rake 0
+Board [6s 5d Jc]
+Seat 1: Taia (small blind) folded on the Flop
+Seat 2: Denzil (big blind) folded on the Flop
+Seat 4: Anibal folded on the Flop
+Seat 5: max folded on the Flop
+Seat 7: Aramis collected (25)
+Seat 8: Maursio (button) folded on the Flop
+
+---- snapshots (one line per change; # = decisions of the reconstructor) ----
+START +0s br=1 btn=8 pot=3.00 blinds=1.00/2.00 board=- | S1 Taia bal=97.00 bet=1.00 | S2 Denzil bal=119.00 bet=2.00 | S4 Anibal bal=92.00 bet=0.00 | S5* max bal=100.00 bet=0.00 [Td As] | S7 Aramis bal=99.00 bet=0.00 | S8 Maursio bal=90.00 bet=0.00
++6s br=1 btn=8 pot=8.00 blinds=1.00/2.00 board=- | S1 Taia bal=97.00 bet=1.00 | S2 Denzil bal=119.00 bet=2.00 | S4 Anibal bal=92.00 bet=0.00 | S5* max bal=95.00 bet=5.00 [Td As] | S7 Aramis bal=99.00 bet=0.00 | S8 Maursio bal=90.00 bet=0.00
++10s br=1 btn=8 pot=19.00 blinds=1.00/2.00 board=- | S1 Taia bal=97.00 bet=0.00 | S2 Denzil bal=119.00 bet=0.00 | S4 Anibal bal=92.00 bet=0.00 | S5* max bal=95.00 bet=5.00 [Td As] | S7 Aramis bal=88.00 bet=11.00 | S8 Maursio bal=90.00 bet=0.00
++13s br=1 btn=8 pot=25.00 blinds=1.00/2.00 board=- | S1 Taia bal=97.00 bet=0.00 | S2 Denzil bal=119.00 bet=0.00 | S4 Anibal bal=92.00 bet=0.00 | S5* max bal=89.00 bet=0.00 [Td As] | S7 Aramis bal=88.00 bet=0.00 | S8 Maursio bal=90.00 bet=0.00
++14s br=2 btn=8 pot=25.00 blinds=1.00/2.00 board=6s 5d Jc | S1 Taia bal=97.00 bet=0.00 | S2 Denzil bal=119.00 bet=0.00 | S4 Anibal bal=92.00 bet=0.00 | S5* max bal=89.00 bet=0.00 [Td As] | S7 Aramis bal=88.00 bet=0.00 | S8 Maursio bal=90.00 bet=0.00
++18s br=2 btn=8 pot=40.00 blinds=1.00/2.00 board=6s 5d Jc | S1 Taia bal=97.00 bet=0.00 | S2 Denzil bal=119.00 bet=0.00 | S4 Anibal bal=92.00 bet=0.00 | S5* max bal=89.00 bet=0.00 [Td As] | S7 Aramis bal=73.00 bet=15.00 | S8 Maursio bal=90.00 bet=0.00
++24s br=2 btn=8 pot=40.00 blinds=1.00/2.00 board=6s 5d Jc | S1 Taia bal=97.00 bet=0.00 | S2 Denzil bal=119.00 bet=0.00 | S4 Anibal bal=92.00 bet=0.00 | S5* max bal=89.00 bet=0.00 | S7 Aramis bal=113.00 bet=0.00 | S8 Maursio bal=90.00 bet=0.00
+NEXT> +29s br=1 btn=1 pot=3.00 blinds=1.00/2.00 board=- | S1 Taia bal=97.00 bet=0.00 | S2 Denzil bal=118.00 bet=1.00 | S4 Anibal bal=90.00 bet=2.00 | S5* max bal=89.00 bet=0.00 [7c 5h] | S7 Aramis bal=113.00 bet=0.00 | S8 Maursio bal=90.00 bet=0.00
+
