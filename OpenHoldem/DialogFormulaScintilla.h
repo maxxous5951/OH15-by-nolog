@@ -18,6 +18,8 @@
 #include "ScintillaWnd.h"
 #include "WinMgr.h"
 #include "SizerBar.h"
+#include "ModernControls.h"
+#include "ModernFrameSupport.h"
 
 // CDlgFormulaScintilla dialog
 #define	MENU_UPDATE_TIMER		1
@@ -100,7 +102,7 @@ class CDlgFormulaScintilla : public CDialog {
   CScintillaWnd	*m_pActiveScinCtrl;
   CScintillaWnd	*FindScintillaWindow(const char *name);
 
-  CButton		m_ButtonAuto;
+  modernglue::CModernButton		m_ButtonAuto;
   bool			m_wrote_fdebug_header;
   bool			m_dirty;
 
@@ -117,6 +119,15 @@ class CDlgFormulaScintilla : public CDialog {
   afx_msg void OnHandList();
   afx_msg void OnSize(UINT nType, int cx, int cy);
   afx_msg LRESULT OnWinMgr(WPARAM wp, LPARAM lp);
+  // Modern UI: frameless window, own title bar / menus, light-dark theme
+  afx_msg void OnNcCalcSize(BOOL bCalcValidRects, NCCALCSIZE_PARAMS* lpncsp);
+  afx_msg LRESULT OnNcHitTest(CPoint point);
+  afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
+  afx_msg void OnGetMinMaxInfo(MINMAXINFO* lpMMI);
+  afx_msg BOOL OnEraseBkgnd(CDC* pDC);
+  afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
+  afx_msg LRESULT OnThemeChanged(WPARAM, LPARAM);
+  afx_msg LRESULT OnSetTextMessage(WPARAM wparam, LPARAM lparam);
   afx_msg void OnTvnSelchangingFormulaTree(NMHDR *pNMHDR, LRESULT *pResult);
   afx_msg void OnTvnSelchangedFormulaTree(NMHDR *pNMHDR, LRESULT *pResult);
   afx_msg void OnTvnExpandedFormulaTree(NMHDR *pNMHDR, LRESULT *pResult);
@@ -130,7 +141,9 @@ class CDlgFormulaScintilla : public CDialog {
   afx_msg void OnNextBookmark();
   afx_msg void OnPrevBookmark();
   afx_msg BOOL OnToolTipText(UINT nID, NMHDR* pNMHDR, LRESULT* pResult); 
-  void ResizeDialogForControlBars();
+  void CreateModernHeader();
+  void ApplyModernTheme();
+  void UpdateStatusBar();
   afx_msg void OnEditUndo();
   afx_msg void OnEditRedo();
   afx_msg void OnEditCopy();
@@ -200,19 +213,21 @@ class CDlgFormulaScintilla : public CDialog {
   bool			  m_FindWholeWord;
   bool			  m_FindMatchCase;
 
-  CMenu			  m_Menu;
-  CToolBar		m_toolBar;
-  CStatusBar	m_wndStatusBar;
+  // Modern UI (replaces the classic menu, toolbar and status bar)
+  modernui::ModernHeader*    m_header;
+  modernui::ModernStatusbar* m_status;
+  CString     m_status_position;   // "Line: x, Col: y"
+  CBrush      m_brush_window, m_brush_surface;
   CTreeCtrl		m_FormulaTree;
   CTreeCtrl		m_SymbolTree;
-  CButton			m_ButtonCalc, m_FormulaCancel, m_FormulaApply;
+  modernglue::CModernButton			m_ButtonCalc, m_FormulaCancel, m_FormulaApply;
   CEdit			  m_CalcResult;
   CEdit			  m_CalcRelativeLine;
   CEdit			  m_SearchEdit;
   CWinMgr			m_winMgr;				// window manager
   CSizerBar		m_winMgrSizerBar;		// sizer bar
-  CTabCtrl		m_TabControl;
-  CTabCtrl		m_FunctionTab;
+  modernglue::CModernTabCtrl		m_TabControl;
+  modernglue::CModernTabCtrl		m_FunctionTab;
 
   HACCEL			m_hEditAccelTable;
   HACCEL			m_hDialogAccelTable;

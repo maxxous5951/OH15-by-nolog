@@ -31,6 +31,11 @@ const int kStatusbarControlId = 0xE9F1;
 // Fills menu bar, toolbar buttons, flag buttons and application icon.
 void ConfigureHeader(modernui::ModernHeader* header, CFrameWnd* frame);
 
+// Formula editor: compact header (title bar, menu bar from IDR_FORMULA_MENU,
+// toolbar). The dialog is the target of all commands.
+void ConfigureFormulaHeader(modernui::ModernHeader* header);
+modernui::Icon IconForFormulaCommand(int command_id);
+
 // The command IDs of the 20 flag buttons (ID_NUMBER0 ... ID_NUMBER19 are not consecutive).
 const int* FlagCommandIds();
 

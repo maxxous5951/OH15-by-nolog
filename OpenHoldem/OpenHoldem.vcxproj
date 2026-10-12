@@ -356,6 +356,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="ModernFrameSupport.cpp" />
+    <ClCompile Include="ModernControls.cpp" />
     <ClCompile Include="ScintillaWnd.cpp" />
     <ClCompile Include="VerifyFunctionAndListNames.cpp" />
     <ClCompile Include="COpenHoldemHopperCommunication.cpp" />
@@ -688,6 +689,7 @@
     <ClInclude Include="ModernUI\ModernTable.h" />
     <ClInclude Include="ModernUI\ModernTheme.h" />
     <ClInclude Include="ModernFrameSupport.h" />
+    <ClInclude Include="ModernControls.h" />
     <ClInclude Include="ScintillaWnd.h" />
     <ClInclude Include="VerifyFunctionAndListNames.h" />
     <ClInclude Include="DialogSAPrefs10.h" />

@@ -44,6 +44,7 @@
 #include "../scintilla/include/SciLexer.h"
 #include "../scintilla/include/Scintilla.h"
 #include "WinMgr.h"
+#include "ModernUI/ModernGfx.h"
 
 
 // CDlgFormulaScintilla dialog
@@ -56,21 +57,6 @@ CString keywords;
 #define ID_SCIN_SIZERBAR 5555
 
 static UINT WM_FINDREPLACE = ::RegisterWindowMessage(FINDMSGSTRING);
-
-static UINT m_lpaIDToolBar[] = 
-{
-	ID_FORMULA_TOOLBAR_NEW,
-	ID_FORMULA_TOOLBAR_RENAME,
-	ID_FORMULA_TOOLBAR_DELETE,
-	ID_SEPARATOR,
-	ID_FORMULA_TOOLBAR_HANDLIST
-};
-
-static UINT formula_indicators[] = 
-{
-	ID_SEPARATOR,		   // status line indicator
-	ID_INDICATOR_FORMULA_CURPOS,
-};
 
 // Window map tells CWinMgr how to position dialog controls
 BEGIN_WINDOW_MAP(ScintillaFormulaMap)
@@ -141,11 +127,14 @@ CDlgFormulaScintilla::CDlgFormulaScintilla(CWnd* pParent /*=NULL*/) :
 	m_current_edit = "";
 	m_dirty = false;
   ok_to_update_debug = false;
+  m_header = NULL;
+  m_status = NULL;
+  m_status_position = "Line: 1, Col: 1";
 
 	m_pActiveScinCtrl = NULL;
 	m_pFRDlg = NULL;
  	hUDFItem = NULL;
-	_edit_font.CreatePointFont(100, "Courier");
+	_edit_font.CreatePointFont(100, "Consolas");
 }
 
 CDlgFormulaScintilla::~CDlgFormulaScintilla() 
@@ -156,6 +145,9 @@ CDlgFormulaScintilla::~CDlgFormulaScintilla()
 			delete m_ScinArray.GetAt(i)._pWnd;
 	}
 	m_ScinArray. RemoveAll(); 
+	// Their windows are already gone at this point (see PostNcDestroy)
+	delete m_status;
+	delete m_header;
 }
 
 void CDlgFormulaScintilla::DoDataExchange(CDataExchange* pDX) 
@@ -224,6 +216,16 @@ BEGIN_MESSAGE_MAP(CDlgFormulaScintilla, CDialog)
 	ON_REGISTERED_MESSAGE(WM_WINMGR, OnWinMgr)
 	ON_WM_SIZE()
 
+	// Modern UI: frameless window, own title bar, light / dark theme
+	ON_WM_NCCALCSIZE()
+	ON_WM_NCHITTEST()
+	ON_WM_SYSCOMMAND()
+	ON_WM_GETMINMAXINFO()
+	ON_WM_ERASEBKGND()
+	ON_WM_CTLCOLOR()
+	ON_MESSAGE(modernui::WMU_THEME_CHANGED, &CDlgFormulaScintilla::OnThemeChanged)
+	ON_MESSAGE(WM_SETTEXT, &CDlgFormulaScintilla::OnSetTextMessage)
+
 	// Scintilla
 	ON_NOTIFY(TVN_SELCHANGING, IDC_SCINTILLA_FORMULA_TREE, &CDlgFormulaScintilla::OnTvnSelchangingFormulaTree)
 	ON_NOTIFY(TVN_SELCHANGED, IDC_SCINTILLA_FORMULA_TREE, &CDlgFormulaScintilla::OnTvnSelchangedFormulaTree)
@@ -273,6 +275,7 @@ CScintillaWnd *CDlgFormulaScintilla::SetupScintilla(CScintillaWnd *pWnd, const c
 	pWnd->EnableWindow(false);
 	SetStyleColors(pWnd);
   SetEquiDistantFont(pWnd);  
+	modernglue::ApplyControlTheme(pWnd->GetSafeHwnd());
 	// Apply the current word-wrap setting (also recalculates the horizontal scroll width)
 	pWnd->SetWordWrap(m_word_wrap);
 
@@ -332,27 +335,11 @@ BOOL CDlgFormulaScintilla::OnInitDialog()
 	// Create sizer bar window
 	m_winMgrSizerBar.Create(WS_VISIBLE|WS_CHILD, this, m_winMgr, ID_SCIN_SIZERBAR);
 
-	// Menu
-	m_Menu.LoadMenu(MAKEINTRESOURCE(IDR_FORMULA));
-	SetMenu(&m_Menu);
-	m_Menu.Detach();
-
-	// Toolbar
-	m_toolBar.Create(this);
-	m_toolBar.LoadToolBar(IDR_FORMULA_BAR);
-	m_toolBar.SetButtons(m_lpaIDToolBar, sizeof(m_lpaIDToolBar)/sizeof(UINT));
-	m_toolBar.SetBarStyle(m_toolBar.GetBarStyle() | CBRS_TOOLTIPS | CBRS_FLYBY | CBRS_SIZE_DYNAMIC);
-
-	// Status bar
-	m_wndStatusBar.Create(this);
-	m_wndStatusBar.SetIndicators(formula_indicators, sizeof(formula_indicators)/sizeof(UINT));
-	m_wndStatusBar.SetPaneInfo(0, ID_SEPARATOR, SBPS_STRETCH | SBPS_NOBORDERS, 0);
-	m_wndStatusBar.SetPaneInfo(1, ID_INDICATOR_FORMULA_CURPOS, NULL, 100);
-	m_wndStatusBar.SetPaneText(1, "Line: 1, Col: 1");
-
-	// Resize dialog for control bars
-	RepositionBars(AFX_IDW_CONTROLBAR_FIRST, AFX_IDW_CONTROLBAR_LAST, 0);
-	ResizeDialogForControlBars();
+	// Modern UI: title bar, menu bar, toolbar and status bar are drawn by
+	// ModernUI, the dialog never shows a native menu, toolbar or caption.
+	ModifyStyle(0, WS_CLIPCHILDREN);
+	CreateModernHeader();
+	modernui::Theme::RegisterWindow(m_hWnd);
 
 	// Accelerators
 	HINSTANCE hInst = AfxFindResourceHandle(MAKEINTRESOURCE(IDR_FORMULA_EDIT_ACC), RT_ACCELERATOR);
@@ -360,6 +347,8 @@ BOOL CDlgFormulaScintilla::OnInitDialog()
 	hInst = AfxFindResourceHandle(MAKEINTRESOURCE(IDR_FORMULA_DIALOG_ACC), RT_ACCELERATOR);
 	m_hDialogAccelTable = ::LoadAccelerators(hInst, MAKEINTRESOURCE(IDR_FORMULA_DIALOG_ACC));
 
+	m_TabControl.SetPadding(CSize(14, 4));
+	m_FunctionTab.SetPadding(CSize(14, 4));
 	m_TabControl.InsertItem(0, "Formulas");
 	m_TabControl.InsertItem(1, "Symbols");
 
@@ -389,6 +378,9 @@ BOOL CDlgFormulaScintilla::OnInitDialog()
 
 	//  Set auto button state
 	m_ButtonAuto.SetWindowText("Auto");
+	m_FormulaApply.SetPrimary(true);
+	m_SearchEdit.SendMessage(EM_SETCUEBANNER, TRUE, (LPARAM)L"Filter functions...");
+	ApplyModernTheme();
 
 	// Timer to keep menu state updated
 	SetTimer(MENU_UPDATE_TIMER, 200, 0);
@@ -398,6 +390,12 @@ BOOL CDlgFormulaScintilla::OnInitDialog()
 	SetTimer(DEBUG_UPDATE_TIMER, 1000, 0);
 
 	in_startup = false;
+	{
+		// Position header, status bar and controls for the restored size
+		CRect client;
+		GetClientRect(&client);
+		OnSize(SIZE_RESTORED, client.Width(), client.Height());
+	}
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 	// EXCEPTION: OCX Property Pages should return false
@@ -609,40 +607,6 @@ BOOL CDlgFormulaScintilla::PreTranslateMessage(MSG* pMsg)
 	return CDialog::PreTranslateMessage(pMsg);
 }
 
-void CDlgFormulaScintilla::ResizeDialogForControlBars(void) 
-{
-	// Figure out how big the control bar(s) are.
-	CRect rcClientStart;
-	CRect rcClientNow;
-
-	GetClientRect(rcClientStart);
-	RepositionBars(AFX_IDW_CONTROLBAR_FIRST, AFX_IDW_CONTROLBAR_LAST, 0, reposQuery, rcClientNow);
-
-	// Move all the controls so they are in the same relative position within the remaining client area as
-	// they would be with no control bar(s).
-	CPoint ptOffset(rcClientNow.left - rcClientStart.left, rcClientNow.top - rcClientStart.top);
-	CRect  rcChild;
-	CWnd* pwndChild = GetWindow(GW_CHILD);
-	while (pwndChild) 
-	{
-		pwndChild->GetWindowRect(rcChild);
-		ScreenToClient(rcChild);
-		rcChild.OffsetRect(ptOffset);
-		pwndChild->MoveWindow(rcChild, false);
-		pwndChild = pwndChild->GetNextWindow();
-	}
-
-	// Adjust the dialog window dimensions to make room for the control bar(s)
-	//CRect rcWindow;
-	//GetWindowRect(rcWindow);
-	//rcWindow.right += rcClientStart.Width() - rcClientNow.Width();
-	//rcWindow.bottom += rcClientStart.Height() - rcClientNow.Height();
-	//MoveWindow(rcWindow, false);
-
-	// Position the control bar(s)
-	RepositionBars(AFX_IDW_CONTROLBAR_FIRST, AFX_IDW_CONTROLBAR_LAST, 0);
-}
-
 void CDlgFormulaScintilla::OnTvnSelchangingFormulaTree(NMHDR *pNMHDR, LRESULT *pResult) 
 {
 	LPNMTREEVIEW pNMTreeView = reinterpret_cast<LPNMTREEVIEW>(pNMHDR);
@@ -726,10 +690,17 @@ void CDlgFormulaScintilla::OnTreeContextMenu(NMHDR *pNMHDR, LRESULT *pResult)
 
 	if (hItem != NULL && theTree->GetChildItem(hItem) == NULL) 
 	{
-		CMenu contextMenu;
-		contextMenu.LoadMenu(IDR_FORMULA_SYMBOL_MENU);
-		int ret = contextMenu.GetSubMenu(0)->TrackPopupMenu(TPM_RIGHTBUTTON|TPM_RETURNCMD, cursorPos.x, cursorPos.y, this);
-		if (ret == ID_FORMULA_SYMBOL_COPY) 
+		modernui::Menu contextMenu;
+		int ret = 0;
+		if (modernui::LoadPopupFromResource(AfxGetInstanceHandle(), IDR_FORMULA_SYMBOL_MENU, &contextMenu)) {
+			for (size_t k = 0; k < contextMenu.items.size(); ++k) {
+				if (!contextMenu.items[k].separator && contextMenu.items[k].id == ID_FORMULA_SYMBOL_COPY)
+					contextMenu.items[k].icon = modernui::Icon::Copy;
+			}
+			POINT screen_point = { cursorPos.x, cursorPos.y };
+			ret = modernui::TrackContextMenu(m_hWnd, contextMenu, screen_point);
+		}
+		if (ret == ID_FORMULA_SYMBOL_COPY)
 		{
 			if (OpenClipboard() && EmptyClipboard()) 
 			{
@@ -802,7 +773,6 @@ void CDlgFormulaScintilla::SetExtendedWindowTitle(CString additional_information
 void CDlgFormulaScintilla::OnTvnSelchangedFormulaTree(NMHDR *pNMHDR, LRESULT *pResult) {
   LPNMTREEVIEW pNMTreeView = reinterpret_cast<LPNMTREEVIEW>(pNMHDR);
 
-  CMenu			*edit_menu = this->GetMenu()->GetSubMenu(1);
 
   ok_to_update_debug = false;
 
@@ -1222,7 +1192,6 @@ CString CDlgFormulaScintilla::ExtractCommentFromHandList(CString HandListAsStrin
 void CDlgFormulaScintilla::OnHandList()  {
   CDlgHandList		myDialog;
   int				list_index = 0, i = 0, j = 0;
-  CMenu				*file_menu = this->GetMenu()->GetSubMenu(0);
   CString			token = "", hand = "", newstring = "";
 
   CString s = m_FormulaTree.GetItemText(m_FormulaTree.GetSelectedItem());
@@ -1261,6 +1230,7 @@ BOOL CDlgFormulaScintilla::DestroyWindow()
 	
 	// Uncheck formula button on main toolbar
 	p_flags_toolbar->CheckButton(ID_MAIN_TOOLBAR_FORMULA, false);
+	modernui::Theme::UnregisterWindow(m_hWnd);
 
 	return CDialog::DestroyWindow();
 }
@@ -1281,7 +1251,6 @@ BOOL CDlgFormulaScintilla::OnNotify(WPARAM wParam, LPARAM lParam, LRESULT* pResu
 {
 	NMHDR *phDR;
 	phDR = (NMHDR*)lParam;
-	CMenu *file_menu = this->GetMenu()->GetSubMenu(0);
 	CString s = "";
 
 	if (in_startup)  
@@ -1315,7 +1284,8 @@ BOOL CDlgFormulaScintilla::OnNotify(WPARAM wParam, LPARAM lParam, LRESULT* pResu
 
 			// update status bar
 			s.Format("Line: %d, Col: %d", m_pActiveScinCtrl->GetCurrentLine(), m_pActiveScinCtrl->GetCurrentColumn());
-			m_wndStatusBar.SetPaneText(1, s);
+			m_status_position = s;
+			UpdateStatusBar();
 
 			m_pActiveScinCtrl->UpdateUI();
 			break;
@@ -1455,13 +1425,23 @@ void CDlgFormulaScintilla::ResizeScintillaWindows()
 void CDlgFormulaScintilla::OnSize(UINT nType, int cx, int cy) 
 {
 	CDialog::OnSize(nType, cx, cy);
-	int xadj = 0;
-	int yadj = 26;  // allow buffer for toolbar on top
-	int botadj = 16;  // allow for status bar on bottom
+	if (nType == SIZE_MINIMIZED) {
+		return;
+	}
+	// Space for our own header (title bar, menu bar, toolbar) on top
+	// and for the status bar at the bottom.
+	const float scale = modernui::DpiScale(m_hWnd);
+	const int header_height = (m_header != NULL) ? m_header->Height(scale) : 0;
+	const int status_height = (m_status != NULL) ? modernui::StatusbarHeight(scale) : 0;
+	if (m_header != NULL) {
+		::MoveWindow(m_header->hwnd(), 0, 0, cx, header_height, TRUE);
+	}
+	if (m_status != NULL) {
+		::MoveWindow(m_status->hwnd(), 0, cy - status_height, cx, status_height, TRUE);
+	}
 
-	m_winMgr.CalcLayout(xadj, yadj, cx, cy-botadj, this);
+	m_winMgr.CalcLayout(0, header_height, cx, cy - status_height, this);
 	m_winMgr.SetWindowPositions(this);
-	RepositionBars(AFX_IDW_CONTROLBAR_FIRST, AFX_IDW_CONTROLBAR_LAST, 0);
 
 	ResizeScintillaWindows();
 
@@ -1586,7 +1566,6 @@ void CDlgFormulaScintilla::CopyTabContentsToFormulaSet() {
 
 void CDlgFormulaScintilla::OnBnClickedApply() {
   ClearCalcResult();
-  CMenu				*file_menu = this->GetMenu()->GetSubMenu(0);
   COpenHoldemDoc		*pDoc = COpenHoldemDoc::GetDocument();
   // If autoplayer is engaged, dis-engage it
   if (p_autoplayer->autoplayer_engaged()) {
@@ -1700,11 +1679,10 @@ void CDlgFormulaScintilla::OnViewWordWrap()
 	{
 		m_EmptyScinCtrl.SetWordWrap(m_word_wrap);
 	}
-	// Check mark in the View menu
-	CMenu *p_menu = GetMenu();
-	if (p_menu != NULL)
+	// Check mark in the View menu and on the toolbar button
+	if (m_header != NULL)
 	{
-		p_menu->CheckMenuItem(ID_FORMULA_VIEW_WORDWRAP, MF_BYCOMMAND | (m_word_wrap ? MF_CHECKED : MF_UNCHECKED));
+		m_header->SetCommandChecked(ID_FORMULA_VIEW_WORDWRAP, m_word_wrap);
 	}
 	if (m_pActiveScinCtrl != NULL)
 	{
@@ -1713,7 +1691,6 @@ void CDlgFormulaScintilla::OnViewWordWrap()
 }
 
 void CDlgFormulaScintilla::OnTimer(UINT_PTR nIDEvent) {
-	CMenu *edit_menu = this->GetMenu()->GetSubMenu(1);
 	if (nIDEvent == MENU_UPDATE_TIMER) 
 	{
 		HandleEnables(false);
@@ -1742,43 +1719,224 @@ void CDlgFormulaScintilla::SetEquiDistantFont(CScintillaWnd *pWnd) {
 	}
   
   _edit_font.DeleteObject();
-  bool success = _edit_font.CreatePointFont(100, "Courier");
+  bool success = _edit_font.CreatePointFont(100, "Consolas");
   assert(success);
 }
 
 void CDlgFormulaScintilla::SetStyleColors(CScintillaWnd *pWnd) {
-	// Default: black
-	pWnd->SetForeground(0, RGB(0x00, 0x00, 0x00));		// SCE_C_DEFAULT 0
+	// Colours follow the light / dark theme of the modern UI.
+	// Light mode keeps the classic colours of the formula editor.
+	using modernui::ToColorRef;
+	const modernui::Palette& c = modernui::Theme::Colors();
+	const bool dark = c.dark;
+	const COLORREF back          = ToColorRef(dark ? c.window_bg : c.surface);
+	const COLORREF text          = ToColorRef(c.text);
+	const COLORREF margin_back   = ToColorRef(dark ? c.surface : c.window_bg);
+	const COLORREF comment_color = dark ? ToColorRef(c.success) : RGB(0x00, 0x99, 0x00);
+	const COLORREF keyword_color = dark ? ToColorRef(c.accent)  : RGB(0x00, 0x00, 0xFF);
+	const COLORREF operator_color= dark ? ToColorRef(c.danger)  : RGB(0xFF, 0x00, 0x00);
+	const COLORREF number_color  = dark ? RGB(0xE8, 0xB8, 0x6A) : RGB(0x00, 0x00, 0x00);
+	const COLORREF string_color  = dark ? RGB(0xE5, 0x9A, 0x6B) : RGB(200, 20, 0);
+
+	// Default style first, then propagate it to all other styles
+	pWnd->SetBackground(STYLE_DEFAULT, back);
+	pWnd->SetForeground(STYLE_DEFAULT, text);
+	pWnd->SendMessage(SCI_STYLECLEARALL, 0, 0);
+
+	pWnd->SetForeground(SCE_C_DEFAULT, text);
 	// Comments: green
-	pWnd->SetForeground(1, RGB(0x00, 0x99, 0x00));		// SCE_C_COMMENT 1	  (//)
-	pWnd->SetForeground(2, RGB(0x00, 0x99, 0x00));		// SCE_C_COMMENTLINE 2  (/* */)
-	/*
-	pWnd->SetForeground(3, RGB(0x00, 0x00, 0x00));	// SCE_C_COMMENTDOC 3
-	*/
-	// Number: black
-	pWnd->SetForeground(4, RGB(0x00, 0x00, 0x00));	// SCE_C_NUMBER 4
+	pWnd->SetForeground(SCE_C_COMMENT, comment_color);			// (/* */)
+	pWnd->SetForeground(SCE_C_COMMENTLINE, comment_color);		// (//)
+	pWnd->SetForeground(SCE_C_COMMENTDOC, comment_color);
+	pWnd->SetForeground(SCE_C_COMMENTLINEDOC, comment_color);
+	// Numbers
+	pWnd->SetForeground(SCE_C_NUMBER, number_color);
 	// Keywords: blue
-	pWnd->SetForeground(5, RGB(0x00, 0x0, 0xFF));		// SCE_C_WORD 5			(keywords)
-	/*
-	pWnd->SetForeground(6, RGB(0x00, 0x00, 0x00));	// SCE_C_STRING 6
-	pWnd->SetForeground(7, RGB(0x00, 0x00, 0x00));	// SCE_C_CHARACTER 7
-	pWnd->SetForeground(8, RGB(0x00, 0x00, 0x00));	// SCE_C_UUID 8
-	pWnd->SetForeground(9, RGB(0x00, 0x00, 0x00));	// SCE_C_PREPROCESSOR 9
-	*/
+	pWnd->SetForeground(SCE_C_WORD, keyword_color);
+	// Strings
+	pWnd->SetForeground(SCE_C_STRING, string_color);
+	pWnd->SetForeground(SCE_C_CHARACTER, string_color);
+	pWnd->SetForeground(SCE_C_PREPROCESSOR, keyword_color);
 	// Operators: red
-	pWnd->SetForeground(10, RGB(0xff, 0x00, 0x00));		// SCE_C_OPERATOR 10	(operators)
-	/*
-	pWnd->SetForeground(11, RGB(0x00, 0x00, 0x00));  // SCE_C_IDENTIFIER 11
-	pWnd->SetForeground(12, RGB(0x00, 0x00, 0x00));  // SCE_C_STRINGEOL 12
-	pWnd->SetForeground(13, RGB(0x00, 0x00, 0x00));  // SCE_C_VERBATIM 13
-	pWnd->SetForeground(14, RGB(0x00, 0x00, 0x00));  // SCE_C_REGEX 14
-	pWnd->SetForeground(15, RGB(0x00, 0x00, 0x00));  // SCE_C_COMMENTLINEDOC 15
-	pWnd->SetForeground(16, RGB(0x00, 0x00, 0x00));  // SCE_C_WORD2 16
-	pWnd->SetForeground(17, RGB(0x00, 0x00, 0x00));  // SCE_C_COMMENTDOCKEYWORD 17
-	pWnd->SetForeground(18, RGB(0x00, 0x00, 0x00));  // SCE_C_COMMENTDOCKEYWORDERROR 18
-	*/
-	// Background:
-	pWnd->SetBackground(19, RGB(250, 240, 0));  // SCE_C_GLOBALCLASS 19
+	pWnd->SetForeground(SCE_C_OPERATOR, operator_color);
+	pWnd->SetForeground(SCE_C_IDENTIFIER, text);
+	// Background of the "global class" style
+	pWnd->SetBackground(SCE_C_GLOBALCLASS, dark ? RGB(0x5C, 0x4A, 0x00) : RGB(250, 240, 0));
+
+	// Margins, brace matching, caret, selection
+	pWnd->SetBackground(STYLE_LINENUMBER, margin_back);
+	pWnd->SetForeground(STYLE_LINENUMBER, ToColorRef(c.text_dim));
+	pWnd->SetBackground(STYLE_BRACELIGHT, dark ? ToColorRef(c.success_soft) : RGB(0, 255, 0));
+	pWnd->SetForeground(STYLE_BRACELIGHT, dark ? ToColorRef(c.success) : text);
+	pWnd->SetForeground(STYLE_BRACEBAD, ToColorRef(c.danger));
+	pWnd->SendMessage(SCI_SETFOLDMARGINCOLOUR, TRUE, (LPARAM)margin_back);
+	pWnd->SendMessage(SCI_SETFOLDMARGINHICOLOUR, TRUE, (LPARAM)margin_back);
+	pWnd->SendMessage(SCI_MARKERSETFORE, SC_MARKNUM_FOLDEROPEN, (LPARAM)margin_back);
+	pWnd->SendMessage(SCI_MARKERSETBACK, SC_MARKNUM_FOLDEROPEN, (LPARAM)ToColorRef(c.text_dim));
+	pWnd->SendMessage(SCI_MARKERSETFORE, SC_MARKNUM_FOLDER, (LPARAM)margin_back);
+	pWnd->SendMessage(SCI_MARKERSETBACK, SC_MARKNUM_FOLDER, (LPARAM)ToColorRef(c.text_dim));
+	pWnd->SendMessage(SCI_MARKERSETFORE, 0, (LPARAM)ToColorRef(c.accent));		// bookmark
+	pWnd->SendMessage(SCI_MARKERSETBACK, 0, (LPARAM)ToColorRef(c.accent));
+	pWnd->SendMessage(SCI_SETCARETFORE, (WPARAM)text, 0);
+	pWnd->SendMessage(SCI_SETCARETLINEVISIBLE, TRUE, 0);
+	pWnd->SendMessage(SCI_SETCARETLINEBACK, dark ? ToColorRef(c.surface) : RGB(0xF4, 0xF6, 0xFA), 0);
+	pWnd->SendMessage(SCI_SETSELBACK, TRUE, (LPARAM)ToColorRef(c.accent_soft));
+	pWnd->SendMessage(SCI_SETSELFORE, FALSE, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Modern UI
+// ---------------------------------------------------------------------------
+
+void CDlgFormulaScintilla::CreateModernHeader() {
+	m_header = new modernui::ModernHeader();
+	m_header->Create(m_hWnd, modernglue::kHeaderControlId);
+	modernglue::ConfigureFormulaHeader(m_header);
+	m_status = new modernui::ModernStatusbar();
+	m_status->Create(m_hWnd, modernglue::kStatusbarControlId);
+	CString title;
+	GetWindowText(title);
+	m_header->SetTitle(modernui::ToWide((LPCTSTR)title));
+	UpdateStatusBar();
+}
+
+void CDlgFormulaScintilla::UpdateStatusBar() {
+	if (m_status == NULL) return;
+	m_status->SetTexts(modernui::ToWide((LPCTSTR)m_status_position),
+		m_dirty ? L"Unsaved changes" : L"",
+		m_dirty ? L"" : L"Applied");
+}
+
+// Gives all controls the colours of the current theme (also called when the
+// user switches between light, dark and "follow Windows").
+void CDlgFormulaScintilla::ApplyModernTheme() {
+	const modernui::Palette& c = modernui::Theme::Colors();
+	m_brush_window.DeleteObject();
+	m_brush_window.CreateSolidBrush(modernui::ToColorRef(c.window_bg));
+	m_brush_surface.DeleteObject();
+	m_brush_surface.CreateSolidBrush(modernui::ToColorRef(c.surface));
+
+	modernglue::ApplyTreeColors(&m_FormulaTree);
+	modernglue::ApplyTreeColors(&m_SymbolTree);
+	modernglue::ApplyEditColors(&m_SearchEdit);
+	modernglue::ApplyEditColors(&m_CalcResult);
+	modernglue::ApplyEditColors(&m_CalcRelativeLine);
+
+	for (int i=0; i<m_ScinArray.GetSize(); i++) {
+		CScintillaWnd *p_scintilla = m_ScinArray[i]._pWnd;
+		if (p_scintilla != NULL && ::IsWindow(p_scintilla->GetSafeHwnd())) {
+			SetStyleColors(p_scintilla);
+			SetEquiDistantFont(p_scintilla);
+			modernglue::ApplyControlTheme(p_scintilla->GetSafeHwnd());
+			p_scintilla->Refresh();
+		}
+	}
+	RedrawWindow(NULL, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_FRAME);
+}
+
+LRESULT CDlgFormulaScintilla::OnThemeChanged(WPARAM, LPARAM) {
+	ApplyModernTheme();
+	return 0;
+}
+
+LRESULT CDlgFormulaScintilla::OnSetTextMessage(WPARAM wparam, LPARAM lparam) {
+	LRESULT result = Default();
+	if (m_header != NULL && lparam != 0) {
+		m_header->SetTitle(modernui::ToWide((const char*)lparam));
+	}
+	return result;
+}
+
+void CDlgFormulaScintilla::OnNcCalcSize(BOOL bCalcValidRects, NCCALCSIZE_PARAMS* lpncsp) {
+	// The client area is the whole window: no native caption, no native
+	// border. (WS_CAPTION / WS_THICKFRAME stay, so that Windows still provides
+	// shadow, snapping and the minimize / maximize animations.)
+	// A maximized window extends over the sizing border on all sides: take it
+	// away, so that nothing is cut off at the screen edges.
+	if (bCalcValidRects && IsZoomed()) {
+		const int padding = GetSystemMetrics(SM_CXPADDEDBORDER);
+		::InflateRect(&lpncsp->rgrc[0],
+			-(GetSystemMetrics(SM_CXSIZEFRAME) + padding),
+			-(GetSystemMetrics(SM_CYSIZEFRAME) + padding));
+	}
+}
+
+LRESULT CDlgFormulaScintilla::OnNcHitTest(CPoint point) {
+	const float scale = modernui::DpiScale(m_hWnd);
+	CRect window;
+	GetWindowRect(&window);
+	if (!IsZoomed()) {
+		// Resizing at the edges (there is no native frame any more)
+		const int border = (int)(6 * scale + 0.5f);
+		const bool left   = point.x <  window.left   + border;
+		const bool right  = point.x >= window.right  - border;
+		const bool top    = point.y <  window.top    + border;
+		const bool bottom = point.y >= window.bottom - border;
+		if (top && left)     return HTTOPLEFT;
+		if (top && right)    return HTTOPRIGHT;
+		if (bottom && left)  return HTBOTTOMLEFT;
+		if (bottom && right) return HTBOTTOMRIGHT;
+		if (left)   return HTLEFT;
+		if (right)  return HTRIGHT;
+		if (top)    return HTTOP;
+		if (bottom) return HTBOTTOM;
+	}
+	// The empty part of the title bar moves the window
+	// (the buttons of the title bar are handled by the header itself).
+	if (m_header != NULL) {
+		CPoint client = point;
+		ScreenToClient(&client);
+		if (client.y >= 0 && client.y < m_header->TitleBarHeight(scale)) {
+			return HTCAPTION;
+		}
+	}
+	return HTCLIENT;
+}
+
+void CDlgFormulaScintilla::OnSysCommand(UINT nID, LPARAM lParam) {
+	if ((nID & 0xFFF0) == SC_KEYMENU) {
+		// Alt+<letter> opens the matching menu of our own menu bar.
+		// Alt alone or Alt+Space: nothing, there is no classic system menu.
+		if (lParam != 0 && lParam != ' ' && m_header != NULL) {
+			m_header->OpenMenuByMnemonic((wchar_t)lParam);
+		}
+		return;
+	}
+	CDialog::OnSysCommand(nID, lParam);
+}
+
+void CDlgFormulaScintilla::OnGetMinMaxInfo(MINMAXINFO* lpMMI) {
+	CDialog::OnGetMinMaxInfo(lpMMI);
+	// Below this size the layout (header, trees, editor) makes no sense
+	const float scale = modernui::DpiScale(m_hWnd);
+	lpMMI->ptMinTrackSize.x = (LONG)(720 * scale);
+	lpMMI->ptMinTrackSize.y = (LONG)(480 * scale);
+}
+
+BOOL CDlgFormulaScintilla::OnEraseBkgnd(CDC* pDC) {
+	CRect client;
+	GetClientRect(&client);
+	pDC->FillSolidRect(&client, modernui::ToColorRef(modernui::Theme::Colors().window_bg));
+	return TRUE;
+}
+
+HBRUSH CDlgFormulaScintilla::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor) {
+	if (m_brush_window.GetSafeHandle() == NULL) {
+		// Very early phase of the creation: theme not applied yet
+		return CDialog::OnCtlColor(pDC, pWnd, nCtlColor);
+	}
+	const modernui::Palette& c = modernui::Theme::Colors();
+	const int id = (pWnd != NULL) ? pWnd->GetDlgCtrlID() : 0;
+	if (nCtlColor == CTLCOLOR_EDIT || id == IDC_SEARCH_ED
+			|| id == IDC_SCINTILLA_CALC_RESULT || id == IDC_SCINTILLA_CALC_LINE) {
+		// Input fields and the (read-only) calc results
+		pDC->SetTextColor(modernui::ToColorRef(c.text));
+		pDC->SetBkColor(modernui::ToColorRef(c.surface));
+		return (HBRUSH)m_brush_surface.GetSafeHandle();
+	}
+	pDC->SetTextColor(modernui::ToColorRef(c.text));
+	pDC->SetBkColor(modernui::ToColorRef(c.window_bg));
+	return (HBRUSH)m_brush_window.GetSafeHandle();
 }
 
 BOOL CDlgFormulaScintilla::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message)
@@ -1870,18 +2028,21 @@ void CDlgFormulaScintilla::HandleEnables(bool AllItems)
 		}
 	}
 
-	// Just used to clean up the code a bit.  Basically, MenuEnableDisable[false] has the flags for disabling, and MenuEnableDisable[true] for enabling
-	const int MenuEnableDisable[2] = {MF_BYPOSITION | MF_DISABLED | MF_GRAYED, MF_BYPOSITION | MF_ENABLED };
-
-	// Edit Menu that relate the state of the Scintilla window
-	CMenu *edit_menu = this->GetMenu()->GetSubMenu(1);
-	edit_menu->EnableMenuItem(EDIT_UNDO,		MenuEnableDisable[bTreeValidLeafSelected && m_current_edit.GetLength()!=0 && m_pActiveScinCtrl && m_pActiveScinCtrl->CanUndo()]);
-	edit_menu->EnableMenuItem(EDIT_REDO,		MenuEnableDisable[bTreeValidLeafSelected && m_current_edit.GetLength()!=0 && m_pActiveScinCtrl && m_pActiveScinCtrl->CanRedo()]);
-	edit_menu->EnableMenuItem(EDIT_CUT,			MenuEnableDisable[bTreeValidLeafSelected && m_current_edit.GetLength()!=0 && m_pActiveScinCtrl && m_pActiveScinCtrl->GetSelectionStart()-m_pActiveScinCtrl->GetSelectionEnd()!=0]);
-	edit_menu->EnableMenuItem(EDIT_COPY,		MenuEnableDisable[bTreeValidLeafSelected && m_current_edit.GetLength()!=0 && m_pActiveScinCtrl && m_pActiveScinCtrl->GetSelectionStart()-m_pActiveScinCtrl->GetSelectionEnd()!=0]);
-	edit_menu->EnableMenuItem(EDIT_PASTE,		MenuEnableDisable[bTreeValidLeafSelected && m_current_edit.GetLength()!=0 && m_pActiveScinCtrl && m_pActiveScinCtrl->CanPaste()]);
-	edit_menu->EnableMenuItem(EDIT_DELETE_TEXT,	MenuEnableDisable[bTreeValidLeafSelected && m_current_edit.GetLength()!=0 && m_pActiveScinCtrl && m_pActiveScinCtrl->GetSelectionStart()-m_pActiveScinCtrl->GetSelectionEnd()!=0]);
-	edit_menu->EnableMenuItem(EDIT_SELECTALL,	MenuEnableDisable[bTreeValidLeafSelected && m_current_edit.GetLength()!=0 && m_pActiveScinCtrl]);
+	if (m_header == NULL) {
+		return;
+	}
+	// Enable / disable by command-ID: applies to the toolbar buttons and to
+	// the items of the menus at the same time.
+	const bool has_text = bTreeValidLeafSelected && m_current_edit.GetLength()!=0 && m_pActiveScinCtrl;
+	const bool has_selection = has_text && m_pActiveScinCtrl->GetSelectionStart()-m_pActiveScinCtrl->GetSelectionEnd()!=0;
+	// Edit commands that relate to the state of the Scintilla window
+	m_header->SetCommandEnabled(ID_FORMULA_EDIT_UNDO,        has_text && m_pActiveScinCtrl->CanUndo());
+	m_header->SetCommandEnabled(ID_FORMULA_EDIT_REDO,        has_text && m_pActiveScinCtrl->CanRedo());
+	m_header->SetCommandEnabled(ID_FORMULA_EDIT_CUT,         has_selection);
+	m_header->SetCommandEnabled(ID_FORMULA_EDIT_COPY,        has_selection);
+	m_header->SetCommandEnabled(ID_FORMULA_EDIT_PASTE,       has_text && m_pActiveScinCtrl->CanPaste());
+	m_header->SetCommandEnabled(ID_FORMULA_EDIT_DELETE_TEXT, has_selection);
+	m_header->SetCommandEnabled(ID_FORMULA_EDIT_SELECTALL,   has_text);
 	if (!AllItems)
 		return;
 
@@ -1891,56 +2052,30 @@ void CDlgFormulaScintilla::HandleEnables(bool AllItems)
 	m_ButtonCalc.EnableWindow(bTreeValidLeafSelected && !bNotesActive);
 	m_ButtonAuto.EnableWindow(bDebugActive);
 
-	// File Menu
-	CMenu *file_menu = this->GetMenu()->GetSubMenu(0);
-	file_menu->EnableMenuItem(0, MenuEnableDisable[m_dirty]);
-	file_menu->EnableMenuItem(1, MenuEnableDisable[m_dirty]);
-	file_menu->EnableMenuItem(2, MenuEnableDisable[true]);
-
-	// File Menu Buttons
+	// File menu and buttons
+	m_header->SetCommandEnabled(ID_FORMULA_FILE_APPLY,  m_dirty);
+	m_header->SetCommandEnabled(ID_FILE_SAVE,           m_dirty);
+	m_header->SetCommandEnabled(ID_FORMULA_FILE_CANCEL, true);
 	m_FormulaApply.EnableWindow(m_dirty);
 	m_FormulaCancel.EnableWindow(true);
 
 	bool ModifiableSelected = (bTreeValidLeafSelected && iWhichTypeSelected>0);
 
-	// Edit Menu Remaining Items
-	edit_menu->EnableMenuItem(EDIT_NEW,			MenuEnableDisable[bFormulaVisible&&iWhichTypeSelected>0]);
-	edit_menu->EnableMenuItem(EDIT_RENAME,		MenuEnableDisable[bFormulaVisible&&ModifiableSelected]);
-	edit_menu->EnableMenuItem(EDIT_DELETE,		MenuEnableDisable[bFormulaVisible&&ModifiableSelected]);
+	// Edit menu and toolbar: remaining items
+	m_header->SetCommandEnabled(ID_FORMULA_EDIT_NEW,       bFormulaVisible&&iWhichTypeSelected>0);
+	m_header->SetCommandEnabled(ID_FORMULA_EDIT_RENAME,    bFormulaVisible&&ModifiableSelected);
+	m_header->SetCommandEnabled(ID_FORMULA_EDIT_DELETE,    bFormulaVisible&&ModifiableSelected);
+	m_header->SetCommandEnabled(ID_FORMULA_EDIT_FIND,      bTreeValidLeafSelected);
+	m_header->SetCommandEnabled(ID_FORMULA_EDIT_FIND_NEXT, bTreeValidLeafSelected && bFindInfo);
+	m_header->SetCommandEnabled(ID_FORMULA_EDIT_FIND_PREV, bTreeValidLeafSelected && bFindInfo);
+	m_header->SetCommandEnabled(ID_FORMULA_EDIT_HANDLIST,  bTreeValidLeafSelected && iWhichTypeSelected==1);
 
-	edit_menu->EnableMenuItem(EDIT_FIND,		MenuEnableDisable[bTreeValidLeafSelected]);
-	edit_menu->EnableMenuItem(EDIT_FIND_NEXT,	MenuEnableDisable[bTreeValidLeafSelected && bFindInfo]);
-	edit_menu->EnableMenuItem(EDIT_FIND_PREV,	MenuEnableDisable[bTreeValidLeafSelected && bFindInfo]);
+	// View menu
+	m_header->SetCommandEnabled(ID_FORMULA_VIEW_WORDWRAP, true);
+	m_header->SetCommandChecked(ID_FORMULA_VIEW_WORDWRAP, m_word_wrap);
 
-	edit_menu->EnableMenuItem(EDIT_UNDO,		MenuEnableDisable[bEditorWindowActive]);
-	edit_menu->EnableMenuItem(EDIT_REDO,		MenuEnableDisable[bEditorWindowActive]);
-	edit_menu->EnableMenuItem(EDIT_CUT,			MenuEnableDisable[bEditorWindowActive]);
-	edit_menu->EnableMenuItem(EDIT_COPY,		MenuEnableDisable[bEditorWindowActive]);
-	edit_menu->EnableMenuItem(EDIT_PASTE,		MenuEnableDisable[bEditorWindowActive]);
-	edit_menu->EnableMenuItem(EDIT_DELETE_TEXT,	MenuEnableDisable[bEditorWindowActive]);
-	edit_menu->EnableMenuItem(EDIT_SELECTALL,	MenuEnableDisable[bEditorWindowActive]);
-
-	edit_menu->EnableMenuItem(EDIT_SETTINGS,	MenuEnableDisable[true]);
-	edit_menu->EnableMenuItem(EDIT_HANDLIST,	MenuEnableDisable[bTreeValidLeafSelected && iWhichTypeSelected==1]);
-
-	// Similar to MenuEnableDisable, this is used to make the code more readable (index by true/false)
-	const int MenuCheckUncheck[2] = {MF_BYPOSITION | MF_UNCHECKED, MF_BYPOSITION | MF_CHECKED };
-
-	// View Menu
-	CMenu *view_menu = this->GetMenu()->GetSubMenu(2);
-
-		// Debug Toolbar Items
-	m_toolBar.GetToolBarCtrl().EnableButton(ID_FORMULA_TOOLBAR_EQUAL_LEFT, bDebugActive);
-	m_toolBar.GetToolBarCtrl().EnableButton(ID_FORMULA_TOOLBAR_EQUAL_RIGHT, bDebugActive);
-
-	// Set toolbar properties
-	m_toolBar.GetToolBarCtrl().EnableButton(ID_FORMULA_TOOLBAR_NEW,	bFormulaVisible&&iWhichTypeSelected>0);
-	m_toolBar.GetToolBarCtrl().EnableButton(ID_FORMULA_TOOLBAR_RENAME,	bFormulaVisible&&ModifiableSelected);
-	m_toolBar.GetToolBarCtrl().EnableButton(ID_FORMULA_TOOLBAR_DELETE,	bFormulaVisible&&ModifiableSelected);
-	m_toolBar.GetToolBarCtrl().EnableButton(ID_FORMULA_TOOLBAR_SETTINGS, true);
-	m_toolBar.GetToolBarCtrl().EnableButton(ID_FORMULA_TOOLBAR_HANDLIST, bTreeValidLeafSelected && iWhichTypeSelected==1);
+	UpdateStatusBar();
 }
-
 
 HTREEITEM CDlgFormulaScintilla::AddSymbolSubTitle(HTREEITEM parentItem, const char *title, const char *description)
 {

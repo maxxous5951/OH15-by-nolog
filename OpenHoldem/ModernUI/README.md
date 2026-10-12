@@ -13,6 +13,9 @@ previewed without the rest of OpenHoldem. Only `../ModernFrameSupport.*` knows M
 | `ModernHeader` | Title bar, menu bar, toolbar, flags, status bar |
 | `ModernTable` | Poker table renderer, fed by a plain `TableView` snapshot |
 
+MFC glue (outside this folder): `../ModernFrameSupport.*` (menus, toolbars of the main window and of the
+formula editor) and `../ModernControls.*` (themed buttons, tab control, tree / edit colours).
+
 ## Preview without OpenHoldem (Linux + Wine, or Windows)
 
 ```
@@ -24,8 +27,9 @@ wine window_preview.exe dark   # or: light, optionally "nomenu"
 
 ## Known limitations (milestone 1)
 
-* Only the main window is converted. Formula editor, preferences and other
-  dialogs, ManualMode, OpenScrape and OHReplay still use native menus/controls.
+* The main window and the formula editor are converted. Preferences and other
+  dialogs (New / Rename / Hand list, Find & Replace), ManualMode, OpenScrape and OHReplay
+  still use native menus/controls.
 * Popups are single level (no sub-menus); none of the current menus needs them.
 * No tooltips on the toolbar yet.
 * The process is still DPI-unaware (as before, to not change window-scraping

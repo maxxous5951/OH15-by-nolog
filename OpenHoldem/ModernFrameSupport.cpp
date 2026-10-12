@@ -191,4 +191,62 @@ void ConfigureHeader(ModernHeader* header, CFrameWnd* frame) {
   }
 }
 
+Icon IconForFormulaCommand(int id) {
+  switch (id) {
+    case ID_FORMULA_FILE_APPLY:       return Icon::Check;
+    case ID_FILE_SAVE:                return Icon::Save;
+    case ID_FORMULA_FILE_CANCEL:      return Icon::Close;
+    case ID_FORMULA_EDIT_NEW:         return Icon::Plus;
+    case ID_FORMULA_EDIT_RENAME:      return Icon::Rename;
+    case ID_FORMULA_EDIT_DELETE:      return Icon::Delete;
+    case ID_FORMULA_EDIT_UNDO:        return Icon::Undo;
+    case ID_FORMULA_EDIT_REDO:        return Icon::Redo;
+    case ID_FORMULA_EDIT_FIND:        return Icon::Search;
+    case ID_FORMULA_EDIT_CUT:         return Icon::Cut;
+    case ID_FORMULA_EDIT_COPY:        return Icon::Copy;
+    case ID_FORMULA_EDIT_PASTE:       return Icon::Paste;
+    case ID_FORMULA_EDIT_DELETE_TEXT: return Icon::Delete;
+    case ID_FORMULA_EDIT_HANDLIST:    return Icon::Files;
+    case ID_FORMULA_VIEW_WORDWRAP:    return Icon::WrapText;
+    default: break;
+  }
+  return IconForCommand(id);   // help menu entries are shared with the main window
+}
+
+void ConfigureFormulaHeader(ModernHeader* header) {
+  header->SetCompact(true);
+  header->SetMaximizeButton(true);
+
+  MenuBar bar;
+  LoadMenuBarFromResource(AfxGetInstanceHandle(), IDR_FORMULA_MENU, &bar);
+  header->SetMenuBar(bar);
+  header->SetCommandIconResolver(&IconForFormulaCommand);
+
+  // Toolbar: the four buttons of the classic formula toolbar (New, Rename,
+  // Delete, Hand list) plus the most used commands of the menus.
+  std::vector<ToolButtonDef> tools;
+  ToolButtonDef d;
+  #define OH_TOOL(ID, ICON, LABEL, CHECKABLE, SUCCESS, GROUP) \
+    d.id = ID; d.icon = ICON; d.label = LABEL; d.checkable = CHECKABLE; \
+    d.success_tint = SUCCESS; d.group_start = GROUP; tools.push_back(d);
+  OH_TOOL(ID_FORMULA_FILE_APPLY,      Icon::Check,    L"Apply",     false, true,  false)
+  OH_TOOL(ID_FORMULA_EDIT_NEW,        Icon::Plus,     L"New",       false, false, true)
+  OH_TOOL(ID_FORMULA_EDIT_RENAME,     Icon::Rename,   L"Rename",    false, false, false)
+  OH_TOOL(ID_FORMULA_EDIT_DELETE,     Icon::Delete,   L"Delete",    false, false, false)
+  OH_TOOL(ID_FORMULA_EDIT_HANDLIST,   Icon::Files,    L"Hand list", false, false, false)
+  OH_TOOL(ID_FORMULA_EDIT_UNDO,       Icon::Undo,     L"Undo",      false, false, true)
+  OH_TOOL(ID_FORMULA_EDIT_REDO,       Icon::Redo,     L"Redo",      false, false, false)
+  OH_TOOL(ID_FORMULA_EDIT_FIND,       Icon::Search,   L"Find",      false, false, false)
+  OH_TOOL(ID_FORMULA_VIEW_WORDWRAP,   Icon::WrapText, L"Word wrap", true,  false, true)
+  #undef OH_TOOL
+  header->SetToolbarButtons(tools);
+
+  HICON icon = (HICON)::LoadImage(AfxGetInstanceHandle(), MAKEINTRESOURCE(IDI_ICON1),
+                                  IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR);
+  if (icon != NULL) {
+    header->SetAppIcon(icon);
+    DestroyIcon(icon);
+  }
+}
+
 }  // namespace modernglue

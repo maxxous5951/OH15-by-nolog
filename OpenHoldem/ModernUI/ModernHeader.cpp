@@ -43,7 +43,7 @@ struct ScreenGraphics {
 ModernHeader::ModernHeader()
     : hwnd_(nullptr), parent_(nullptr), scale_(1.0f), width_(0), relayout_(true),
       connected_(false), app_icon_(nullptr), title_h_(0), menu_h_(0), tool_h_(0), flags_h_(0),
-      hot_(-1), pressed_(-1), open_menu_(-1), tracking_leave_(false) {
+      compact_(false), has_maximize_(false), hot_(-1), pressed_(-1), open_menu_(-1), tracking_leave_(false) {
   InitializeCriticalSection(&lock_);
   GdiplusAcquire();
   Rebuild();
@@ -128,6 +128,7 @@ void ModernHeader::Rebuild() {
   }
   elements_.push_back(make(kTheme, 0));
   elements_.push_back(make(kMinimize, 0));
+  if (has_maximize_) elements_.push_back(make(kMaximize, 0));
   elements_.push_back(make(kClose, 0));
   // Keep the state of buttons that already existed.
   for (size_t i = 0; i < elements_.size(); ++i) {
@@ -138,9 +139,31 @@ void ModernHeader::Rebuild() {
       }
     }
   }
+  // States set by command id (they may have been set before the buttons existed)
+  for (size_t i = 0; i < elements_.size(); ++i) {
+    if (elements_[i].kind != kTool) continue;
+    std::map<int, bool>::const_iterator en = cmd_enabled_.find(elements_[i].id);
+    if (en != cmd_enabled_.end()) elements_[i].enabled = en->second;
+    std::map<int, bool>::const_iterator ch = cmd_checked_.find(elements_[i].id);
+    if (ch != cmd_checked_.end()) elements_[i].checked = ch->second;
+  }
   hot_ = pressed_ = open_menu_ = -1;
   relayout_ = true;
   Invalidate();
+}
+
+void ModernHeader::SetCommandEnabled(int id, bool enabled) {
+  AutoLock lock(&lock_);
+  cmd_enabled_[id] = enabled;
+  Element* e = FindElement(kTool, id);
+  if (e && e->enabled != enabled) { e->enabled = enabled; Invalidate(); }
+}
+
+void ModernHeader::SetCommandChecked(int id, bool checked) {
+  AutoLock lock(&lock_);
+  cmd_checked_[id] = checked;
+  Element* e = FindElement(kTool, id);
+  if (e && e->checked != checked) { e->checked = checked; Invalidate(); }
 }
 
 ModernHeader::Element* ModernHeader::FindElement(Kind kind, int id) {
@@ -197,7 +220,7 @@ bool ModernHeader::IsButtonChecked(int id) const {
 }
 
 int ModernHeader::Height(float s) const {
-  return (int)((38 + 38 + 62 + 38) * s + 0.5f);
+  return (int)((38 + 38 + 62 + (compact_ ? 0 : 38)) * s + 0.5f);
 }
 
 int ModernHeader::TitleBarHeight(float s) const {
@@ -212,7 +235,7 @@ void ModernHeader::Layout(Graphics& g, int width, float s) {
   AutoLock lock(&lock_);
   scale_ = s;
   width_ = width;
-  title_h_ = 38 * s; menu_h_ = 38 * s; tool_h_ = 62 * s; flags_h_ = 38 * s;
+  title_h_ = 38 * s; menu_h_ = 38 * s; tool_h_ = 62 * s; flags_h_ = compact_ ? 0.0f : 38 * s;
   const float y1 = title_h_, y2 = y1 + menu_h_, y3 = y2 + tool_h_;
   separators_.clear();
 
@@ -220,15 +243,21 @@ void ModernHeader::Layout(Graphics& g, int width, float s) {
   float x = (float)width;
   Element* close = FindElement(kClose, 0);
   Element* minimize = FindElement(kMinimize, 0);
+  Element* maximize = FindElement(kMaximize, 0);
   Element* theme = FindElement(kTheme, 0);
   if (close)    close->rect = RectF(x - 46 * s, 0, 46 * s, title_h_);
   x -= 46 * s;
+  if (maximize) { maximize->rect = RectF(x - 46 * s, 0, 46 * s, title_h_); x -= 46 * s; }
   if (minimize) minimize->rect = RectF(x - 46 * s, 0, 46 * s, title_h_);
   x -= 46 * s + 12 * s;
-  std::wstring pill = connected_ ? L"Connected" : L"Not connected";
-  float pill_w = MeasureLabel(g, pill, GetFont(12.0f * s, false)) + 34 * s;
-  pill_rect_ = RectF(x - pill_w, (title_h_ - 24 * s) / 2, pill_w, 24 * s);
-  x -= pill_w + 8 * s;
+  if (compact_) {
+    pill_rect_ = RectF(0, 0, 0, 0);
+  } else {
+    std::wstring pill = connected_ ? L"Connected" : L"Not connected";
+    float pill_w = MeasureLabel(g, pill, GetFont(12.0f * s, false)) + 34 * s;
+    pill_rect_ = RectF(x - pill_w, (title_h_ - 24 * s) / 2, pill_w, 24 * s);
+    x -= pill_w + 8 * s;
+  }
   if (theme) theme->rect = RectF(x - 30 * s, (title_h_ - 30 * s) / 2, 30 * s, 30 * s);
   x -= 30 * s + 10 * s;
   title_text_rect_ = RectF(38 * s, 0, (x - 38 * s) > 0 ? (x - 38 * s) : 0, title_h_);
@@ -278,7 +307,7 @@ void ModernHeader::Layout(Graphics& g, int width, float s) {
     tx += w + 2 * s;
   }
 
-  // --- flags ---
+  // --- flags (none in compact mode: no kFlag elements exist there) ---
   flags_label_rect_ = RectF(16 * s, y3, 46 * s, flags_h_);
   int n = 0;
   for (size_t i = 0; i < elements_.size(); ++i) {
@@ -301,6 +330,7 @@ void ModernHeader::PaintTitleBar(Graphics& g, const Palette& c) {
     g.DrawImage(app_icon_, RectF(14 * s, (title_h_ - 16 * s) / 2, 16 * s, 16 * s));
   }
   DrawLabel(g, title_, GetFont(13.0f * s, true), title_text_rect_, Rgba(c.text), HAlign::Left, true);
+  if (compact_) return;
   // Connection pill
   FillRoundRect(g, pill_rect_, pill_rect_.Height / 2, Rgba(connected_ ? c.success_soft : c.surface_hover));
   DWORD pill_fg = connected_ ? c.success : c.text_dim;
@@ -357,6 +387,25 @@ void ModernHeader::PaintElement(Graphics& g, const Palette& c, size_t index) {
                RectF(r.X + (r.Width - icon) / 2, r.Y + (r.Height - icon) / 2, icon, icon), Rgba(c.text), 2.0f);
       break;
     }
+    case kMaximize: {
+      if (hot) {
+        SolidBrush brush(Rgba(c.surface_hover));
+        g.FillRectangle(&brush, r);
+      }
+      const float cx = r.X + r.Width / 2, cy = r.Y + r.Height / 2, k = 5.0f * s;
+      Pen pen(Rgba(c.text), 1.4f * s);
+      if (parent_ != nullptr && IsZoomed(parent_)) {
+        // "restore": two overlapping squares
+        g.DrawRectangle(&pen, cx - k, cy - k + 2 * s, 2 * k - 2 * s, 2 * k - 2 * s);
+        g.DrawLine(&pen, cx - k + 2 * s, cy - k + 2 * s, cx - k + 2 * s, cy - k);
+        g.DrawLine(&pen, cx - k + 2 * s, cy - k, cx + k, cy - k);
+        g.DrawLine(&pen, cx + k, cy - k, cx + k, cy + k - 2 * s);
+        g.DrawLine(&pen, cx + k, cy + k - 2 * s, cx + k - 2 * s, cy + k - 2 * s);
+      } else {
+        g.DrawRectangle(&pen, cx - k, cy - k, 2 * k, 2 * k);
+      }
+      break;
+    }
     case kMinimize:
     case kClose: {
       bool is_close = (e.kind == kClose);
@@ -390,8 +439,10 @@ void ModernHeader::Paint(Graphics& g, int width, float s) {
   }
   // Flags row
   const float y3 = y2 + tool_h_;
-  g.DrawLine(&sep, 0.0f, y3, (float)width, y3);
-  DrawLabel(g, L"Flags", GetFont(12.0f * s, false), flags_label_rect_, Rgba(c.text_dim), HAlign::Left, false);
+  if (!compact_) {
+    g.DrawLine(&sep, 0.0f, y3, (float)width, y3);
+    DrawLabel(g, L"Flags", GetFont(12.0f * s, false), flags_label_rect_, Rgba(c.text_dim), HAlign::Left, false);
+  }
   // Bottom border
   float bottom = y3 + flags_h_ - 0.5f;
   g.DrawLine(&sep, 0.0f, bottom, (float)width, bottom);
@@ -442,6 +493,7 @@ void ModernHeader::Activate(int i) {
     }
     case kTheme:    ShowThemeMenu(); break;
     case kMinimize: PostMessageW(parent_, WM_SYSCOMMAND, SC_MINIMIZE, 0); break;
+    case kMaximize: PostMessageW(parent_, WM_SYSCOMMAND, IsZoomed(parent_) ? SC_RESTORE : SC_MAXIMIZE, 0); break;
     case kClose:    PostMessageW(parent_, WM_SYSCOMMAND, SC_CLOSE, 0); break;
     default: break;
   }
@@ -469,6 +521,14 @@ void ModernHeader::OpenMenu(int menu_index, bool select_first) {
     POINT p = { (LONG)e->rect.X, (LONG)(e->rect.Y + e->rect.Height) };
     ClientToScreen(hwnd_, &p);
     if (before_show_) before_show_(menu);
+    for (size_t k = 0; k < menu.items.size(); ++k) {
+      MenuItem& item = menu.items[k];
+      if (item.separator) continue;
+      std::map<int, bool>::const_iterator en = cmd_enabled_.find(item.id);
+      if (en != cmd_enabled_.end()) item.enabled = en->second;
+      std::map<int, bool>::const_iterator ch = cmd_checked_.find(item.id);
+      if (ch != cmd_checked_.end()) item.checked = ch->second;
+    }
     if (icon_for_) {
       for (size_t k = 0; k < menu.items.size(); ++k)
         if (!menu.items[k].separator && menu.items[k].icon == Icon::None) menu.items[k].icon = icon_for_(menu.items[k].id);
@@ -540,6 +600,13 @@ LRESULT ModernHeader::HandleMessage(HWND hwnd, UINT msg, WPARAM wparam, LPARAM l
       ScreenToClient(hwnd, &p);
       // The empty part of the title bar belongs to the frame (dragging).
       if (IsDragArea(p.x, p.y)) return HTTRANSPARENT;
+      // So do the outer pixels left and right: resizable frames (formula
+      // editor) have their sizing border there.
+      RECT rc;
+      GetClientRect(hwnd, &rc);
+      const int edge = (int)(5 * DpiScale(hwnd) + 0.5f);
+      const bool resizable = (GetWindowLongPtrW(parent_, GWL_STYLE) & WS_THICKFRAME) != 0;
+      if (resizable && (p.x < edge || p.x >= rc.right - edge)) return HTTRANSPARENT;
       return HTCLIENT;
     }
     case WM_PAINT: {
@@ -675,6 +742,17 @@ LRESULT CALLBACK ModernStatusbar::WndProc(HWND hwnd, UINT msg, WPARAM wparam, LP
   if (!self) return DefWindowProcW(hwnd, msg, wparam, lparam);
   switch (msg) {
     case WM_ERASEBKGND: return 1;
+    case WM_NCHITTEST: {
+      // Outer pixels belong to the frame (sizing border of resizable windows).
+      POINT p = { (short)LOWORD(lparam), (short)HIWORD(lparam) };
+      ScreenToClient(hwnd, &p);
+      RECT rc;
+      GetClientRect(hwnd, &rc);
+      const int edge = (int)(5 * DpiScale(hwnd) + 0.5f);
+      const bool resizable = (GetWindowLongPtrW(GetParent(hwnd), GWL_STYLE) & WS_THICKFRAME) != 0;
+      if (resizable && (p.x < edge || p.x >= rc.right - edge || p.y >= rc.bottom - edge)) return HTTRANSPARENT;
+      return HTCLIENT;
+    }
     case WM_PAINT: {
       BufferedPaint paint(hwnd);
       Paint(paint.G(), paint.Width(), paint.Height(), DpiScale(hwnd), Theme::Colors(),

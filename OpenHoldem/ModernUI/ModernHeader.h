@@ -21,6 +21,7 @@
 #define INC_MODERNUI_HEADER_H
 
 #include "ModernMenu.h"
+#include <map>
 
 namespace modernui {
 
@@ -49,6 +50,14 @@ class ModernHeader {
   void SetAppIcon(HICON icon);
   void SetToolbarButtons(const std::vector<ToolButtonDef>& defs);
   void SetFlagCommandIds(const int* ids, int count);
+  // Compact mode (secondary windows such as the formula editor): no flag row,
+  // no connection pill. Optional maximize button next to minimize.
+  void SetCompact(bool compact) { compact_ = compact; relayout_ = true; Invalidate(); }
+  void SetMaximizeButton(bool enabled) { has_maximize_ = enabled; Rebuild(); }
+  // Enable / check state by command id. Applies to toolbar buttons AND to the
+  // items of the menus (re-applied every time a menu opens).
+  void SetCommandEnabled(int id, bool enabled);
+  void SetCommandChecked(int id, bool checked);
 
   // ---- state ----
   void SetTitle(const std::wstring& title);
@@ -70,7 +79,7 @@ class ModernHeader {
   void Paint(Gdiplus::Graphics& g, int width, float scale);
 
  private:
-  enum Kind { kMenu, kTool, kFlag, kTheme, kMinimize, kClose };
+  enum Kind { kMenu, kTool, kFlag, kTheme, kMinimize, kMaximize, kClose };
   struct Element {
     Kind kind;
     int  id;           // command id (tool/flag) or menu index
@@ -115,6 +124,8 @@ class ModernHeader {
   std::vector<float> separators_;      // x positions of the toolbar separators
   float title_h_, menu_h_, tool_h_, flags_h_;
 
+  bool compact_, has_maximize_;
+  std::map<int, bool> cmd_enabled_, cmd_checked_;
   int hot_, pressed_, open_menu_;
   bool tracking_leave_;
   std::function<void(Menu&)> before_show_;
