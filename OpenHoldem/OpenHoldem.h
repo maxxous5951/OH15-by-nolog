@@ -41,6 +41,8 @@ class COpenHoldemApp : public CWinApp {
 	virtual int ExitInstance();
  public:
 	void StoreLastRecentlyUsedFileList();
+	// Public read-only access to the protected CWinApp::m_pRecentFileList
+	CRecentFileList* GetRecentFileList() const { return m_pRecentFileList; }
  private:
 	void LoadLastRecentlyUsedFileList();
 	void OpenLastRecentlyUsedFile();

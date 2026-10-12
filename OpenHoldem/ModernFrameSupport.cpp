@@ -14,6 +14,7 @@
 #include "stdafx.h"
 #include "ModernFrameSupport.h"
 
+#include "OpenHoldem.h"
 #include "resource.h"
 
 namespace modernglue {
@@ -65,7 +66,7 @@ void FillRecentFiles(Menu* menu) {
     int id = menu->items[i].id;
     if (id > ID_FILE_MRU_FILE1 && id <= ID_FILE_MRU_FILE16) menu->items.erase(menu->items.begin() + i);
   }
-  CRecentFileList* list = AfxGetApp()->m_pRecentFileList;
+  CRecentFileList* list = theApp.GetRecentFileList();
   if (list == NULL || list->GetSize() == 0 || (*list)[0].IsEmpty()) {
     menu->items[pos].text = L"Recent files";
     menu->items[pos].enabled = false;
