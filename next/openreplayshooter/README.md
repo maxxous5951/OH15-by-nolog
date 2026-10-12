@@ -14,6 +14,10 @@ pip install -e ".[gui,dev]"      # gui = PySide6 (Qt 6), dev = pytest, ruff
 
 The command line works without the `gui` extra.
 
+**Windows, no command line:** double-click `lancer.bat`. On first run it creates `.venv`,
+installs the project with the `gui` extra, then opens the interface; later runs open it
+directly. It needs Python 3.11+ with the `py` launcher.
+
 ## Graphical interface
 
 ```
