@@ -19,6 +19,7 @@
 #include "WinMgr.h"
 #include "SizerBar.h"
 #include "ModernControls.h"
+#include "ModernFindBar.h"
 #include "ModernFrameSupport.h"
 
 // CDlgFormulaScintilla dialog
@@ -201,15 +202,21 @@ class CDlgFormulaScintilla : public CDialog {
   void HandleEnables(bool All);
 
   // Find/Replace Support Functions and Variables
+  // (themed find bar in the editor instead of the native find dialog)
   afx_msg void OnFindReplaceDlg();
-  afx_msg LONG OnFindReplace(WPARAM wParam, LPARAM lParam);
   afx_msg void OnFindNext();
   afx_msg void OnFindPrev();
 	void CloseFindReplaceDialog();
+	void CreateFindBar();
+	void PositionFindBar();
+	void BringFindBarToTop();
 
-	void DoFind(bool DirDown);
+	bool DoFind(bool forward, bool incremental = false, bool take_focus = true);
 
-  CFindReplaceDialog *m_pFRDlg;
+	// Auto-completion of symbols, functions and hand lists while typing
+	void ShowAutoComplete(CScintillaWnd *pWnd, bool force);
+
+  modernglue::CFindBar *m_pFindBar;
   CString			m_FindLastSearch;
   bool			  m_FindWholeWord;
   bool			  m_FindMatchCase;

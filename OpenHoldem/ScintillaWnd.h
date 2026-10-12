@@ -147,6 +147,15 @@ public:
    virtual long GetSelectionEnd();
 // get selected text
    virtual CString GetSelectedText();
+// Find bar: select the next / previous match (with wrap-around). Does not take the focus unless asked to.
+   virtual bool FindAndSelect(LPCSTR szText, bool bMatchCase, bool bWholeWord, bool bForward,
+                              bool bFromSelectionStart, bool bTakeFocus);
+// Find bar: number of matches and 1-based index of the match that is currently selected (0 if none)
+   virtual void CountMatches(LPCSTR szText, bool bMatchCase, bool bWholeWord, int* pTotal, int* pCurrent);
+// Find bar: replace the selection if it is a match of szFind; returns true if it got replaced
+   virtual bool ReplaceSelectionIfMatch(LPCSTR szFind, LPCSTR szReplace, bool bMatchCase);
+// Find bar: replace all matches in the whole document (one undo step); returns number of replacements
+   virtual int ReplaceAllInDocument(LPCSTR szFind, LPCSTR szReplace, bool bMatchCase, bool bWholeWord);
 // replace all in buffer or selection
    virtual int ReplaceAll(LPCSTR szFind, LPCSTR szReplace, bool bSelection = true);
 // enable / disable word wrap (line wrapping)

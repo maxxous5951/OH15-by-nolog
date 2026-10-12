@@ -145,6 +145,12 @@
     <ClCompile Include="ModernControls.cpp">
       <Filter>ModernUI</Filter>
     </ClCompile>
+    <ClCompile Include="ModernHandGrid.cpp">
+      <Filter>ModernUI</Filter>
+    </ClCompile>
+    <ClCompile Include="ModernFindBar.cpp">
+      <Filter>ModernUI</Filter>
+    </ClCompile>
     <ClCompile Include="ScintillaWnd.cpp" />
     <ClCompile Include="VerifyFunctionAndListNames.cpp" />
     <ClCompile Include="COpenHoldemHopperCommunication.cpp" />
@@ -418,6 +424,12 @@
       <Filter>ModernUI</Filter>
     </ClInclude>
     <ClInclude Include="ModernControls.h">
+      <Filter>ModernUI</Filter>
+    </ClInclude>
+    <ClInclude Include="ModernHandGrid.h">
+      <Filter>ModernUI</Filter>
+    </ClInclude>
+    <ClInclude Include="ModernFindBar.h">
       <Filter>ModernUI</Filter>
     </ClInclude>
     <ClInclude Include="ScintillaWnd.h" />

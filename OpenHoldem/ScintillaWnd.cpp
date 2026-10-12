@@ -650,6 +650,138 @@ bool CScintillaWnd::SearchBackward(LPSTR szText) { //@parm text to search
     return false;
 }
 /////////////////////////////////////
+// @mfunc Find bar: select the next / previous match of a text, wrapping around at the end / start of the document.
+// @rvalue bool | true if a match was found and selected
+//
+bool CScintillaWnd::FindAndSelect(LPCSTR szText, bool bMatchCase, bool bWholeWord, bool bForward,
+                                  bool bFromSelectionStart, bool bTakeFocus) {
+    if (szText == NULL || szText[0] == '\0') {
+        return false;
+    }
+    const int flags = (bMatchCase ? SCFIND_MATCHCASE : 0) | (bWholeWord ? SCFIND_WHOLEWORD : 0);
+    const long lLength = (long)SendMessage(SCI_GETLENGTH, 0, 0);
+    const long lSelStart = (long)SendMessage(SCI_GETSELECTIONSTART, 0, 0);
+    const long lSelEnd = (long)SendMessage(SCI_GETSELECTIONEND, 0, 0);
+
+    TextToFind tf;
+    tf.lpstrText = const_cast<char*>(szText);
+    long lPos = -1;
+    for (int pass = 0; pass < 2 && lPos < 0; ++pass) {
+        if (bForward) {
+            tf.chrg.cpMin = (pass == 0) ? (bFromSelectionStart ? lSelStart : lSelEnd) : 0;
+            tf.chrg.cpMax = lLength;
+        } else {
+            tf.chrg.cpMin = (pass == 0) ? lSelStart : lLength;
+            tf.chrg.cpMax = 0;
+        }
+        lPos = (long)SendMessage(SCI_FINDTEXT, flags, (ULONG_PTR)&tf);
+    }
+    if (lPos < 0) {
+        return false;
+    }
+    SendMessage(SCI_SETSEL, tf.chrgText.cpMin, tf.chrgText.cpMax);
+    SendMessage(SCI_SCROLLCARET, 0, 0);
+    if (bTakeFocus) {
+        SetFocus();
+    }
+    return true;
+}
+
+/////////////////////////////////////
+// @mfunc Find bar: count the matches of a text.
+//
+void CScintillaWnd::CountMatches(LPCSTR szText, bool bMatchCase, bool bWholeWord, int* pTotal, int* pCurrent) {
+    int total = 0, current = 0;
+    if (szText != NULL && szText[0] != '\0') {
+        const int flags = (bMatchCase ? SCFIND_MATCHCASE : 0) | (bWholeWord ? SCFIND_WHOLEWORD : 0);
+        const long lLength = (long)SendMessage(SCI_GETLENGTH, 0, 0);
+        const long lSelStart = (long)SendMessage(SCI_GETSELECTIONSTART, 0, 0);
+        TextToFind tf;
+        tf.lpstrText = const_cast<char*>(szText);
+        long lStart = 0;
+        while (lStart <= lLength && total < 100000) {
+            tf.chrg.cpMin = lStart;
+            tf.chrg.cpMax = lLength;
+            long lPos = (long)SendMessage(SCI_FINDTEXT, flags, (ULONG_PTR)&tf);
+            if (lPos < 0 || tf.chrgText.cpMax <= tf.chrgText.cpMin) {
+                break;
+            }
+            ++total;
+            if (tf.chrgText.cpMin == lSelStart) {
+                current = total;
+            }
+            lStart = tf.chrgText.cpMax;
+        }
+    }
+    if (pTotal != NULL)   *pTotal = total;
+    if (pCurrent != NULL) *pCurrent = current;
+}
+
+/////////////////////////////////////
+// @mfunc Find bar: replace the selection if it is a match.
+// @rvalue bool | true if the selection got replaced
+//
+bool CScintillaWnd::ReplaceSelectionIfMatch(LPCSTR szFind, LPCSTR szReplace, bool bMatchCase) {
+    if (szFind == NULL || szReplace == NULL || szFind[0] == '\0') {
+        return false;
+    }
+    if (SendMessage(SCI_GETREADONLY, 0, 0)) {
+        return false;
+    }
+    if (GetSelectionEnd() <= GetSelectionStart()) {
+        return false;
+    }
+    CString selection = GetSelectedText();
+    const bool bMatch = bMatchCase ? (selection.Compare(szFind) == 0)
+                                   : (selection.CompareNoCase(szFind) == 0);
+    if (!bMatch) {
+        return false;
+    }
+    SendMessage(SCI_TARGETFROMSELECTION, 0, 0);
+    SendMessage(SCI_REPLACETARGET, strlen(szReplace), (ULONG_PTR)szReplace);
+    // Caret behind the replacement, so that the next search continues from there
+    const long lEnd = (long)SendMessage(SCI_GETTARGETEND, 0, 0);
+    SendMessage(SCI_SETSEL, lEnd, lEnd);
+    return true;
+}
+
+/////////////////////////////////////
+// @mfunc Find bar: replace all matches in the document, as one undo step.
+// @rvalue int | number of replacements
+//
+int CScintillaWnd::ReplaceAllInDocument(LPCSTR szFind, LPCSTR szReplace, bool bMatchCase, bool bWholeWord) {
+    if (szFind == NULL || szReplace == NULL || szFind[0] == '\0') {
+        return 0;
+    }
+    if (SendMessage(SCI_GETREADONLY, 0, 0)) {
+        return 0;
+    }
+    const int flags = (bMatchCase ? SCFIND_MATCHCASE : 0) | (bWholeWord ? SCFIND_WHOLEWORD : 0);
+    const long lReplaceLength = (long)strlen(szReplace);
+    int count = 0;
+    long lStart = 0;
+    TextToFind tf;
+    tf.lpstrText = const_cast<char*>(szFind);
+
+    SendMessage(SCI_BEGINUNDOACTION, 0, 0);
+    while (count < 100000) {
+        tf.chrg.cpMin = lStart;
+        tf.chrg.cpMax = (long)SendMessage(SCI_GETLENGTH, 0, 0);
+        long lPos = (long)SendMessage(SCI_FINDTEXT, flags, (ULONG_PTR)&tf);
+        if (lPos < 0 || tf.chrgText.cpMax <= tf.chrgText.cpMin) {
+            break;
+        }
+        SendMessage(SCI_SETTARGETSTART, tf.chrgText.cpMin, 0);
+        SendMessage(SCI_SETTARGETEND, tf.chrgText.cpMax, 0);
+        SendMessage(SCI_REPLACETARGET, lReplaceLength, (ULONG_PTR)szReplace);
+        lStart = tf.chrgText.cpMin + lReplaceLength;
+        ++count;
+    }
+    SendMessage(SCI_ENDUNDOACTION, 0, 0);
+    return count;
+}
+
+/////////////////////////////////////
 // @mfunc Replace a text with a new text. You can use regular expression with tagging on the replacement text.
 // @rvalue void | not used
 //

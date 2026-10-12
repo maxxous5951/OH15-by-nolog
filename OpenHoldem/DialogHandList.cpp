@@ -7,7 +7,7 @@
 //
 //******************************************************************************
 //
-// Purpose:
+// Purpose: Hand list editor (modern UI)
 //
 //******************************************************************************
 
@@ -17,306 +17,244 @@
 #include "stdafx.h"
 #include "DialogHandList.h"
 
+#include "ModernUI/ModernGfx.h"
+#include "ModernUI/ModernTheme.h"
+
 
 // CDlgHandList dialog
 CDlgHandList::CDlgHandList(CWnd* pParent /*=NULL*/)
 		: CDialog(CDlgHandList::IDD, pParent)
 {
-	nhands = 0;
+	p_list = NULL;
+	// GDI+ is needed by the themed buttons and by the hand matrix
+	modernui::GdiplusAcquire();
 }
 
 CDlgHandList::~CDlgHandList()
 {
+	modernui::GdiplusRelease();
 }
 
 void CDlgHandList::DoDataExchange(CDataExchange* pDX)
 {
 	CDialog::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_HANDLIST_NAME, m_HandList_Name);
-	DDX_Control(pDX, IDC_CHECK1, m_Check[k_rank_ace][k_rank_ace]);
-	DDX_Control(pDX, IDC_CHECK2, m_Check[k_rank_ace][k_rank_king]);
-	DDX_Control(pDX, IDC_CHECK3, m_Check[k_rank_ace][k_rank_queen]);
-	DDX_Control(pDX, IDC_CHECK4, m_Check[k_rank_ace][k_rank_jack]);
-	DDX_Control(pDX, IDC_CHECK5, m_Check[k_rank_ace][10]);
-	DDX_Control(pDX, IDC_CHECK6, m_Check[k_rank_ace][9]);
-	DDX_Control(pDX, IDC_CHECK7, m_Check[k_rank_ace][8]);
-	DDX_Control(pDX, IDC_CHECK8, m_Check[k_rank_ace][7]);
-	DDX_Control(pDX, IDC_CHECK9, m_Check[k_rank_ace][6]);
-	DDX_Control(pDX, IDC_CHECK10, m_Check[k_rank_ace][5]);
-	DDX_Control(pDX, IDC_CHECK11, m_Check[k_rank_ace][4]);
-	DDX_Control(pDX, IDC_CHECK12, m_Check[k_rank_ace][3]);
-	DDX_Control(pDX, IDC_CHECK13, m_Check[k_rank_ace][2]);
-	DDX_Control(pDX, IDC_CHECK14, m_Check[k_rank_king][k_rank_ace]);
-	DDX_Control(pDX, IDC_CHECK15, m_Check[k_rank_king][k_rank_king]);
-	DDX_Control(pDX, IDC_CHECK16, m_Check[k_rank_king][k_rank_queen]);
-	DDX_Control(pDX, IDC_CHECK17, m_Check[k_rank_king][k_rank_jack]);
-	DDX_Control(pDX, IDC_CHECK18, m_Check[k_rank_king][10]);
-	DDX_Control(pDX, IDC_CHECK19, m_Check[k_rank_king][9]);
-	DDX_Control(pDX, IDC_CHECK20, m_Check[k_rank_king][8]);
-	DDX_Control(pDX, IDC_CHECK21, m_Check[k_rank_king][7]);
-	DDX_Control(pDX, IDC_CHECK22, m_Check[k_rank_king][6]);
-	DDX_Control(pDX, IDC_CHECK23, m_Check[k_rank_king][5]);
-	DDX_Control(pDX, IDC_CHECK24, m_Check[k_rank_king][4]);
-	DDX_Control(pDX, IDC_CHECK25, m_Check[k_rank_king][3]);
-	DDX_Control(pDX, IDC_CHECK26, m_Check[k_rank_king][2]);
-	DDX_Control(pDX, IDC_CHECK27, m_Check[k_rank_queen][k_rank_ace]);
-	DDX_Control(pDX, IDC_CHECK28, m_Check[k_rank_queen][k_rank_king]);
-	DDX_Control(pDX, IDC_CHECK29, m_Check[k_rank_queen][k_rank_queen]);
-	DDX_Control(pDX, IDC_CHECK30, m_Check[k_rank_queen][k_rank_jack]);
-	DDX_Control(pDX, IDC_CHECK31, m_Check[k_rank_queen][10]);
-	DDX_Control(pDX, IDC_CHECK32, m_Check[k_rank_queen][9]);
-	DDX_Control(pDX, IDC_CHECK33, m_Check[k_rank_queen][8]);
-	DDX_Control(pDX, IDC_CHECK34, m_Check[k_rank_queen][7]);
-	DDX_Control(pDX, IDC_CHECK35, m_Check[k_rank_queen][6]);
-	DDX_Control(pDX, IDC_CHECK36, m_Check[k_rank_queen][5]);
-	DDX_Control(pDX, IDC_CHECK37, m_Check[k_rank_queen][4]);
-	DDX_Control(pDX, IDC_CHECK38, m_Check[k_rank_queen][3]);
-	DDX_Control(pDX, IDC_CHECK39, m_Check[k_rank_queen][2]);
-	DDX_Control(pDX, IDC_CHECK40, m_Check[k_rank_jack][k_rank_ace]);
-	DDX_Control(pDX, IDC_CHECK41, m_Check[k_rank_jack][k_rank_king]);
-	DDX_Control(pDX, IDC_CHECK42, m_Check[k_rank_jack][k_rank_queen]);
-	DDX_Control(pDX, IDC_CHECK43, m_Check[k_rank_jack][k_rank_jack]);
-	DDX_Control(pDX, IDC_CHECK44, m_Check[k_rank_jack][10]);
-	DDX_Control(pDX, IDC_CHECK45, m_Check[k_rank_jack][9]);
-	DDX_Control(pDX, IDC_CHECK46, m_Check[k_rank_jack][8]);
-	DDX_Control(pDX, IDC_CHECK47, m_Check[k_rank_jack][7]);
-	DDX_Control(pDX, IDC_CHECK48, m_Check[k_rank_jack][6]);
-	DDX_Control(pDX, IDC_CHECK49, m_Check[k_rank_jack][5]);
-	DDX_Control(pDX, IDC_CHECK50, m_Check[k_rank_jack][4]);
-	DDX_Control(pDX, IDC_CHECK51, m_Check[k_rank_jack][3]);
-	DDX_Control(pDX, IDC_CHECK52, m_Check[k_rank_jack][2]);
-	DDX_Control(pDX, IDC_CHECK53, m_Check[10][k_rank_ace]);
-	DDX_Control(pDX, IDC_CHECK54, m_Check[10][k_rank_king]);
-	DDX_Control(pDX, IDC_CHECK55, m_Check[10][k_rank_queen]);
-	DDX_Control(pDX, IDC_CHECK56, m_Check[10][k_rank_jack]);
-	DDX_Control(pDX, IDC_CHECK57, m_Check[10][10]);
-	DDX_Control(pDX, IDC_CHECK58, m_Check[10][9]);
-	DDX_Control(pDX, IDC_CHECK59, m_Check[10][8]);
-	DDX_Control(pDX, IDC_CHECK60, m_Check[10][7]);
-	DDX_Control(pDX, IDC_CHECK61, m_Check[10][6]);
-	DDX_Control(pDX, IDC_CHECK62, m_Check[10][5]);
-	DDX_Control(pDX, IDC_CHECK63, m_Check[10][4]);
-	DDX_Control(pDX, IDC_CHECK64, m_Check[10][3]);
-	DDX_Control(pDX, IDC_CHECK65, m_Check[10][2]);
-	DDX_Control(pDX, IDC_CHECK66, m_Check[9][k_rank_ace]);
-	DDX_Control(pDX, IDC_CHECK67, m_Check[9][k_rank_king]);
-	DDX_Control(pDX, IDC_CHECK68, m_Check[9][k_rank_queen]);
-	DDX_Control(pDX, IDC_CHECK69, m_Check[9][k_rank_jack]);
-	DDX_Control(pDX, IDC_CHECK70, m_Check[9][10]);
-	DDX_Control(pDX, IDC_CHECK71, m_Check[9][9]);
-	DDX_Control(pDX, IDC_CHECK72, m_Check[9][8]);
-	DDX_Control(pDX, IDC_CHECK73, m_Check[9][7]);
-	DDX_Control(pDX, IDC_CHECK74, m_Check[9][6]);
-	DDX_Control(pDX, IDC_CHECK75, m_Check[9][5]);
-	DDX_Control(pDX, IDC_CHECK76, m_Check[9][4]);
-	DDX_Control(pDX, IDC_CHECK77, m_Check[9][3]);
-	DDX_Control(pDX, IDC_CHECK78, m_Check[9][2]);
-	DDX_Control(pDX, IDC_CHECK79, m_Check[8][k_rank_ace]);
-	DDX_Control(pDX, IDC_CHECK80, m_Check[8][k_rank_king]);
-	DDX_Control(pDX, IDC_CHECK81, m_Check[8][k_rank_queen]);
-	DDX_Control(pDX, IDC_CHECK82, m_Check[8][k_rank_jack]);
-	DDX_Control(pDX, IDC_CHECK83, m_Check[8][10]);
-	DDX_Control(pDX, IDC_CHECK84, m_Check[8][9]);
-	DDX_Control(pDX, IDC_CHECK85, m_Check[8][8]);
-	DDX_Control(pDX, IDC_CHECK86, m_Check[8][7]);
-	DDX_Control(pDX, IDC_CHECK87, m_Check[8][6]);
-	DDX_Control(pDX, IDC_CHECK88, m_Check[8][5]);
-	DDX_Control(pDX, IDC_CHECK89, m_Check[8][4]);
-	DDX_Control(pDX, IDC_CHECK90, m_Check[8][3]);
-	DDX_Control(pDX, IDC_CHECK91, m_Check[8][2]);
-	DDX_Control(pDX, IDC_CHECK92, m_Check[7][k_rank_ace]);
-	DDX_Control(pDX, IDC_CHECK93, m_Check[7][k_rank_king]);
-	DDX_Control(pDX, IDC_CHECK94, m_Check[7][k_rank_queen]);
-	DDX_Control(pDX, IDC_CHECK95, m_Check[7][k_rank_jack]);
-	DDX_Control(pDX, IDC_CHECK96, m_Check[7][10]);
-	DDX_Control(pDX, IDC_CHECK97, m_Check[7][9]);
-	DDX_Control(pDX, IDC_CHECK98, m_Check[7][8]);
-	DDX_Control(pDX, IDC_CHECK99, m_Check[7][7]);
-	DDX_Control(pDX, IDC_CHECK100, m_Check[7][6]);
-	DDX_Control(pDX, IDC_CHECK101, m_Check[7][5]);
-	DDX_Control(pDX, IDC_CHECK102, m_Check[7][4]);
-	DDX_Control(pDX, IDC_CHECK103, m_Check[7][3]);
-	DDX_Control(pDX, IDC_CHECK104, m_Check[7][2]);
-	DDX_Control(pDX, IDC_CHECK105, m_Check[6][k_rank_ace]);
-	DDX_Control(pDX, IDC_CHECK106, m_Check[6][k_rank_king]);
-	DDX_Control(pDX, IDC_CHECK107, m_Check[6][k_rank_queen]);
-	DDX_Control(pDX, IDC_CHECK108, m_Check[6][k_rank_jack]);
-	DDX_Control(pDX, IDC_CHECK109, m_Check[6][10]);
-	DDX_Control(pDX, IDC_CHECK110, m_Check[6][9]);
-	DDX_Control(pDX, IDC_CHECK111, m_Check[6][8]);
-	DDX_Control(pDX, IDC_CHECK112, m_Check[6][7]);
-	DDX_Control(pDX, IDC_CHECK113, m_Check[6][6]);
-	DDX_Control(pDX, IDC_CHECK114, m_Check[6][5]);
-	DDX_Control(pDX, IDC_CHECK115, m_Check[6][4]);
-	DDX_Control(pDX, IDC_CHECK116, m_Check[6][3]);
-	DDX_Control(pDX, IDC_CHECK117, m_Check[6][2]);
-	DDX_Control(pDX, IDC_CHECK118, m_Check[5][k_rank_ace]);
-	DDX_Control(pDX, IDC_CHECK119, m_Check[5][k_rank_king]);
-	DDX_Control(pDX, IDC_CHECK120, m_Check[5][k_rank_queen]);
-	DDX_Control(pDX, IDC_CHECK121, m_Check[5][k_rank_jack]);
-	DDX_Control(pDX, IDC_CHECK122, m_Check[5][10]);
-	DDX_Control(pDX, IDC_CHECK123, m_Check[5][9]);
-	DDX_Control(pDX, IDC_CHECK124, m_Check[5][8]);
-	DDX_Control(pDX, IDC_CHECK125, m_Check[5][7]);
-	DDX_Control(pDX, IDC_CHECK126, m_Check[5][6]);
-	DDX_Control(pDX, IDC_CHECK127, m_Check[5][5]);
-	DDX_Control(pDX, IDC_CHECK128, m_Check[5][4]);
-	DDX_Control(pDX, IDC_CHECK129, m_Check[5][3]);
-	DDX_Control(pDX, IDC_CHECK130, m_Check[5][2]);
-	DDX_Control(pDX, IDC_CHECK131, m_Check[4][k_rank_ace]);
-	DDX_Control(pDX, IDC_CHECK132, m_Check[4][k_rank_king]);
-	DDX_Control(pDX, IDC_CHECK133, m_Check[4][k_rank_queen]);
-	DDX_Control(pDX, IDC_CHECK134, m_Check[4][k_rank_jack]);
-	DDX_Control(pDX, IDC_CHECK135, m_Check[4][10]);
-	DDX_Control(pDX, IDC_CHECK136, m_Check[4][9]);
-	DDX_Control(pDX, IDC_CHECK137, m_Check[4][8]);
-	DDX_Control(pDX, IDC_CHECK138, m_Check[4][7]);
-	DDX_Control(pDX, IDC_CHECK139, m_Check[4][6]);
-	DDX_Control(pDX, IDC_CHECK140, m_Check[4][5]);
-	DDX_Control(pDX, IDC_CHECK141, m_Check[4][4]);
-	DDX_Control(pDX, IDC_CHECK142, m_Check[4][3]);
-	DDX_Control(pDX, IDC_CHECK143, m_Check[4][2]);
-	DDX_Control(pDX, IDC_CHECK144, m_Check[3][k_rank_ace]);
-	DDX_Control(pDX, IDC_CHECK145, m_Check[3][k_rank_king]);
-	DDX_Control(pDX, IDC_CHECK146, m_Check[3][k_rank_queen]);
-	DDX_Control(pDX, IDC_CHECK147, m_Check[3][k_rank_jack]);
-	DDX_Control(pDX, IDC_CHECK148, m_Check[3][10]);
-	DDX_Control(pDX, IDC_CHECK149, m_Check[3][9]);
-	DDX_Control(pDX, IDC_CHECK150, m_Check[3][8]);
-	DDX_Control(pDX, IDC_CHECK151, m_Check[3][7]);
-	DDX_Control(pDX, IDC_CHECK152, m_Check[3][6]);
-	DDX_Control(pDX, IDC_CHECK153, m_Check[3][5]);
-	DDX_Control(pDX, IDC_CHECK154, m_Check[3][4]);
-	DDX_Control(pDX, IDC_CHECK155, m_Check[3][3]);
-	DDX_Control(pDX, IDC_CHECK156, m_Check[3][2]);
-	DDX_Control(pDX, IDC_CHECK157, m_Check[2][k_rank_ace]);
-	DDX_Control(pDX, IDC_CHECK158, m_Check[2][k_rank_king]);
-	DDX_Control(pDX, IDC_CHECK159, m_Check[2][k_rank_queen]);
-	DDX_Control(pDX, IDC_CHECK160, m_Check[2][k_rank_jack]);
-	DDX_Control(pDX, IDC_CHECK161, m_Check[2][10]);
-	DDX_Control(pDX, IDC_CHECK162, m_Check[2][9]);
-	DDX_Control(pDX, IDC_CHECK163, m_Check[2][8]);
-	DDX_Control(pDX, IDC_CHECK164, m_Check[2][7]);
-	DDX_Control(pDX, IDC_CHECK165, m_Check[2][6]);
-	DDX_Control(pDX, IDC_CHECK166, m_Check[2][5]);
-	DDX_Control(pDX, IDC_CHECK167, m_Check[2][4]);
-	DDX_Control(pDX, IDC_CHECK168, m_Check[2][3]);
-	DDX_Control(pDX, IDC_CHECK169, m_Check[2][2]);
 	DDX_Control(pDX, IDC_COMMENT, m_CommentST);
+	DDX_Control(pDX, IDANYPP, m_ButtonPP);
+	DDX_Control(pDX, IDBROADWAYS, m_ButtonBroadways);
+	DDX_Control(pDX, IDALLSUITED, m_ButtonSuited);
+	DDX_Control(pDX, IDCLEAR, m_ButtonClear);
+	DDX_Control(pDX, IDOK, m_ButtonOK);
+	DDX_Control(pDX, IDCANCEL, m_ButtonCancel);
 }
 
 BEGIN_MESSAGE_MAP(CDlgHandList, CDialog)
 	ON_BN_CLICKED(IDOK, &CDlgHandList::OnBnClickedOk)
-	ON_CONTROL_RANGE(BN_CLICKED, IDC_CHECK1, IDC_CHECK169, OnCheckClick)
 	ON_BN_CLICKED(IDANYPP, &CDlgHandList::OnBnClickedPP)
 	ON_BN_CLICKED(IDBROADWAYS, &CDlgHandList::OnBnClickedBroadways)
 	ON_BN_CLICKED(IDALLSUITED, &CDlgHandList::OnBnClickedSuited)
 	ON_BN_CLICKED(IDCLEAR, &CDlgHandList::OnBnClickedClear)
+	ON_MESSAGE(modernglue::WMU_HANDGRID_CHANGED, &CDlgHandList::OnGridChanged)
+	ON_MESSAGE(modernui::WMU_THEME_CHANGED, &CDlgHandList::OnThemeChanged)
+	ON_WM_ERASEBKGND()
+	ON_WM_CTLCOLOR()
+	ON_WM_DESTROY()
 END_MESSAGE_MAP()
 
 // CDlgHandList message handlers
 BOOL CDlgHandList::OnInitDialog()
 {
 	CDialog::OnInitDialog();
+	ModifyStyle(0, WS_CLIPCHILDREN);
 
-	CString		s = "";
-
-	// Set title and static text control
-  assert(p_list != NULL);
+	assert(p_list != NULL);
+	CString s = "";
 	s.Format("Hand List Editor - %s", p_list->name());
 	SetWindowText(s.GetString());
 	s.Format("Hand list: %s", p_list->name());
 	m_HandList_Name.SetWindowText(s.GetString());
 
-	// Set checked/unchecked status of each box
-  assert(p_list != NULL);
-	for (int i=2; i<=k_rank_ace; i++) {
-		for (int j=2; j<=k_rank_ace; j++) {
-			m_Check[i][j].SetCheck(p_list->IsOnList(i, j) ? BST_CHECKED : BST_UNCHECKED);
-    }
-	}
-	OnCheckClick(0);
-
-	return TRUE;  // return TRUE unless you set the focus to a control
-	// EXCEPTION: OCX Property Pages should return FALSE
-}
-
-void CDlgHandList::OnCheckClick(UINT controlID)
-{
-	nhands = 0;
-	for (int i=2; i<=k_rank_ace; i++) {
-		for (int j=2; j<=k_rank_ace; j++) {
-      if (m_Check[i][j].GetCheck() & BST_CHECKED) {
-				// pairs	
-				if (i==j) nhands += 6;
-				// unsuited
-				else if (i<j) nhands += 12;
-				// suited
-				else nhands += 4;
-			}
+	// Hand matrix
+	m_Grid.CreateGrid(this, CRect(0, 0, 100, 100), modernglue::kHandGridControlId);
+	for (int i = 2; i <= k_rank_ace; i++) {
+		for (int j = 2; j <= k_rank_ace; j++) {
+			m_Grid.SetSelected(i, j, p_list->IsOnList(i, j));
 		}
 	}
+	m_ButtonOK.SetPrimary(true);
+
+	// Light / dark like the rest of the application
+	modernui::Theme::RegisterWindow(m_hWnd);
+	ApplyTheme();
+	LayoutControls();
+	UpdateCount();
+	CenterWindow();
+
+	m_Grid.SetFocus();
+	return FALSE;  // we have set the focus ourselves
+}
+
+void CDlgHandList::OnDestroy()
+{
+	modernui::Theme::UnregisterWindow(m_hWnd);
+	CDialog::OnDestroy();
+}
+
+void CDlgHandList::ApplyTheme()
+{
+	const modernui::Palette& c = modernui::Theme::Colors();
+	modernui::Theme::ApplyFrameAttributes(m_hWnd);
+	m_brush_window.DeleteObject();
+	m_brush_window.CreateSolidBrush(modernui::ToColorRef(c.window_bg));
+}
+
+LRESULT CDlgHandList::OnThemeChanged(WPARAM, LPARAM)
+{
+	ApplyTheme();
+	RedrawWindow(NULL, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_FRAME);
+	return 0;
+}
+
+BOOL CDlgHandList::OnEraseBkgnd(CDC* pDC)
+{
+	CRect client;
+	GetClientRect(&client);
+	pDC->FillSolidRect(&client, modernui::ToColorRef(modernui::Theme::Colors().window_bg));
+	return TRUE;
+}
+
+HBRUSH CDlgHandList::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+	if (m_brush_window.GetSafeHandle() == NULL) {
+		return CDialog::OnCtlColor(pDC, pWnd, nCtlColor);
+	}
+	const modernui::Palette& c = modernui::Theme::Colors();
+	const int id = (pWnd != NULL) ? pWnd->GetDlgCtrlID() : 0;
+	pDC->SetTextColor(modernui::ToColorRef(id == IDC_COMMENT ? c.text_dim : c.text));
+	pDC->SetBkColor(modernui::ToColorRef(c.window_bg));
+	return (HBRUSH)m_brush_window.GetSafeHandle();
+}
+
+void CDlgHandList::LayoutControls()
+{
+	const float s = modernui::DpiScale(m_hWnd);
+	const int margin = (int)(24 * s + 0.5f);
+	const int gap = (int)(4 * s + 0.5f);
+	const int header_height = (int)(24 * s + 0.5f);
+	const int header_space = (int)(12 * s + 0.5f);
+	const int button_height = (int)(34 * s + 0.5f);
+	const int button_gap = (int)(8 * s + 0.5f);
+	const int button_space = (int)(16 * s + 0.5f);
+
+	// Cell size: 40 px, smaller on small screens (the dialog must fit)
+	CRect work;
+	::SystemParametersInfo(SPI_GETWORKAREA, 0, &work, 0);
+	const int fixed_height = 2 * margin + header_height + header_space + button_space
+		+ button_height + GetSystemMetrics(SM_CYCAPTION) + 2 * GetSystemMetrics(SM_CYFIXEDFRAME);
+	int cell = (int)(40 * s + 0.5f);
+	const int max_cell = (work.Height() - fixed_height - 12 * gap) / 13;
+	if (cell > max_cell) cell = max_cell;
+	if (cell < (int)(26 * s)) cell = (int)(26 * s);
+	const int grid_side = 13 * cell + 12 * gap;
+
+	const int client_width = grid_side + 2 * margin;
+	const int client_height = margin + header_height + header_space + grid_side
+		+ button_space + button_height + margin;
+
+	// Window size from the wanted client size
+	CRect frame(0, 0, client_width, client_height);
+	::AdjustWindowRectEx(&frame, GetStyle(), FALSE, GetExStyle());
+	SetWindowPos(NULL, 0, 0, frame.Width(), frame.Height(), SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+
+	// Fonts of the header
+	m_font_title.DeleteObject();
+	m_font_count.DeleteObject();
+	m_font_title.CreateFont(-(int)(15 * s + 0.5f), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+		DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+		DEFAULT_PITCH | FF_DONTCARE, "Segoe UI");
+	m_font_count.CreateFont(-(int)(14 * s + 0.5f), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+		DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+		DEFAULT_PITCH | FF_DONTCARE, "Segoe UI");
+	m_HandList_Name.SetFont(&m_font_title);
+	m_CommentST.SetFont(&m_font_count);
+	m_CommentST.ModifyStyle(SS_LEFT | SS_CENTER, SS_RIGHT);
+
+	const int half = client_width / 2;
+	m_HandList_Name.MoveWindow(margin, margin, half - margin, header_height);
+	m_CommentST.MoveWindow(half, margin, client_width - margin - half, header_height);
+
+	const int grid_top = margin + header_height + header_space;
+	m_Grid.MoveWindow(margin, grid_top, grid_side, grid_side);
+
+	// Button row: presets on the left, OK / Cancel on the right
+	const int y = grid_top + grid_side + button_space;
+	const int w_pairs = (int)(88 * s), w_broadways = (int)(100 * s), w_suited = (int)(92 * s);
+	const int w_clear = (int)(68 * s), w_ok = (int)(80 * s), w_cancel = (int)(80 * s);
+	int x = margin;
+	m_ButtonPP.MoveWindow(x, y, w_pairs, button_height);               x += w_pairs + button_gap;
+	m_ButtonBroadways.MoveWindow(x, y, w_broadways, button_height);    x += w_broadways + button_gap;
+	m_ButtonSuited.MoveWindow(x, y, w_suited, button_height);          x += w_suited + button_gap;
+	m_ButtonClear.MoveWindow(x, y, w_clear, button_height);
+	x = client_width - margin - w_cancel;
+	m_ButtonCancel.MoveWindow(x, y, w_cancel, button_height);
+	x -= button_gap + w_ok;
+	m_ButtonOK.MoveWindow(x, y, w_ok, button_height);
+}
+
+void CDlgHandList::UpdateCount()
+{
 	CString comment = "";
-	comment.Format("%d/1326=%.2f%%", nhands, ((double)nhands/1326.0)*100.0);
+	const int nhands = m_Grid.HandCount();
+	comment.Format("%d/1326=%.2f%%", nhands, ((double)nhands / 1326.0) * 100.0);
 	m_CommentST.SetWindowText(comment);
+}
+
+LRESULT CDlgHandList::OnGridChanged(WPARAM, LPARAM)
+{
+	UpdateCount();
+	return 0;
 }
 
 void CDlgHandList::OnBnClickedOk()
 {
-	OnCheckClick(0);
-  for (int i=2; i<=k_rank_ace; i++) {
-		for (int j=2; j<=k_rank_ace; j++) {
-      if (m_Check[i][j].GetCheck() & BST_CHECKED) {
-        p_list->Set(i, j);
-      } else {
-        p_list->Remove(i, j);
-      }
-    }
-  }
-  p_list->GenerateFunctionTextFromHandlistMatrix();
+	// The hand list only gets modified when the user confirms
+	for (int i = 2; i <= k_rank_ace; i++) {
+		for (int j = 2; j <= k_rank_ace; j++) {
+			if (m_Grid.IsSelected(i, j)) {
+				p_list->Set(i, j);
+			} else {
+				p_list->Remove(i, j);
+			}
+		}
+	}
+	p_list->GenerateFunctionTextFromHandlistMatrix();
 	OnOK();
 }
 
 void CDlgHandList::OnBnClickedPP()
 {
-	// Set checked status for all PP
-	for (int i=2; i<=k_rank_ace; i++) {
-		m_Check[i][i].SetCheck(BST_CHECKED);
-	}
-	OnCheckClick(0);
+	m_Grid.SelectPairs();
+	UpdateCount();
+	m_Grid.SetFocus();
 }
 
 void CDlgHandList::OnBnClickedBroadways()
 {
-	// Set checked status for broadways
-	for (int i=10; i<=k_rank_ace; i++) {
-		for (int j=10; j<=k_rank_ace; j++) {
-			m_Check[i][j].SetCheck(BST_CHECKED);
-		}
-	}
-	OnCheckClick(0);
+	m_Grid.SelectBroadways();
+	UpdateCount();
+	m_Grid.SetFocus();
 }
 
 void CDlgHandList::OnBnClickedSuited()
 {
-	// Set checked status for suited cards
-	for (int i=2; i<=k_rank_ace; i++) {
-		for (int j=2; j<i; j++) {
-			m_Check[i][j].SetCheck(BST_CHECKED);
-		}
-	}
-	OnCheckClick(0);
+	m_Grid.SelectSuited();
+	UpdateCount();
+	m_Grid.SetFocus();
 }
 
 void CDlgHandList::OnBnClickedClear()
 {
-	// Set unchecked status for each box
-	for (int i=2; i<=k_rank_ace; i++) {
-		for (int j=2; j<=k_rank_ace; j++) {
-			p_list->Remove(i, j);
-			m_Check[i][j].SetCheck(BST_UNCHECKED);
-		}
-	}
-	OnCheckClick(0);
+	m_Grid.ClearAll();
+	UpdateCount();
+	m_Grid.SetFocus();
 }
-

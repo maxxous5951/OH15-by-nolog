@@ -45,6 +45,9 @@
 #include "../scintilla/include/Scintilla.h"
 #include "WinMgr.h"
 #include "ModernUI/ModernGfx.h"
+#include <algorithm>
+#include <string>
+#include <vector>
 
 
 // CDlgFormulaScintilla dialog
@@ -55,8 +58,6 @@ CDlgFormulaScintilla	*m_formulaScintillaDlg = NULL;
 CString keywords;
 				  
 #define ID_SCIN_SIZERBAR 5555
-
-static UINT WM_FINDREPLACE = ::RegisterWindowMessage(FINDMSGSTRING);
 
 // Window map tells CWinMgr how to position dialog controls
 BEGIN_WINDOW_MAP(ScintillaFormulaMap)
@@ -133,7 +134,10 @@ CDlgFormulaScintilla::CDlgFormulaScintilla(CWnd* pParent /*=NULL*/) :
   m_status_position = "Line: 1, Col: 1";
 
 	m_pActiveScinCtrl = NULL;
-	m_pFRDlg = NULL;
+	m_pFindBar = NULL;
+	m_FindLastSearch = "";
+	m_FindMatchCase = false;
+	m_FindWholeWord = false;
  	hUDFItem = NULL;
 	_edit_font.CreatePointFont(100, "Consolas");
 }
@@ -209,8 +213,6 @@ BEGIN_MESSAGE_MAP(CDlgFormulaScintilla, CDialog)
 	ON_BN_CLICKED(IDC_SCINTILLA_CALC, &CDlgFormulaScintilla::OnBnClickedCalc)
 	ON_BN_CLICKED(IDCANCEL, &CDlgFormulaScintilla::OnCancel)
 
-	ON_REGISTERED_MESSAGE( WM_FINDREPLACE, OnFindReplace )
-
 	ON_BN_CLICKED(IDC_SCINTILLA_AUTO, &CDlgFormulaScintilla::OnBnClickedAuto)
 
 	// WinMgr
@@ -268,8 +270,12 @@ CScintillaWnd *CDlgFormulaScintilla::SetupScintilla(CScintillaWnd *pWnd, const c
 
 		pWnd->Create("", WS_CHILD|WS_VISIBLE|WS_TABSTOP, rect, this, IDC_SCINCTRL+m_ScinArray.GetSize());
 	}
+	// The find bar floats above the editors: they must not paint over it
+	pWnd->ModifyStyle(0, WS_CLIPSIBLINGS);
 	pWnd->Init();
 	pWnd->SendMessage(SCI_SETINDENTATIONGUIDES, false, 0);
+	pWnd->SendMessage(SCI_AUTOCSETIGNORECASE, TRUE, 0);
+	pWnd->SendMessage(SCI_AUTOCSETMAXHEIGHT, 10, 0);
 	pWnd->SendMessage(SCI_SETMODEVENTMASK, (SC_MOD_INSERTTEXT | SC_MOD_DELETETEXT), 0);
 	pWnd->SetLexer(SCLEX_CPP);
 	UpdateScintillaKeywords(pWnd);
@@ -279,6 +285,7 @@ CScintillaWnd *CDlgFormulaScintilla::SetupScintilla(CScintillaWnd *pWnd, const c
 	modernglue::ApplyControlTheme(pWnd->GetSafeHwnd());
 	// Apply the current word-wrap setting (also recalculates the horizontal scroll width)
 	pWnd->SetWordWrap(m_word_wrap);
+	BringFindBarToTop();
 
 	return pWnd;
 }
@@ -597,6 +604,14 @@ BOOL CDlgFormulaScintilla::PreTranslateMessage(MSG* pMsg)
 {
 	if (pMsg->message >= WM_KEYFIRST && pMsg->message <= WM_KEYLAST)
 	{
+		// Ctrl+Space: propose names, even for short words
+		if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_SPACE
+				&& (GetKeyState(VK_CONTROL) & 0x8000) && !(GetKeyState(VK_MENU) & 0x8000)
+				&& m_pActiveScinCtrl && GetFocus() == m_pActiveScinCtrl)
+		{
+			ShowAutoComplete(m_pActiveScinCtrl, true);
+			return TRUE;
+		}
 		if (m_hDialogAccelTable != NULL &&  ::TranslateAccelerator(m_hWnd, m_hDialogAccelTable, pMsg))
 			return TRUE;
 		if (m_pActiveScinCtrl && GetFocus() == m_pActiveScinCtrl) 
@@ -1092,74 +1107,240 @@ void CDlgFormulaScintilla::OnPrevBookmark()
 
 void CDlgFormulaScintilla::CloseFindReplaceDialog()
 {
-	if (m_pFRDlg && !m_pFRDlg->IsTerminating() && ::IsWindow(m_pFRDlg->GetSafeHwnd()))
-		m_pFRDlg->DestroyWindow();
-
-	m_pFRDlg = NULL;
-}
-
-void CDlgFormulaScintilla::DoFind(bool DirDown)
-{
-	m_pActiveScinCtrl->SetSearchflags((m_FindMatchCase ? SCFIND_MATCHCASE : 0)|
-									  (m_FindWholeWord ? SCFIND_WORDSTART : 0));
-
-	// Note: I have confirmed that the TextToFind struct for the search text is incorrectly
-	// set to a non-const when in actuality the functions using that variable take a const pointer
-	// I did not want to change a Scintilla header files (so I did a dirty dirty cast)
-	if (DirDown)
-		m_pActiveScinCtrl->SearchForward((char *)m_FindLastSearch.GetString());
-	else
-		m_pActiveScinCtrl->SearchBackward((char *)m_FindLastSearch.GetString());
-}
-
-LRESULT CDlgFormulaScintilla::OnFindReplace(WPARAM, LPARAM lParam)
-{
-	LPFINDREPLACE lpFindReplace = (LPFINDREPLACE) lParam;
-
-	if (lpFindReplace && m_pActiveScinCtrl) 
-	{
-		if (lpFindReplace->Flags & FR_DIALOGTERM) 
-		{
-			CloseFindReplaceDialog();
-		} 
-		else if (lpFindReplace->Flags & FR_FINDNEXT) 
-		{
-			m_FindLastSearch = lpFindReplace->lpstrFindWhat;
-			m_FindMatchCase = (lpFindReplace->Flags & FR_MATCHCASE ? true : false);
-			m_FindWholeWord = (lpFindReplace->Flags & FR_WHOLEWORD ? true : false);
-			DoFind((lpFindReplace->Flags & FR_DOWN ? true : false));
-			HandleEnables(true);
-		} 
-		else if (lpFindReplace->Flags & FR_REPLACE) 
-		{
-		} 
-		else if (lpFindReplace->Flags & FR_REPLACEALL) 
-		{
+	if (m_pFindBar != NULL) {
+		if (::IsWindow(m_pFindBar->GetSafeHwnd())) {
+			m_pFindBar->DestroyWindow();
 		}
+		delete m_pFindBar;
+		m_pFindBar = NULL;
 	}
+}
 
-	return 0;
+bool CDlgFormulaScintilla::DoFind(bool forward, bool incremental, bool take_focus)
+{
+	if (m_pActiveScinCtrl == NULL || m_FindLastSearch.IsEmpty()) {
+		return false;
+	}
+	return m_pActiveScinCtrl->FindAndSelect(m_FindLastSearch, m_FindMatchCase, m_FindWholeWord,
+		forward, incremental, take_focus);
+}
+
+void CDlgFormulaScintilla::CreateFindBar()
+{
+	m_pFindBar = new modernglue::CFindBar();
+	if (!m_pFindBar->CreateBar(this, modernglue::kFindBarControlId)) {
+		delete m_pFindBar;
+		m_pFindBar = NULL;
+		return;
+	}
+	modernglue::FindBarEvents events;
+	events.find = [this](const CString& what, bool match_case, bool whole_word,
+		bool forward, bool incremental) -> bool {
+		m_FindLastSearch = what;
+		m_FindMatchCase = match_case;
+		m_FindWholeWord = whole_word;
+		return DoFind(forward, incremental, false);
+	};
+	events.count = [this](const CString& what, bool match_case, bool whole_word,
+		int* total, int* current) {
+		if (m_pActiveScinCtrl != NULL) {
+			m_pActiveScinCtrl->CountMatches(what, match_case, whole_word, total, current);
+		}
+	};
+	events.replace_one = [this](const CString& what, const CString& with,
+		bool match_case, bool whole_word) {
+		if (m_pActiveScinCtrl == NULL) return;
+		m_FindLastSearch = what;
+		m_FindMatchCase = match_case;
+		m_FindWholeWord = whole_word;
+		// Replace the current match (if the selection is one), then go to the next one
+		m_pActiveScinCtrl->ReplaceSelectionIfMatch(what, with, match_case);
+		DoFind(true, false, false);
+	};
+	events.replace_all = [this](const CString& what, const CString& with,
+		bool match_case, bool whole_word) -> int {
+		if (m_pActiveScinCtrl == NULL) return 0;
+		m_FindLastSearch = what;
+		m_FindMatchCase = match_case;
+		m_FindWholeWord = whole_word;
+		return m_pActiveScinCtrl->ReplaceAllInDocument(what, with, match_case, whole_word);
+	};
+	events.closed = [this]() {
+		if (m_pActiveScinCtrl != NULL && ::IsWindowEnabled(m_pActiveScinCtrl->GetSafeHwnd())) {
+			m_pActiveScinCtrl->SetFocus();
+		}
+	};
+	m_pFindBar->SetEvents(events);
+}
+
+void CDlgFormulaScintilla::PositionFindBar()
+{
+	if (m_pFindBar == NULL || !::IsWindow(m_pFindBar->GetSafeHwnd())
+			|| !::IsWindow(m_EmptyScinCtrl.GetSafeHwnd())) {
+		return;
+	}
+	CRect rc;
+	m_EmptyScinCtrl.GetWindowRect(rc);
+	ScreenToClient(rc);
+	m_pFindBar->PositionIn(rc);
+}
+
+void CDlgFormulaScintilla::BringFindBarToTop()
+{
+	if (m_pFindBar != NULL && m_pFindBar->IsOpen()) {
+		m_pFindBar->SetWindowPos(&CWnd::wndTop, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+		m_pFindBar->RefreshCount();
+	}
 }
 
 void CDlgFormulaScintilla::OnFindNext()
 {
 	DoFind(true);
+	if (m_pFindBar != NULL) m_pFindBar->RefreshCount();
 }
 
 void CDlgFormulaScintilla::OnFindPrev()
 {
 	DoFind(false);
+	if (m_pFindBar != NULL) m_pFindBar->RefreshCount();
 }
 
 void CDlgFormulaScintilla::OnFindReplaceDlg()
 {
-	if ( NULL == m_pFRDlg )
-	{
-		m_pFRDlg = new CFindReplaceDialog();  // Must be created on the heap
-		m_pFRDlg->Create(TRUE, "", "", FR_DOWN, this);
-		m_pFRDlg->m_fr.lStructSize = sizeof(FINDREPLACE);
-		m_pFRDlg->m_fr.hwndOwner = this->m_hWnd;
+	if (m_pFindBar == NULL) {
+		CreateFindBar();
+		if (m_pFindBar == NULL) return;
 	}
+	// Search for the selected text (if it is a single line), otherwise for the last search
+	CString initial = "";
+	if (m_pActiveScinCtrl != NULL) {
+		initial = m_pActiveScinCtrl->GetSelectedText();
+		if (initial.FindOneOf("\r\n") >= 0 || initial.GetLength() > 100) {
+			initial = "";
+		}
+	}
+	if (initial.IsEmpty()) {
+		initial = m_FindLastSearch;
+	}
+	PositionFindBar();
+	m_pFindBar->ShowBar(initial);
+}
+
+// ---------------------------------------------------------------------------
+// Auto-completion
+// ---------------------------------------------------------------------------
+
+static bool IsAutoCompleteWordChar(int ch) {
+	return (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'z')
+		|| (ch >= 'A' && ch <= 'Z') || ch == '_' || ch == '$';
+}
+
+static bool StartsWithNoCase(const std::string& word, const std::string& prefix) {
+	if (prefix.size() > word.size()) return false;
+	return _strnicmp(word.c_str(), prefix.c_str(), prefix.size()) == 0;
+}
+
+// Symbols come as one string, separated by white space
+static void AddAutoCompleteWords(const CString& text, std::vector<std::string>* words) {
+	std::string current;
+	const char *p = text.GetString();
+	for (;; ++p) {
+		const int ch = (unsigned char)*p;
+		if (ch != 0 && IsAutoCompleteWordChar(ch)) {
+			current += (char)ch;
+		} else {
+			if (current.size() >= 3 && !(current[0] >= '0' && current[0] <= '9')) {
+				words->push_back(current);
+			}
+			current.clear();
+			if (ch == 0) break;
+		}
+	}
+}
+
+// Functions and hand lists: take the names from the tree of the editor
+static void AddAutoCompleteTreeNames(CTreeCtrl& tree, HTREEITEM item, std::vector<std::string>* words) {
+	while (item != NULL) {
+		CString text = tree.GetItemText(item);
+		if (text.Left(2) == "f$" || text.Left(4) == "list") {
+			AddAutoCompleteWords(text, words);
+		}
+		HTREEITEM child = tree.GetChildItem(item);
+		if (child != NULL) {
+			AddAutoCompleteTreeNames(tree, child, words);
+		}
+		item = tree.GetNextSiblingItem(item);
+	}
+}
+
+void CDlgFormulaScintilla::ShowAutoComplete(CScintillaWnd *pWnd, bool force)
+{
+	if (pWnd == NULL || !::IsWindow(pWnd->GetSafeHwnd())) return;
+	if (pWnd->SendMessage(SCI_GETREADONLY, 0, 0)) return;
+	if (pWnd->SendMessage(SCI_AUTOCACTIVE, 0, 0)) return;
+
+	// Not inside comments and strings
+	const long pos = (long)pWnd->SendMessage(SCI_GETCURRENTPOS, 0, 0);
+	if (pos > 0) {
+		const int style = (int)pWnd->SendMessage(SCI_GETSTYLEAT, pos - 1, 0);
+		if (style == SCE_C_COMMENT || style == SCE_C_COMMENTLINE || style == SCE_C_COMMENTDOC
+				|| style == SCE_C_COMMENTLINEDOC || style == SCE_C_STRING || style == SCE_C_CHARACTER) {
+			return;
+		}
+	}
+
+	// The word in front of the caret
+	long start = pos;
+	while (start > 0 && pos - start < 128) {
+		const int ch = ((int)pWnd->SendMessage(SCI_GETCHARAT, start - 1, 0)) & 0xFF;
+		if (!IsAutoCompleteWordChar(ch)) break;
+		--start;
+	}
+	const long length = pos - start;
+	if (length >= 128) return;
+	if (!force && length < 3) return;
+	std::string prefix;
+	for (long i = start; i < pos; ++i) {
+		prefix += (char)(((int)pWnd->SendMessage(SCI_GETCHARAT, i, 0)) & 0xFF);
+	}
+	if (!prefix.empty() && prefix[0] >= '0' && prefix[0] <= '9') return;   // a number
+
+	// Candidates: symbols, functions, hand lists and the few keywords
+	std::vector<std::string> words;
+	if (p_engine_container != NULL) {
+		AddAutoCompleteWords(p_engine_container->SymbolsProvided(), &words);
+	}
+	AddAutoCompleteTreeNames(m_FormulaTree, m_FormulaTree.GetRootItem(), &words);
+	static const char * const kKeywords[] = { "else", "return", "true", "false", "when", "others", "force" };
+	for (int i = 0; i < (int)(sizeof(kKeywords) / sizeof(kKeywords[0])); ++i) {
+		words.push_back(kKeywords[i]);
+	}
+	// Scintilla wants the list sorted (case-insensitive, same order as its own comparison)
+	std::sort(words.begin(), words.end(), [](const std::string& a, const std::string& b) {
+		return _stricmp(a.c_str(), b.c_str()) < 0;
+	});
+	words.erase(std::unique(words.begin(), words.end(), [](const std::string& a, const std::string& b) {
+		return _stricmp(a.c_str(), b.c_str()) == 0;
+	}), words.end());
+
+	std::string list;
+	int matches = 0;
+	std::string only_match;
+	for (size_t i = 0; i < words.size() && matches < 400; ++i) {
+		if (!StartsWithNoCase(words[i], prefix)) continue;
+		if (matches > 0) list += ' ';
+		list += words[i];
+		only_match = words[i];
+		++matches;
+	}
+	if (matches == 0) return;
+	// Nothing to propose if the word is already complete
+	if (matches == 1 && _stricmp(only_match.c_str(), prefix.c_str()) == 0) return;
+
+	pWnd->SendMessage(SCI_AUTOCSETIGNORECASE, TRUE, 0);
+	pWnd->SendMessage(SCI_AUTOCSETAUTOHIDE, TRUE, 0);
+	pWnd->SendMessage(SCI_AUTOCSETMAXHEIGHT, 10, 0);
+	pWnd->SendMessage(SCI_AUTOCSHOW, (WPARAM)length, (LPARAM)list.c_str());
 }
 
 CString CDlgFormulaScintilla::ExtractCommentFromHandList(CString HandListAsString)
@@ -1268,6 +1449,7 @@ BOOL CDlgFormulaScintilla::OnNotify(WPARAM wParam, LPARAM lParam, LRESULT* pResu
 		case SCN_STYLENEEDED:
 			break;
 		case SCN_CHARADDED:
+			ShowAutoComplete(m_pActiveScinCtrl, false);
 			break;
 		case SCN_SAVEPOINTREACHED:
 			break;
@@ -1420,6 +1602,7 @@ void CDlgFormulaScintilla::ResizeScintillaWindows()
 			::DeferWindowPos(hdwp, m_ScinArray[i]._pWnd->GetSafeHwnd(), NULL, rc.left,rc.top,rc.Width(),rc.Height(), SWP_NOZORDER);
 		}
 		::EndDeferWindowPos(hdwp);
+		PositionFindBar();
 	}
 }
 
@@ -1832,6 +2015,9 @@ void CDlgFormulaScintilla::ApplyModernTheme() {
 	modernglue::ApplyEditColors(&m_SearchEdit);
 	modernglue::ApplyEditColors(&m_CalcResult);
 	modernglue::ApplyEditColors(&m_CalcRelativeLine);
+	if (m_pFindBar != NULL) {
+		m_pFindBar->ApplyTheme();
+	}
 
 	for (int i=0; i<m_ScinArray.GetSize(); i++) {
 		CScintillaWnd *p_scintilla = m_ScinArray[i]._pWnd;
@@ -2621,5 +2807,6 @@ void CDlgFormulaScintilla::FormerShowEnableHideCodeClone(CScintillaWnd *new_pAct
   } else {
     m_pActiveScinCtrl->EnableWindow(true);
   }
+  BringFindBarToTop();
 }
 
