@@ -90,7 +90,7 @@ void CModernButton::OnPaint() {
     }
     label += raw[i];
   }
-  DrawLabel(g, label, GetFont(12.5f * s, _primary || checked), r, Rgba(text), HAlign::Center, true);
+  DrawLabel(g, label, modernui::GetFont(12.5f * s, _primary || checked), r, Rgba(text), HAlign::Center, true);
 }
 
 void CModernButton::OnMouseMove(UINT nFlags, CPoint point) {
@@ -156,7 +156,7 @@ void CModernTabCtrl::OnPaint() {
       FillRoundRect(g, r, 7 * s, Rgba(c.surface_hover));
       fg = c.text;
     }
-    DrawLabel(g, ToWide(buffer), GetFont(12.0f * s, i == selected), r, Rgba(fg), HAlign::Center, true);
+    DrawLabel(g, ToWide(buffer), modernui::GetFont(12.0f * s, i == selected), r, Rgba(fg), HAlign::Center, true);
   }
 }
 
