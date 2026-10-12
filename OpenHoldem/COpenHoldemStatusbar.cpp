@@ -14,6 +14,8 @@
 #include "stdafx.h"
 #include "CopenHoldemStatusbar.h"
 
+#include "ModernFrameSupport.h"
+#include "ModernUI/ModernHeader.h"
 #include "CAutoplayerFunctions.h"
 #include "CAutoplayerTrace.h"
 #include "CEngineContainer.h"
@@ -41,30 +43,25 @@ COpenHoldemStatusbar::COpenHoldemStatusbar(CWnd *main_window) {
 }
 
 COpenHoldemStatusbar::~COpenHoldemStatusbar() {
+  delete _status_bar;
+  _status_bar = NULL;
 }
 
 void COpenHoldemStatusbar::InitStatusbar() {
-  _status_bar.Create(_main_window);
-  static UINT indicators[] = {
-    ID_INDICATOR_STATUS_ACTION,
-    ID_INDICATOR_STATUS_DUMMY,
-    ID_INDICATOR_STATUS_HANDRANK,
-    ID_INDICATOR_STATUS_PRWIN,
-  };
-  _status_bar.SetIndicators(indicators, sizeof(indicators) / sizeof(UINT));
-  int position = 0;
-  _status_bar.SetPaneInfo(position, ID_INDICATOR_STATUS_ACTION, NULL, 100);
-  ++position;
-  _status_bar.SetPaneInfo(position, ID_INDICATOR_STATUS_HANDRANK, NULL, 100);
-  ++position;
-  _status_bar.SetPaneInfo(position, ID_INDICATOR_STATUS_PRWIN, NULL, 100);
-  ++position;
-  _status_bar.SetPaneInfo(position, ID_INDICATOR_STATUS_DUMMY, SBPS_STRETCH, 280);
-  ++position;
+  _status_bar = new modernui::ModernStatusbar();
+  _status_bar->Create(_main_window->m_hWnd, modernglue::kStatusbarControlId);
 }
 
 void COpenHoldemStatusbar::GetWindowRect(RECT *statusbar_position) {
-  _status_bar.GetWindowRect(statusbar_position);
+  ::GetWindowRect(_status_bar->hwnd(), statusbar_position);
+}
+
+int COpenHoldemStatusbar::Height(float dpi_scale) {
+  return modernui::StatusbarHeight(dpi_scale);
+}
+
+void COpenHoldemStatusbar::Move(int x, int y, int width, int height) {
+  ::MoveWindow(_status_bar->hwnd(), x, y, width, height, TRUE);
 }
 
 void COpenHoldemStatusbar::OnUpdateStatusbar() {
@@ -87,9 +84,8 @@ void COpenHoldemStatusbar::OnUpdateStatusbar() {
     // Don't change anything, keep information
   }
   // Display data
-  _status_bar.SetPaneText(_status_bar.CommandToIndex(ID_INDICATOR_STATUS_ACTION), LastAction());
-	_status_bar.SetPaneText(_status_bar.CommandToIndex(ID_INDICATOR_STATUS_HANDRANK), _status_handrank);
-	_status_bar.SetPaneText(_status_bar.CommandToIndex(ID_INDICATOR_STATUS_PRWIN), _status_prwin);
+  _status_bar->SetTexts(modernui::ToWide(LastAction()), 
+    modernui::ToWide(_status_handrank), modernui::ToWide(_status_prwin));
 }
 
 CString COpenHoldemStatusbar::LastAction() {

@@ -13,6 +13,7 @@
 
 #include "ModernTable.h"
 #include <cmath>
+#include <cctype>
 
 namespace modernui {
 
@@ -105,7 +106,45 @@ void DrawBadge(Graphics& g, const RectF& r, float s, const Palette& c, wchar_t l
             HAlign::Center, false);
 }
 
+// Bet chip, placed towards the middle of the table.
+void DrawSeatBet(Graphics& g, const SeatView& seat, const RectF& panel, float sx, float sy,
+                 float cx, float cy, float card_h, float s, const Palette& c) {
+  if (seat.bet.empty()) return;
+  const float seat_w = panel.Width;
+  float bx, by;
+  float dir = (sx < cx) ? 1.0f : -1.0f;
+  if (sy > cy + 10 * s) {
+    // Lower half: beside the cards, above the panel.
+    bx = sx + dir * 44 * s;
+    by = panel.Y - card_h * 0.60f;
+  } else {
+    bx = sx + dir * (seat_w / 2 + 10 * s);
+    by = sy + (sy < cy ? 12 * s : 0);
+    if (fabsf(sx - cx) < seat_w) { bx = sx; by = panel.Y + panel.Height + 14 * s; }
+  }
+  DrawBetChip(g, bx, by, s, c, seat.bet);
+}
+
+bool SameCard(const CardView& a, const CardView& b) {
+  return a.kind == b.kind && (a.kind != CardView::Face || (a.rank == b.rank && a.suit == b.suit));
+}
+
 }  // namespace
+
+bool TableView::SameAs(const TableView& o) const {
+  if (nchairs != o.nchairs || hand_line != o.hand_line || game_line != o.game_line ||
+      ante_line != o.ante_line || pot_line != o.pot_line) return false;
+  for (int i = 0; i < 5; ++i) if (!SameCard(community[i], o.community[i])) return false;
+  for (int i = 0; i < kIndicatorCount; ++i) if (indicator_on[i] != o.indicator_on[i]) return false;
+  for (int i = 0; i < 10; ++i) {
+    const SeatView& a = seats[i];
+    const SeatView& b = o.seats[i];
+    if (a.seated != b.seated || a.active != b.active || a.dealer != b.dealer || a.is_user != b.is_user ||
+        a.name != b.name || a.balance != b.balance || a.bet != b.bet || a.card_count != b.card_count) return false;
+    for (int k = 0; k < 4; ++k) if (!SameCard(a.cards[k], b.cards[k])) return false;
+  }
+  return true;
+}
 
 void DrawTable(Graphics& g, const RectF& area, float s, const Palette& c, const TableView& v) {
   g.SetClip(area);
@@ -166,8 +205,8 @@ void DrawTable(Graphics& g, const RectF& area, float s, const Palette& c, const 
 
   // ---- Seats ----------------------------------------------------------------
   int n = v.nchairs;
-  if (n < 2) n = 2;
   if (n > 10) n = 10;
+  if (n < 2) n = 0;            // no table connected: no chairs
   const float seat_w = 98 * s, seat_h = 38 * s;
   const float card_w = 28 * s, card_h = 40 * s, card_step = 21 * s;
   const float left_margin = 60 * s, right_margin = 60 * s;
@@ -183,6 +222,7 @@ void DrawTable(Graphics& g, const RectF& area, float s, const Palette& c, const 
       FillRoundRect(g, panel, 11 * s, WithAlpha(0xFF000000, 30));
       StrokeRoundRect(g, panel, 11 * s, Rgba(c.dashed), 1.2f * s, DashStyleDash);
       if (seat.dealer) DrawDealer(g, sx < cx ? panel.X + panel.Width + 6 * s : panel.X - 6 * s, sy, s, c);
+      DrawSeatBet(g, seat, panel, sx, sy, cx, cy, card_h, s, c);
       continue;
     }
 
@@ -219,21 +259,7 @@ void DrawTable(Graphics& g, const RectF& area, float s, const Palette& c, const 
       DrawDealer(g, sx < cx ? panel.X + panel.Width + 6 * s : panel.X - 6 * s, sy, s, c);
     }
 
-    // Bet chip: towards the middle of the table.
-    if (!seat.bet.empty()) {
-      float bx, by;
-      float dir = (sx < cx) ? 1.0f : -1.0f;
-      if (sy > cy + 10 * s) {
-        // Lower half: beside the cards, above the panel.
-        bx = sx + dir * 44 * s;
-        by = panel.Y - card_h * 0.60f;
-      } else {
-        bx = sx + dir * (seat_w / 2 + 10 * s);
-        by = sy + (sy < cy ? 12 * s : 0);
-        if (fabsf(sx - cx) < seat_w) { bx = sx; by = panel.Y + panel.Height + 14 * s; }
-      }
-      DrawBetChip(g, bx, by, s, c, seat.bet);
-    }
+    DrawSeatBet(g, seat, panel, sx, sy, cx, cy, card_h, s, c);
   }
 
   // ---- Indicator badges -----------------------------------------------------

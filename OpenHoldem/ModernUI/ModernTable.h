@@ -60,6 +60,8 @@ struct TableView {
   TableView() : nchairs(0) {
     for (int i = 0; i < kIndicatorCount; ++i) indicator_on[i] = false;
   }
+  // True if drawing both snapshots would give the same picture.
+  bool SameAs(const TableView& other) const;
 };
 
 // Draws everything (background, felt, info box, cards, seats, bets, dealer

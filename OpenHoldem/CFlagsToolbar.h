@@ -7,7 +7,10 @@
 //
 //******************************************************************************
 //
-// Purpose:
+// Purpose: Main toolbar and flags of the main window.
+//   Since the "2026 UI" this is a thin wrapper around modernui::ModernHeader
+//   (custom title bar, themed menu bar, toolbar and flags). The public
+//   interface is unchanged, so the rest of OpenHoldem does not notice.
 //
 //******************************************************************************
 
@@ -15,6 +18,8 @@
 #define INC_CFLAGSTOOLBAR_H
 
 #include "MyCtoolbar.h"
+
+namespace modernui { class ModernHeader; }
 
 class CFlagsToolbar: public CWnd {
  public:
@@ -37,16 +42,18 @@ class CFlagsToolbar: public CWnd {
 	bool IsButtonChecked(int button_ID);
 	bool IsButtonEnabled(int button_ID);
  public:
-	CMyToolBar _tool_bar;
+  // Title bar, menu bar and layout
+  void SetTitle(const char *title);
+  void SetConnected(bool connected);
+  bool OpenMenuByMnemonic(wchar_t character);
+  int  HeaderHeight(float dpi_scale);
+  int  TitleBarHeight();
+  void MoveHeader(int x, int y, int width, int height);
  public:
 	afx_msg void OnClickedFlags();
 	DECLARE_MESSAGE_MAP()
  private:
-	void CreateMainToolbar();
-	void CreateFlagsToolbar();
-	void AlignToolbars();
- private:
-	CMyToolBar m_MainToolBar;
+	modernui::ModernHeader *_header;
 	bool       _flags[kNumberOfFlags];
 	CFrameWnd  *_parent_window;
 	CCritSec   m_critsec;
@@ -54,4 +61,4 @@ class CFlagsToolbar: public CWnd {
 
 extern CFlagsToolbar *p_flags_toolbar;
 
-#endif INC_CFLAGSTOOLBAR_H
+#endif // INC_CFLAGSTOOLBAR_H

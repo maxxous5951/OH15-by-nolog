@@ -149,8 +149,8 @@ const int k_max_number_of_tablepoints = 10;
 // GUI
 // Width just like ManualMode
 // to avoid resizing on attach top / attach bottom. ;-)
-const int kMainSizeX = 580;
-const int kMainSizeY = 400;
+const int kMainSizeX = 760;
+const int kMainSizeY = 560;
 
 // File menu
 const int kNumberOfLastRecentlyUsedFilesInFileMenu = 4;

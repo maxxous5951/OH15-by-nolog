@@ -13,12 +13,19 @@
 
 #include "ModernHeader.h"
 #include <cstdio>
+#include <cwctype>
 
 namespace modernui {
 
 using namespace Gdiplus;
 
 namespace {
+
+struct AutoLock {
+  explicit AutoLock(CRITICAL_SECTION* cs) : cs_(cs) { EnterCriticalSection(cs_); }
+  ~AutoLock() { LeaveCriticalSection(cs_); }
+  CRITICAL_SECTION* cs_;
+};
 
 const wchar_t* kHeaderClass = L"OpenHoldemModernHeader";
 const wchar_t* kStatusClass = L"OpenHoldemModernStatusbar";
@@ -37,13 +44,19 @@ ModernHeader::ModernHeader()
     : hwnd_(nullptr), parent_(nullptr), scale_(1.0f), width_(0), relayout_(true),
       connected_(false), app_icon_(nullptr), title_h_(0), menu_h_(0), tool_h_(0), flags_h_(0),
       hot_(-1), pressed_(-1), open_menu_(-1), tracking_leave_(false) {
+  InitializeCriticalSection(&lock_);
   GdiplusAcquire();
   Rebuild();
 }
 
 ModernHeader::~ModernHeader() {
+  if (hwnd_ != nullptr && IsWindow(hwnd_)) {
+    SetWindowLongPtrW(hwnd_, GWLP_USERDATA, 0);   // no more callbacks into a dead object
+    DestroyWindow(hwnd_);
+  }
   delete app_icon_;
   GdiplusRelease();
+  DeleteCriticalSection(&lock_);
 }
 
 bool ModernHeader::Create(HWND parent, int control_id) {
@@ -84,6 +97,7 @@ void ModernHeader::SetFlagCommandIds(const int* ids, int count) {
 }
 
 void ModernHeader::Rebuild() {
+  AutoLock lock(&lock_);
   std::vector<Element> old = elements_;
   elements_.clear();
   auto make = [](Kind kind, int id) {
@@ -155,24 +169,28 @@ void ModernHeader::SetConnected(bool connected) {
 }
 
 void ModernHeader::EnableButton(int id, bool enabled) {
+  AutoLock lock(&lock_);
   Element* e = FindElement(kTool, id);
   if (!e) e = FindElement(kFlag, id);
   if (e && e->enabled != enabled) { e->enabled = enabled; Invalidate(); }
 }
 
 void ModernHeader::CheckButton(int id, bool checked) {
+  AutoLock lock(&lock_);
   Element* e = FindElement(kTool, id);
   if (!e) e = FindElement(kFlag, id);
   if (e && e->checked != checked) { e->checked = checked; Invalidate(); }
 }
 
 bool ModernHeader::IsButtonEnabled(int id) const {
+  AutoLock lock(&lock_);
   const Element* e = FindElement(kTool, id);
   if (!e) e = FindElement(kFlag, id);
   return e ? e->enabled : false;
 }
 
 bool ModernHeader::IsButtonChecked(int id) const {
+  AutoLock lock(&lock_);
   const Element* e = FindElement(kTool, id);
   if (!e) e = FindElement(kFlag, id);
   return e ? e->checked : false;
@@ -191,6 +209,7 @@ int ModernHeader::TitleBarHeight(float s) const {
 // ---------------------------------------------------------------------------
 
 void ModernHeader::Layout(Graphics& g, int width, float s) {
+  AutoLock lock(&lock_);
   scale_ = s;
   width_ = width;
   title_h_ = 38 * s; menu_h_ = 38 * s; tool_h_ = 62 * s; flags_h_ = 38 * s;
@@ -355,6 +374,7 @@ void ModernHeader::PaintElement(Graphics& g, const Palette& c, size_t index) {
 }
 
 void ModernHeader::Paint(Graphics& g, int width, float s) {
+  AutoLock lock(&lock_);
   if (relayout_ || width != width_ || s != scale_) Layout(g, width, s);
   const Palette& c = Theme::Colors();
   SolidBrush bg(Rgba(c.surface));
@@ -408,12 +428,18 @@ void ModernHeader::Activate(int i) {
   Element& e = elements_[i];
   switch (e.kind) {
     case kTool:
-    case kFlag:
-      if (!e.enabled) return;
-      if (e.checkable) e.checked = !e.checked;   // same as the old sticky toolbar buttons
+    case kFlag: {
+      int command = 0;
+      {
+        AutoLock lock(&lock_);
+        if (!e.enabled) return;
+        if (e.checkable) e.checked = !e.checked;   // same as the old sticky toolbar buttons
+        command = e.id;
+      }
       Invalidate();
-      PostCommand(e.id);
+      PostCommand(command);
       break;
+    }
     case kTheme:    ShowThemeMenu(); break;
     case kMinimize: PostMessageW(parent_, WM_SYSCOMMAND, SC_MINIMIZE, 0); break;
     case kClose:    PostMessageW(parent_, WM_SYSCOMMAND, SC_CLOSE, 0); break;
@@ -580,6 +606,14 @@ LRESULT ModernHeader::HandleMessage(HWND hwnd, UINT msg, WPARAM wparam, LPARAM l
 int StatusbarHeight(float s) { return (int)(26 * s + 0.5f); }
 
 ModernStatusbar::ModernStatusbar() : hwnd_(nullptr) { GdiplusAcquire(); }
+
+ModernStatusbar::~ModernStatusbar() {
+  if (hwnd_ != nullptr && IsWindow(hwnd_)) {
+    SetWindowLongPtrW(hwnd_, GWLP_USERDATA, 0);
+    DestroyWindow(hwnd_);
+  }
+  GdiplusRelease();
+}
 
 bool ModernStatusbar::Create(HWND parent, int control_id) {
   static bool registered = false;

@@ -1,6 +1,11 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <Filter Include="ModernUI">
+      <UniqueIdentifier>{7D1F4A52-3C6E-4B8A-9E21-5A0C8B7E2D14}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
     <ClCompile Include="AllinAdjustment.cpp" />
     <ClCompile Include="BetpotCalculations.cpp" />
     <ClCompile Include="CBetSlider.cpp" />
@@ -116,6 +121,27 @@
     <ClCompile Include="DialogScraperOutput.cpp" />
     <ClCompile Include="MyCToolBar.cpp" />
     <ClCompile Include="OpenHoldemView.cpp" />
+    <ClCompile Include="ModernUI\ModernGfx.cpp">
+      <Filter>ModernUI</Filter>
+    </ClCompile>
+    <ClCompile Include="ModernUI\ModernHeader.cpp">
+      <Filter>ModernUI</Filter>
+    </ClCompile>
+    <ClCompile Include="ModernUI\ModernMenu.cpp">
+      <Filter>ModernUI</Filter>
+    </ClCompile>
+    <ClCompile Include="ModernUI\ModernSvg.cpp">
+      <Filter>ModernUI</Filter>
+    </ClCompile>
+    <ClCompile Include="ModernUI\ModernTable.cpp">
+      <Filter>ModernUI</Filter>
+    </ClCompile>
+    <ClCompile Include="ModernUI\ModernTheme.cpp">
+      <Filter>ModernUI</Filter>
+    </ClCompile>
+    <ClCompile Include="ModernFrameSupport.cpp">
+      <Filter>ModernUI</Filter>
+    </ClCompile>
     <ClCompile Include="ScintillaWnd.cpp" />
     <ClCompile Include="VerifyFunctionAndListNames.cpp" />
     <ClCompile Include="COpenHoldemHopperCommunication.cpp" />
@@ -358,6 +384,36 @@
     <ClInclude Include="DialogRename.h" />
     <ClInclude Include="DialogScraperOutput.h" />
     <ClInclude Include="OpenHoldemView.h" />
+    <ClInclude Include="ModernUI\ModernCommon.h">
+      <Filter>ModernUI</Filter>
+    </ClInclude>
+    <ClInclude Include="ModernUI\ModernGfx.h">
+      <Filter>ModernUI</Filter>
+    </ClInclude>
+    <ClInclude Include="ModernUI\ModernHeader.h">
+      <Filter>ModernUI</Filter>
+    </ClInclude>
+    <ClInclude Include="ModernUI\ModernIconData.h">
+      <Filter>ModernUI</Filter>
+    </ClInclude>
+    <ClInclude Include="ModernUI\ModernMenu.h">
+      <Filter>ModernUI</Filter>
+    </ClInclude>
+    <ClInclude Include="ModernUI\ModernSuits.h">
+      <Filter>ModernUI</Filter>
+    </ClInclude>
+    <ClInclude Include="ModernUI\ModernSvg.h">
+      <Filter>ModernUI</Filter>
+    </ClInclude>
+    <ClInclude Include="ModernUI\ModernTable.h">
+      <Filter>ModernUI</Filter>
+    </ClInclude>
+    <ClInclude Include="ModernUI\ModernTheme.h">
+      <Filter>ModernUI</Filter>
+    </ClInclude>
+    <ClInclude Include="ModernFrameSupport.h">
+      <Filter>ModernUI</Filter>
+    </ClInclude>
     <ClInclude Include="ScintillaWnd.h" />
     <ClInclude Include="VerifyFunctionAndListNames.h" />
     <ClInclude Include="DialogSAPrefs10.h" />

@@ -7,7 +7,11 @@
 //
 //******************************************************************************
 //
-// Purpose:
+// Purpose: The main view: draws the poker table, seats, cards, pot and the
+//   indicators for the clickable casino buttons.
+//   Since the "2026 UI" the drawing is done by modernui::DrawTable() (GDI+,
+//   light/dark theme). This class only collects the data from the engine
+//   (into a snapshot) and repaints when the snapshot changed.
 //
 //******************************************************************************
 
@@ -19,6 +23,8 @@
 
 #define DISPLAY_UPDATE_TIMER	111
 
+namespace modernui { struct TableView; }
+
 // OpenHoldemView.h : interface of the COpenHoldemView class
 
 class COpenHoldemView : public CView {
@@ -27,6 +33,7 @@ class COpenHoldemView : public CView {
 	DECLARE_DYNCREATE(COpenHoldemView)
 	DECLARE_MESSAGE_MAP()
   afx_msg void OnTimer(UINT_PTR nIDEvent);
+  afx_msg BOOL OnEraseBkgnd(CDC *pDC);
  public:
 	COpenHoldemDoc* GetDocument() const;
 	virtual void OnDraw(CDC* pDC);  // overridden to draw this view
@@ -34,35 +41,13 @@ class COpenHoldemView : public CView {
 	virtual ~COpenHoldemView();
 	virtual void OnInitialUpdate();
  private:
-	// private functions and variables - not available via accessors or mutators
-	void UpdateDisplay(const bool update_all);
-	void DrawButtonIndicators();
-	void DrawSpecificButtonIndicator(const char ch, const bool on_off, const int left, const int top, const int right, const int bottom);
-	void DrawSeatedActiveCircle(const int chair);
-	void DrawCard(Card *card, const int left, const int top, const int right, const int bottom, const bool pl_card);
-	void DrawDealerButton(const int chair); 
-	void DrawNameBox(const int chair); 
-	void DrawBalanceBox(const int chair); 
-	void DrawPlayerBet(const int chair);
-	void DrawPlayerCards(const int chair);
-  void DrawColourCodes(const int chair);
+  // Reads the engine state. Must only be called while the heartbeat
+  // is not updating (cs_update_in_progress), see OnTimer().
+  void BuildSnapshot(modernui::TableView *snapshot);
+  void RefreshSnapshot();
  private:
-	CString	_handnumber_last;
-	double	_sblind_last, _bblind_last, _lim_last, _ante_last, _pot_last;
-	int	    _iterator_thread_progress_last;
-	int	    _card_common_last[kNumberOfCommunityCards];
-	int	    _card_player_last[kMaxNumberOfPlayers][kMaxNumberOfCardsPerPlayer];
-	bool		_seated_last[kMaxNumberOfPlayers];
-	bool	  _active_last[kMaxNumberOfPlayers];
-	CString	_playername_last[kMaxNumberOfPlayers];
-	bool		_dealer_last[kMaxNumberOfPlayers]; 
-	bool    _istournament_last; 
-	double  _playerbalance_last[kMaxNumberOfPlayers]; 
-	double  _playerbet_last[kMaxNumberOfPlayers];
-	LOGFONT	_logfont;
-	CPen		_black_pen, _green_pen, _red_pen, _blue_pen, _white_dot_pen, _null_pen;
-	CBrush	_white_brush, _gray_brush, _red_brush, _yellow_brush;
-	RECT		_client_rect;
+  modernui::TableView *_snapshot;   // what is currently on screen
+  bool _snapshot_valid;
 };
 
 inline COpenHoldemDoc* COpenHoldemView::GetDocument() const

@@ -45,6 +45,12 @@ protected: // create from serialization only
 	afx_msg void OnUpdateEditForceuserchair(CCmdUI *pCmdUI);
 
 	afx_msg BOOL OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message);
+	// Modern UI: custom title bar, own menus, theme
+	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
+	afx_msg void OnNcCalcSize(BOOL bCalcValidRects, NCCALCSIZE_PARAMS* lpncsp);
+	afx_msg LRESULT OnNcHitTest(CPoint point);
+	afx_msg void OnSettingChange(UINT uFlags, LPCTSTR lpszSection);
+	afx_msg LRESULT OnSetTextMessage(WPARAM wparam, LPARAM lparam);
 	afx_msg void OnHelpProblemSolver();
 public:
 	afx_msg void OnHelp();
@@ -54,6 +60,9 @@ public:
   void KillTimers();
 public:
 	virtual BOOL PreCreateWindow(CREATESTRUCT& cs);
+	virtual void RecalcLayout(BOOL bNotify = TRUE);
+	// The classic frame menu is never used (we have our own, themed menu bar)
+	virtual void OnUpdateFrameMenu(HMENU hMenuAlt) {}
 	virtual ~CMainFrame();
 	virtual BOOL DestroyWindow();
 	CString	_exec_filename;

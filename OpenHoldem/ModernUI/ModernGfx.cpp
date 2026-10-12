@@ -16,6 +16,10 @@
 #include "ModernSuits.h"
 #include <map>
 
+#ifdef _MSC_VER
+#pragma comment(lib, "gdiplus.lib")
+#endif
+
 namespace modernui {
 
 using namespace Gdiplus;

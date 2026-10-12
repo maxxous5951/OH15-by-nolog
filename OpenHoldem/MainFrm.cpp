@@ -26,6 +26,9 @@
 #include "CAutoplayerFunctions.h"
 #include "CEngineContainer.h"
 #include "CFlagsToolbar.h"
+#include "ModernFrameSupport.h"
+#include "ModernUI/ModernGfx.h"
+#include "ModernUI/ModernTheme.h"
 #include "CHeartbeatThread.h"
 #include "CIteratorThread.h"
 #include "COpenHoldemHopperCommunication.h"
@@ -145,6 +148,10 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	
 	ON_WM_SETCURSOR()
 	ON_WM_SYSCOMMAND()
+	ON_WM_NCCALCSIZE()
+	ON_WM_NCHITTEST()
+	ON_WM_SETTINGCHANGE()
+	ON_MESSAGE(WM_SETTEXT, &CMainFrame::OnSetTextMessage)
 END_MESSAGE_MAP()
 
 // CMainFrame construction/destruction
@@ -175,10 +182,19 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct) {
 	lpCreateStruct->dwExStyle |= WS_MINIMIZE;
 	if (CFrameWnd::OnCreate(lpCreateStruct) == kUndefined)
 		return -1;
-	// Tool bar
+	// We never show a native (classic) menu: menu bar, toolbar and title bar
+	// are drawn by the modern UI. Remove the menu that LoadFrame() attached.
+	::SetMenu(m_hWnd, NULL);
+	// Header (title bar, menu bar, toolbar, flags)
 	p_flags_toolbar = new CFlagsToolbar(this);
 	// Status bar
 	p_openholdem_statusbar = new COpenHoldemStatusbar(this);
+	// Light / dark / system theme
+	modernui::Theme::RegisterWindow(m_hWnd);
+	RecalcLayout();
+	CString title;
+	GetWindowText(title);
+	p_flags_toolbar->SetTitle(title);
 	// Start timer that checks if we should enable buttons
 	SetTimer(ENABLE_BUTTONS_TIMER, 50, 0);
 	// Start timer that updates status bar
@@ -205,7 +221,7 @@ BOOL CMainFrame::PreCreateWindow(CREATESTRUCT& cs) {
 		wnd.hInstance		  = hInst;
 		wnd.hIcon			    = AfxGetApp()->LoadIcon(IDI_ICON1);
 		wnd.hCursor			  = AfxGetApp()->LoadStandardCursor(IDC_ARROW);
-		wnd.hbrBackground	= (HBRUSH) (COLOR_3DFACE + 1);
+		wnd.hbrBackground	= NULL;   // the client area is completely covered by our own windows
 		wnd.lpszMenuName	= NULL;
 		wnd.lpszClassName	= Preferences()->window_class_name();
     // Fixed size window, not resizable 
@@ -222,6 +238,18 @@ BOOL CMainFrame::PreCreateWindow(CREATESTRUCT& cs) {
 	}
 	cs.lpszClass = Preferences()->window_class_name();
 
+	// Frameless look: the title bar is drawn by the modern UI (see OnNcCalcSize),
+	// but WS_CAPTION stays, so that Windows still provides shadow,
+	// minimize/restore animations and the taskbar behaviour.
+	cs.dwExStyle &= ~WS_EX_CLIENTEDGE;
+	cs.style &= ~(WS_SIZEBOX | WS_MAXIMIZEBOX);
+	cs.style |= WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_CLIPCHILDREN;
+	// Never attach a native menu (LoadFrame passes the one of IDR_MAINFRAME)
+	if (cs.hMenu != NULL) {
+		::DestroyMenu(cs.hMenu);
+		cs.hMenu = NULL;
+	}
+
 	// Restore window location and size
   // -32 to avoid placement directly under the taskbar,
   // so that at least a little bit is visible
@@ -235,10 +263,82 @@ BOOL CMainFrame::PreCreateWindow(CREATESTRUCT& cs) {
   cs.x = max(cs.x, 0);
   cs.y = max(cs.y, 0);
   // GUI size
-	cs.cx = kMainSizeX;
-	cs.cy = kMainSizeY;
+	float dpi_scale = modernui::DpiScale(NULL);
+	cs.cx = (int)(kMainSizeX * dpi_scale + 0.5f);
+	cs.cy = (int)(kMainSizeY * dpi_scale + 0.5f);
 
 	return true;
+}
+
+// ---------------------------------------------------------------------------
+// Modern UI: frameless window with custom title bar, own menus, theme
+// ---------------------------------------------------------------------------
+
+void CMainFrame::RecalcLayout(BOOL bNotify) {
+  if (p_flags_toolbar == NULL || p_openholdem_statusbar == NULL) {
+    // Very early phase of the creation: nothing to layout yet
+    CFrameWnd::RecalcLayout(bNotify);
+    return;
+  }
+  CRect client;
+  GetClientRect(&client);
+  float scale = modernui::DpiScale(m_hWnd);
+  int header_height = p_flags_toolbar->HeaderHeight(scale);
+  int status_height = p_openholdem_statusbar->Height(scale);
+  int view_height = client.Height() - header_height - status_height;
+  if (view_height < 0) view_height = 0;
+  p_flags_toolbar->MoveHeader(0, 0, client.Width(), header_height);
+  p_openholdem_statusbar->Move(0, client.Height() - status_height, client.Width(), status_height);
+  CWnd *view = GetDlgItem(AFX_IDW_PANE_FIRST);
+  if (view != NULL) {
+    view->MoveWindow(0, header_height, client.Width(), view_height);
+  }
+}
+
+void CMainFrame::OnNcCalcSize(BOOL bCalcValidRects, NCCALCSIZE_PARAMS* lpncsp) {
+  // Do nothing: the client area is the whole window,
+  // there is no native caption and no native border.
+}
+
+LRESULT CMainFrame::OnNcHitTest(CPoint point) {
+  // The empty part of our own title bar moves the window.
+  // (Buttons of the title bar are handled by the header window itself.)
+  if (p_flags_toolbar != NULL) {
+    CPoint client = point;
+    ScreenToClient(&client);
+    if (client.y >= 0 && client.y < p_flags_toolbar->TitleBarHeight()) {
+      return HTCAPTION;
+    }
+  }
+  return HTCLIENT;
+}
+
+void CMainFrame::OnSysCommand(UINT nID, LPARAM lParam) {
+  if ((nID & 0xFFF0) == SC_KEYMENU) {
+    // Alt+<letter> opens the matching menu of our own menu bar.
+    // Alt alone or Alt+Space: nothing, we have no classic system menu.
+    if (lParam != 0 && lParam != ' ' && p_flags_toolbar != NULL) {
+      p_flags_toolbar->OpenMenuByMnemonic((wchar_t)lParam);
+    }
+    return;
+  }
+  CFrameWnd::OnSysCommand(nID, lParam);
+}
+
+void CMainFrame::OnSettingChange(UINT uFlags, LPCTSTR lpszSection) {
+  CFrameWnd::OnSettingChange(uFlags, lpszSection);
+  // Windows switched between light and dark app mode
+  if (lpszSection != NULL && strcmp(lpszSection, "ImmersiveColorSet") == 0) {
+    modernui::Theme::OnSystemSettingChanged();
+  }
+}
+
+LRESULT CMainFrame::OnSetTextMessage(WPARAM wparam, LPARAM lparam) {
+  LRESULT result = Default();
+  if (p_flags_toolbar != NULL && lparam != 0) {
+    p_flags_toolbar->SetTitle((const char*)lparam);
+  }
+  return result;
 }
 
 // CMainFrame message handlers
@@ -405,6 +505,7 @@ void CMainFrame::OnEditPreferences() {
 }
 
 BOOL CMainFrame::DestroyWindow() {
+	modernui::Theme::UnregisterWindow(m_hWnd);
 	StopThreads();
   PMainframe()->KillTimers();
 	// Save window position
@@ -470,6 +571,7 @@ void CMainFrame::OnTimer(UINT_PTR nIDEvent) {
  	    p_autoconnector->Disconnect("table disappeared"); 		 		
     }
  	} else if (nIDEvent == ENABLE_BUTTONS_TIMER) {
+    p_flags_toolbar->SetConnected(p_autoconnector->IsConnectedToAnything());
 		// Autoplayer
 		// Since OH 4.0.5 we support autoplaying immediatelly after connection
 		// without the need to know the userchair to act on secondary formulas.

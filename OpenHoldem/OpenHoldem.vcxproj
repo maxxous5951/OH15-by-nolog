@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
@@ -23,7 +23,7 @@
     <ProjectGuid>{4B4F8898-50C6-4F07-8771-B140482DBA69}</ProjectGuid>
     <RootNamespace>pokbot</RootNamespace>
     <Keyword>MFCProj</Keyword>
-    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release - Optimized|Win32'" Label="Configuration">
@@ -31,23 +31,23 @@
     <UseOfMfc>Dynamic</UseOfMfc>
     <CharacterSet>MultiByte</CharacterSet>
     <WholeProgramOptimization>false</WholeProgramOptimization>
-    <PlatformToolset>v140_xp</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseOfMfc>Dynamic</UseOfMfc>
     <CharacterSet>MultiByte</CharacterSet>
     <WholeProgramOptimization>false</WholeProgramOptimization>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseOfMfc>Dynamic</UseOfMfc>
     <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Template|Win32'">
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -337,6 +337,25 @@
     <ClCompile Include="DialogScraperOutput.cpp" />
     <ClCompile Include="MyCToolBar.cpp" />
     <ClCompile Include="OpenHoldemView.cpp" />
+    <ClCompile Include="ModernUI\ModernGfx.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="ModernUI\ModernHeader.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="ModernUI\ModernMenu.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="ModernUI\ModernSvg.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="ModernUI\ModernTable.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="ModernUI\ModernTheme.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="ModernFrameSupport.cpp" />
     <ClCompile Include="ScintillaWnd.cpp" />
     <ClCompile Include="VerifyFunctionAndListNames.cpp" />
     <ClCompile Include="COpenHoldemHopperCommunication.cpp" />
@@ -659,6 +678,16 @@
     <ClInclude Include="DialogRename.h" />
     <ClInclude Include="DialogScraperOutput.h" />
     <ClInclude Include="OpenHoldemView.h" />
+    <ClInclude Include="ModernUI\ModernCommon.h" />
+    <ClInclude Include="ModernUI\ModernGfx.h" />
+    <ClInclude Include="ModernUI\ModernHeader.h" />
+    <ClInclude Include="ModernUI\ModernIconData.h" />
+    <ClInclude Include="ModernUI\ModernMenu.h" />
+    <ClInclude Include="ModernUI\ModernSuits.h" />
+    <ClInclude Include="ModernUI\ModernSvg.h" />
+    <ClInclude Include="ModernUI\ModernTable.h" />
+    <ClInclude Include="ModernUI\ModernTheme.h" />
+    <ClInclude Include="ModernFrameSupport.h" />
     <ClInclude Include="ScintillaWnd.h" />
     <ClInclude Include="VerifyFunctionAndListNames.h" />
     <ClInclude Include="DialogSAPrefs10.h" />

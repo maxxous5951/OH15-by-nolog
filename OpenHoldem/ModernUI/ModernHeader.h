@@ -104,6 +104,7 @@ class ModernHeader {
   std::wstring title_;
   bool  connected_;
   Gdiplus::Bitmap* app_icon_;
+  mutable CRITICAL_SECTION lock_;      // buttons are changed from the engine thread
 
   MenuBar menus_;
   std::vector<ToolButtonDef> tool_defs_;
@@ -126,6 +127,7 @@ int StatusbarHeight(float scale);
 class ModernStatusbar {
  public:
   ModernStatusbar();
+  ~ModernStatusbar();
   bool Create(HWND parent, int control_id);
   HWND hwnd() const { return hwnd_; }
   void SetTexts(const std::wstring& action, const std::wstring& handrank, const std::wstring& prwin);

@@ -14,6 +14,8 @@
 #ifndef INC_OPENHOLDEM_STATUSBAR_H
 #define INC_OPENHOLDEM_STATUSBAR_H
 
+namespace modernui { class ModernStatusbar; }
+
 class COpenHoldemStatusbar {
  public:
 	COpenHoldemStatusbar(CWnd *main_window);
@@ -21,6 +23,8 @@ class COpenHoldemStatusbar {
  public:
 	void OnUpdateStatusbar();
 	void GetWindowRect(RECT *statusbar_position);
+	int  Height(float dpi_scale);
+	void Move(int x, int y, int width, int height);
  public:
    void SetLastAction(CString action) { _last_action = action; }
    void SetHandrank(int handrank)     { _handrank = handrank; }
@@ -29,7 +33,7 @@ class COpenHoldemStatusbar {
 	void InitStatusbar();
   CString LastAction();
  private:
-	CStatusBar _status_bar;
+	modernui::ModernStatusbar *_status_bar;
 	CWnd    *_main_window;
  private:
   int _handrank;
