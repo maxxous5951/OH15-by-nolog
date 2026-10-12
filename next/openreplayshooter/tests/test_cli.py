@@ -76,6 +76,15 @@ def test_printwindow_backend_is_refused_off_windows(capsys):
     assert "only runs on Windows" in capsys.readouterr().err
 
 
+def test_gui_without_pyside6_gives_an_install_hint(monkeypatch, capsys):
+    # None in sys.modules makes any import of that name fail, cached or not.
+    for name in ("PySide6", "PySide6.QtWidgets", "openreplayshooter.gui.main_window"):
+        monkeypatch.setitem(sys.modules, name, None)
+
+    assert main(["gui", "--backend", "synthetic"]) == 2
+    assert 'pip install "openreplayshooter[gui]"' in capsys.readouterr().err
+
+
 def test_ambiguous_title_lists_the_candidates():
     backend = ScriptedBackend([WindowInfo(10, "Table 1"), WindowInfo(11, "Table 2")])
     with pytest.raises(CaptureError) as excinfo:

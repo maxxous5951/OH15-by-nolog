@@ -9,10 +9,23 @@ Captures a window at a fixed interval and writes numbered frames that **OHReplay
 Python 3.11+ (developed on 3.13).
 
 ```
-pip install -e ".[dev]"
+pip install -e ".[gui,dev]"      # gui = PySide6 (Qt 6), dev = pytest, ruff
 ```
 
-## Use
+The command line works without the `gui` extra.
+
+## Graphical interface
+
+```
+openreplayshooter gui            # or: openreplayshooter-gui
+```
+
+Pick the window, the output folder and the settings, then press **Start**. The interface
+shows progress and a live preview of the last frame, locks the settings while capturing,
+and **Stop** ends the capture cleanly (frames already written are kept). Your choices are
+remembered between runs. Use `--backend synthetic` to try it without any real window.
+
+## Command line
 
 ```
 openreplayshooter list
@@ -64,12 +77,13 @@ frame000000.htm   line 1 = window title, then a tiny HTML wrapper
 - `PrintWindow` can return a black image for windows drawn directly by the GPU. A
   Windows Graphics Capture backend is the planned fix; the backend interface
   (`backends/base.py`) is designed so it plugs in without touching the rest.
-- No GUI yet.
+- The interface was tested with Qt's offscreen platform and screenshots, not yet on a real
+  Windows desktop.
 
 ## Develop
 
 ```
-pytest
+pytest                       # GUI tests run offscreen; skipped if PySide6 is missing
 ruff check . && ruff format --check .
 ```
 

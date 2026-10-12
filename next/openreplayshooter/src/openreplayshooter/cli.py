@@ -45,6 +45,9 @@ def build_parser() -> argparse.ArgumentParser:
     list_p = sub.add_parser("list", help="list capturable windows")
     add_backend(list_p)
 
+    gui_p = sub.add_parser("gui", help="open the graphical interface (needs the 'gui' extra)")
+    add_backend(gui_p)
+
     shoot = sub.add_parser("shoot", help="capture a window into a folder")
     add_backend(shoot)
     shoot.add_argument(
@@ -111,6 +114,12 @@ def _cmd_list(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _cmd_gui(args: argparse.Namespace) -> int:
+    from openreplayshooter.gui.app import run  # importing it never needs PySide6
+
+    return run(args.backend)
+
+
 def _cmd_shoot(args: argparse.Namespace) -> int:
     if args.interval_ms < 0 or args.max_frames < 1:
         raise CaptureError("--interval-ms must be >= 0 and --max-frames >= 1.")
@@ -137,7 +146,8 @@ def _cmd_shoot(args: argparse.Namespace) -> int:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        return _cmd_list(args) if args.command == "list" else _cmd_shoot(args)
+        commands = {"list": _cmd_list, "shoot": _cmd_shoot, "gui": _cmd_gui}
+        return commands[args.command](args)
     except FolderFullError as error:
         print(f"error: {error}", file=sys.stderr)
         return EXIT_FOLDER_FULL
