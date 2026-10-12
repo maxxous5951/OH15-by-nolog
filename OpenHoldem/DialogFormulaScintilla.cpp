@@ -129,6 +129,7 @@ CDlgFormulaScintilla::CDlgFormulaScintilla(CWnd* pParent /*=NULL*/) :
   ok_to_update_debug = false;
   m_header = NULL;
   m_status = NULL;
+  m_in_layout = false;
   m_status_position = "Line: 1, Col: 1";
 
 	m_pActiveScinCtrl = NULL;
@@ -394,7 +395,7 @@ BOOL CDlgFormulaScintilla::OnInitDialog()
 		// Position header, status bar and controls for the restored size
 		CRect client;
 		GetClientRect(&client);
-		OnSize(SIZE_RESTORED, client.Width(), client.Height());
+		LayoutModern(client.Width(), client.Height());
 	}
 
 	return TRUE;  // return TRUE unless you set the focus to a control
@@ -1428,6 +1429,15 @@ void CDlgFormulaScintilla::OnSize(UINT nType, int cx, int cy)
 	if (nType == SIZE_MINIMIZED) {
 		return;
 	}
+	LayoutModern(cx, cy);
+}
+
+void CDlgFormulaScintilla::LayoutModern(int cx, int cy)
+{
+	if (m_in_layout) {
+		return;   // moving the child windows must never re-enter the layout
+	}
+	m_in_layout = true;
 	// Space for our own header (title bar, menu bar, toolbar) on top
 	// and for the status bar at the bottom.
 	const float scale = modernui::DpiScale(m_hWnd);
@@ -1452,6 +1462,7 @@ void CDlgFormulaScintilla::OnSize(UINT nType, int cx, int cy)
 		ScreenToClient(rc);
 		m_SymbolTree.SetWindowPos(NULL, rc.left,rc.top,rc.Width(),rc.Height(), SWP_NOZORDER);
 	}
+	m_in_layout = false;
 }
 
 void CDlgFormulaScintilla::OnBnClickedCalc() {

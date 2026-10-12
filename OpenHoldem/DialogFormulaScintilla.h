@@ -144,6 +144,7 @@ class CDlgFormulaScintilla : public CDialog {
   void CreateModernHeader();
   void ApplyModernTheme();
   void UpdateStatusBar();
+  void LayoutModern(int cx, int cy);
   afx_msg void OnEditUndo();
   afx_msg void OnEditRedo();
   afx_msg void OnEditCopy();
@@ -216,6 +217,7 @@ class CDlgFormulaScintilla : public CDialog {
   // Modern UI (replaces the classic menu, toolbar and status bar)
   modernui::ModernHeader*    m_header;
   modernui::ModernStatusbar* m_status;
+  bool        m_in_layout;
   CString     m_status_position;   // "Line: x, Col: y"
   CBrush      m_brush_window, m_brush_surface;
   CTreeCtrl		m_FormulaTree;
