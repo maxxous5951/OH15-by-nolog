@@ -44,6 +44,25 @@ class CModernButton : public CButton {
   bool _primary, _hot, _tracking;
 };
 
+// Check box / radio button (BS_CHECKBOX, BS_AUTOCHECKBOX, BS_RADIOBUTTON,
+// BS_AUTORADIOBUTTON): rounded box with check mark, round radio button.
+// Drop-in replacement, GetCheck() / SetCheck() work as usual.
+class CModernCheck : public CButton {
+ public:
+  CModernCheck() : _hot(false), _tracking(false) {}
+ protected:
+  afx_msg void OnPaint();
+  afx_msg BOOL OnEraseBkgnd(CDC*) { return TRUE; }
+  afx_msg void OnMouseMove(UINT nFlags, CPoint point);
+  afx_msg LRESULT OnMouseLeave(WPARAM, LPARAM);
+  afx_msg void OnSetFocus(CWnd* pOld);
+  afx_msg void OnKillFocus(CWnd* pNew);
+  afx_msg void OnEnable(BOOL bEnable);
+  DECLARE_MESSAGE_MAP()
+ private:
+  bool _hot, _tracking;
+};
+
 class CModernTabCtrl : public CTabCtrl {
  public:
   CModernTabCtrl() : _hot(-1), _tracking(false) {}

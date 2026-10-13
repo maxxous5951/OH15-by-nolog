@@ -44,30 +44,11 @@
 #include "..\CTransform\CTransform.h"
 #include "CValidator.h"
 #include "DialogFormulaScintilla.h"
-#include "DialogSAPrefs2.h"
-#include "DialogSAPrefs3.h"
-#include "DialogSAPrefs4.h"
-#include "DialogSAPrefs6.h"
-#include "DialogSAPrefs7.h"
-#include "DialogSAPrefs8.h"
-#include "DialogSAPrefs9.h"
-#include "DialogSAPrefs10.h"
-#include "DialogSAPrefs11.h"
-#include "DialogSAPrefs12.h"
-#include "DialogSAPrefs13.h"
-#include "DialogSAPrefs14.h"
-#include "DialogSAPrefs15.h"
-#include "DialogSAPrefs16.h"
-#include "DialogSAPrefs17.h"
-#include "DialogSAPrefs19.h"
-#include "DialogSAPrefs20.h"
-#include "DialogSAPrefs21.h"
-#include "DialogSAPrefs22.h"
 #include "DialogScraperOutput.h"
 #include "inlines/eval.h"
 #include "OpenHoldem.h"
 #include "OpenHoldemDoc.h"
-#include "SAPrefsDialog.h"
+#include "DialogPreferences.h"
 #include "Singletons.h"
 
 // CMainFrame
@@ -441,67 +422,8 @@ void CMainFrame::OnManualMode() {
 }
 
 void CMainFrame::OnEditPreferences() {
-	//CDlgPreferences  myDialog;
-	CSAPrefsDialog dlg;
-
-	// the "pages" (all derived from CSAPrefsSubDlg)
-	CDlgSAPrefs2 page2;
-	CDlgSAPrefs3 page3;
-	CDlgSAPrefs4 page4;
-	CDlgSAPrefs6 page6;
-  CDlgSAPrefs7 page7;
-	CDlgSAPrefs8 page8;
-  CDlgSAPrefs9 page9;
-	CDlgSAPrefs10 page10;
-	CDlgSAPrefs11 page11;
-	CDlgSAPrefs12 page12;
-	CDlgSAPrefs13 page13;
-	CDlgSAPrefs14 page14;
-	CDlgSAPrefs15 page15;
-	CDlgSAPrefs16 page16;
-	CDlgSAPrefs17 page17;
-	CDlgSAPrefs19 page19;
-	CDlgSAPrefs20 page20;
-	CDlgSAPrefs21 page21;
-	CDlgSAPrefs22 page22;
-
-	// add pages
-	dlg.AddPage(page14, "Auto-Connector");
-	dlg.AddPage(page2,  "Autoplayer");
-  dlg.AddPage(page9, "Auto-starter");
-	dlg.AddPage(page10, "Chat");
-	dlg.AddPage(page17, "Configuration Check");
-	dlg.AddPage(page20, "Debugging");
-	dlg.AddPage(page3,  "DLL Extension");
-	dlg.AddPage(page15, "GUI");
-	dlg.AddPage(page19, "Handhistory Generator");
-	dlg.AddPage(page11, "Logging");
-	dlg.AddPage(page6,  "Poker Tracker v4");
-	dlg.AddPage(page22, "Popup Blocker");
-	dlg.AddPage(page16, "Rebuy");
-	dlg.AddPage(page8,  "Replay Frames");
-	dlg.AddPage(page4,  "Scraper");
-	dlg.AddPage(page13, "Stealth");
-	dlg.AddPage(page21, "Table Positioner");
-	dlg.AddPage(page12, "Validator");	
-
-  // this one will be a child node on the tree
-	// (&page3 specifies the parent)
-	//dlg.AddPage(dlg4, "Page 4", &page3);
-
-	// the prefs dialog title
-	dlg.SetTitle("OpenHoldem Preferences");
-
-	// text drawn on the right side of the shaded
-	// page label. this does not change when the
-	// pages change, hence "constant".
-	dlg.SetConstantText("Preferences");
-
-	// launch it like any other dialog...
-	//dlg1.m_csText = m_csStupidCString;
-	if (dlg.DoModal()==IDOK) {
-		//m_csStupidCString = dlg1.m_csText;
-	}
+	CDlgPreferences dlg;
+	dlg.DoModal();
 }
 
 BOOL CMainFrame::DestroyWindow() {

@@ -29,7 +29,8 @@ wine window_preview.exe dark   # or: light, optionally "nomenu"
 
 * The main window, the formula editor, its Hand list editor (themed 13x13 matrix,
   `../ModernHandGrid.*`) and its Find / Replace bar (`../ModernFindBar.*`) are converted.
-  Preferences and the other dialogs (New / Rename), ManualMode, OpenScrape and OHReplay
+  The Preferences are one single themed dialog (`../DialogPreferences.*`, pages described as data)
+  that replaced the 20 classic property pages. New / Rename, ManualMode, OpenScrape and OHReplay
   still use native menus/controls.
 * The auto-completion list of the formula editor is drawn by Scintilla itself
   (system colours): the bundled Scintilla is too old to theme it.

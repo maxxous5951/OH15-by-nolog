@@ -305,30 +305,6 @@
     <ClCompile Include="..\CTransform\pdiff\Metric.cpp" />
     <ClCompile Include="..\CTransform\pdiff\RGBAImage.cpp" />
     <ClCompile Include="COpenHoldemTitle.cpp" />
-    <ClCompile Include="DialogSAPrefs10.cpp" />
-    <ClCompile Include="DialogSAPrefs11.cpp" />
-    <ClCompile Include="DialogSAPrefs12.cpp" />
-    <ClCompile Include="DialogSAPrefs13.cpp" />
-    <ClCompile Include="DialogSAPrefs14.cpp" />
-    <ClCompile Include="DialogSAPrefs15.cpp" />
-    <ClCompile Include="DialogSAPrefs16.cpp" />
-    <ClCompile Include="DialogSAPrefs17.cpp" />
-    <ClCompile Include="DialogSAPrefs18.cpp">
-    </ClCompile>
-    <ClCompile Include="DialogSAPrefs19.cpp" />
-    <ClCompile Include="DialogSAPrefs2.cpp" />
-    <ClCompile Include="DialogSAPrefs20.cpp" />
-    <ClCompile Include="DialogSAPrefs21.cpp" />
-    <ClCompile Include="DialogSAPrefs22.cpp" />
-    <ClCompile Include="DialogSAPrefs3.cpp" />
-    <ClCompile Include="DialogSAPrefs4.cpp" />
-    <ClCompile Include="DialogSAPrefs6.cpp" />
-    <ClCompile Include="DialogSAPrefs7.cpp" />
-    <ClCompile Include="DialogSAPrefs8.cpp" />
-    <ClCompile Include="DialogSAPrefs9.cpp" />
-    <ClCompile Include="SAPrefsDialog.cpp" />
-    <ClCompile Include="SAPrefsStatic.cpp" />
-    <ClCompile Include="SAPrefsSubDlg.cpp" />
     <ClCompile Include="COpenHoldemStatusbar.cpp" />
     <ClCompile Include="DialogFormulaScintilla.cpp" />
     <ClCompile Include="DialogHandList.cpp" />
@@ -356,6 +332,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="ModernFrameSupport.cpp" />
+    <ClCompile Include="DialogPreferences.cpp" />
     <ClCompile Include="ModernControls.cpp" />
     <ClCompile Include="ModernHandGrid.cpp" />
     <ClCompile Include="ModernFindBar.cpp" />
@@ -691,38 +668,12 @@
     <ClInclude Include="ModernUI\ModernTable.h" />
     <ClInclude Include="ModernUI\ModernTheme.h" />
     <ClInclude Include="ModernFrameSupport.h" />
+    <ClInclude Include="DialogPreferences.h" />
     <ClInclude Include="ModernControls.h" />
     <ClInclude Include="ModernHandGrid.h" />
     <ClInclude Include="ModernFindBar.h" />
     <ClInclude Include="ScintillaWnd.h" />
     <ClInclude Include="VerifyFunctionAndListNames.h" />
-    <ClInclude Include="DialogSAPrefs10.h" />
-    <ClInclude Include="DialogSAPrefs11.h" />
-    <ClInclude Include="DialogSAPrefs12.h" />
-    <ClInclude Include="DialogSAPrefs13.h" />
-    <ClInclude Include="DialogSAPrefs14.h" />
-    <ClInclude Include="DialogSAPrefs15.h" />
-    <ClInclude Include="DialogSAPrefs16.h" />
-    <ClInclude Include="DialogSAPrefs17.h" />
-    <ClInclude Include="DialogSAPrefs18.h">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-    </ClInclude>
-    <ClInclude Include="DialogSAPrefs19.h" />
-    <ClInclude Include="DialogSAPrefs2.h" />
-    <ClInclude Include="DialogSAPrefs20.h" />
-    <ClInclude Include="DialogSAPrefs21.h" />
-    <ClInclude Include="DialogSAPrefs22.h" />
-    <ClInclude Include="DialogSAPrefs3.h" />
-    <ClInclude Include="DialogSAPrefs4.h" />
-    <ClInclude Include="DialogSAPrefs6.h" />
-    <ClInclude Include="DialogSAPrefs7.h">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-    </ClInclude>
-    <ClInclude Include="DialogSAPrefs8.h" />
-    <ClInclude Include="DialogSAPrefs9.h" />
-    <ClInclude Include="SAPrefsDialog.h" />
-    <ClInclude Include="SAPrefsStatic.h" />
-    <ClInclude Include="SAPrefsSubDlg.h" />
     <ClInclude Include="COpenHoldemHopperCommunication.h" />
     <ClInclude Include="CSessionCounter.h" />
     <ClInclude Include="CSharedMem.h" />
