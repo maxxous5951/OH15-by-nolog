@@ -384,6 +384,7 @@ class Game:
             dec = s.brain.decide(self, c)
             dec = self._legalize(s, dec, to_call, can_raise)
             self._apply(s, dec, rnd, acted)
+            s.brain.after_action(self, c)
             if dec._aggr:
                 # nouvelle relance : tous les autres joueurs avec une mise inférieure doivent réagir
                 cyc = []
@@ -634,6 +635,9 @@ class Brain:
 
     def end_hand(self, game, record):
         pass
+
+    def after_action(self, game, chair):
+        """Appelé juste après l'exécution de l'action de ce joueur (table à jour)."""
 
     def decide(self, game, chair):  # pragma: no cover
         raise NotImplementedError

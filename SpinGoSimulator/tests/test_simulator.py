@@ -284,6 +284,12 @@ class CustomFunctionRegressions(unittest.TestCase):
         trash = self._ctx("##f$call##\n1\n", cards="7h 2d")
         self.assertGreater(trash.symbol("nhandshi"), 800)
 
+    def test_vs_multiplex(self):
+        ctx = self._ctx("##list105##\nAA\n\n##f$R##\n105\n", cards="Kh Kc")
+        self.assertEqual(ctx.symbol("vs$multiplex$f$R$nhands"), 6.0)
+        self.assertEqual(ctx.symbol("vs$list105$nhands"), 6.0)
+        self.assertAlmostEqual(ctx.symbol("vs$multiplex$f$R$prwin"), 0.18, delta=0.08)
+
     def test_role_chair_balance(self):
         ctx = self._ctx("##f$call##\n1\n")
         self.assertGreaterEqual(ctx.symbol("balance_raischair"), 0.0)
@@ -304,6 +310,44 @@ class CustomFunctionRegressions(unittest.TestCase):
                 pf += "raise" in mine
         self.assertTrue(0.05 < vp / n < 0.45, vp / n)
         self.assertGreater(pf, 0)
+
+
+class RaisesCounter(unittest.TestCase):
+    def test_raises_counts_own_and_later_raises(self):
+        """Après notre 3-bet puis un 4-bet adverse, Raises (mémoire OpenPPL mise à jour juste après
+        notre action, hors nos propres relances) vaut 1 : le profil doit faire tapis, pas fold."""
+        import tempfile
+        prof = "##f$preflop##\nWHEN (Raises = 1 AND BotRaisedBeforeFlop) RaiseMax FORCE\nWHEN (Raises = 1) RaiseTo 12 FORCE\nWHEN Others Fold FORCE\n"
+        with tempfile.NamedTemporaryFile("w", suffix=".ohf", delete=False, encoding="utf-8") as f:
+            f.write(prof)
+        cfg = SimConfig(mode="cash", num_players=3, cash_hands=1, rake_pct=0)
+        cfg.validate()
+
+        class Script(Brain):
+            def __init__(self, acts):
+                self.acts = list(acts)
+
+            def decide(self, game, chair):
+                k = self.acts.pop(0) if self.acts else "c"
+                if k == "f":
+                    return Decision("fold", code=-1)
+                if k == "c":
+                    return Decision("call", code=1)
+                return Decision("raise", to=k, code=3)
+        hero = S.make_brain(f.name, cfg, random.Random(1), "H")
+        os.unlink(f.name)
+        g = Game(cfg, [hero, Script(["f"]), Script([30, 210])], ["H", "B", "V"], 1, random.Random(1))
+        g.prev_dealer = 0
+        cards = cs("Kh Kc 6d Tc 8s Qs 2c 3d 4h 5s 9c")
+        orig = C.shuffled_deck
+        C.shuffled_deck = lambda rng: list(reversed(cards))
+        try:
+            g.play()
+        finally:
+            C.shuffled_deck = orig
+        hero_acts = [a["k"] for a in g.hands[0]["actions"] if a["c"] == 0 and a["k"] not in ("bb", "sb")]
+        self.assertEqual(hero_acts[:2], ["raise", "raise"])
+        self.assertTrue([a for a in g.hands[0]["actions"] if a["c"] == 0][-1]["allin"])
 
 
 if __name__ == "__main__":

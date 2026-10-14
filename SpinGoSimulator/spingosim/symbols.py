@@ -329,11 +329,6 @@ class SymbolContext:
     def prepare(self, game, chair):
         self._bind(game, chair)
         rnd = self.t.betround
-        if getattr(self, "_pending_after", False):
-            self._pending_after = False
-            self._eval_function("UpdateMemorySymbolsAfterAutoplayerAction", silent=True)
-            self._cache = {}
-            self._fn_cache = {}
         if rnd not in self._rounds_seen:
             self._rounds_seen.add(rnd)
             self._round_rand[rnd] = self.rng.random()
@@ -356,8 +351,13 @@ class SymbolContext:
             self.fc._uses_hi_prwin = v
         return v
 
-    def after_action(self):
-        self._pending_after = True
+    def run_after_action(self, game, chair):
+        self._bind(game, chair)
+        self._cache = {}
+        self._fn_cache = {}
+        self._eval_function("UpdateMemorySymbolsAfterAutoplayerAction", silent=True)
+        self._cache = {}
+        self._fn_cache = {}
 
     def _snapshot_history(self):
         r = self.t.betround
@@ -950,6 +950,11 @@ class SymbolContext:
         return 1.0 if C.hand_class_169(self._hole[0], self._hole[1]) in fn.hand_list else 0.0
 
     def _vs_symbol(self, name):
+        # vs$multiplex$<fonction>$prwin : la valeur de la fonction donne le numéro de liste
+        mm = re.match(r"^vs\$multiplex\$(.+)\$(prwin|prtie|prlos|nhands)$", name)
+        if mm:
+            v = self.symbol(mm.group(1))
+            return self._vs_list(str(int(v)), mm.group(2))
         m = re.match(r"^vs\$([^$]+)\$(prwin|prtie|prlos|nhands)$", name)
         if m:
             return self._vs_list(m.group(1), m.group(2))
@@ -1787,9 +1792,13 @@ class OHBrain(Brain):
         ctx.prepare(game, chair)
         flags = self._flags_ohscript(ctx) if self.script else self._flags_openppl(ctx)
         dec = self._to_decision(ctx, flags)
-        ctx.after_action()
         self.decisions += 1
         return dec
+
+    def after_action(self, game, chair):
+        # OpenHoldem : UpdateMemorySymbolsAfterAutoplayerAction s'exécute sur l'image de table qui
+        # contient déjà notre action (avant que les adversaires suivants n'aient joué)
+        self.ctx.run_after_action(game, chair)
 
     # --- OH-script
     def _flags_ohscript(self, ctx):
