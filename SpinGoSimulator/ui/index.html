@@ -61,6 +61,7 @@ pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:
     <div><label>Processus (0 = auto)</label><input type="number" id="workers" min="0"></div>
     <div><label>Cagnotte</label><select id="prize_pool_mode"><option value="multiplier_x_buyin">multiplicateur × buy-in</option><option value="multiplier_x_total">multiplicateur × (joueurs × buy-in)</option></select></div>
     <div><label>Places tournantes</label><select id="rotate_seats"><option value="true">oui</option><option value="false">non</option></select></div>
+    <div><label>Base de stats persistante (pt_*) — chemin JSON, vide = stats de la partie</label><input id="pt_db_path" placeholder="ex. pt_db.json"></div>
     <div><label>Historique global</label><select id="write_handhistory"><option value="true">oui</option><option value="false">non</option></select></div>
   </div></div>
   <div class="grid">
@@ -147,7 +148,7 @@ function drawMults(){const t=$('#mults');t.innerHTML='<tr><th>Multiplicateur</th
 function ev(){const tot=cfg.multipliers.reduce((a,m)=>a+m[1],0);const e=cfg.multipliers.reduce((a,m)=>a+m[0]*m[1],0)/tot;$('#evmult').textContent='Total '+tot+' · multiplicateur moyen ×'+e.toFixed(3)}
 function collect(){const c=JSON.parse(JSON.stringify(cfg));
   ['num_games','buyin','starting_stack','hand_base_seconds','action_seconds','showdown_seconds','max_hands_per_game','prwin_iterations','prwin_max_iterations','seed','workers'].forEach(k=>c[k]=num(k));
-  c.num_players=+$('#num_players').value;c.level_seconds=+$('#level_seconds').value;c.prize_pool_mode=$('#prize_pool_mode').value;
+  c.pt_db_path=$('#pt_db_path').value.trim();c.num_players=+$('#num_players').value;c.level_seconds=+$('#level_seconds').value;c.prize_pool_mode=$('#prize_pool_mode').value;
   c.rotate_seats=$('#rotate_seats').value==='true';c.write_handhistory=$('#write_handhistory').value==='true';
   c.payout_split=[num('p1')/100,num('p2')/100,num('p3')/100];c.players=c.players.slice(0,c.num_players);return c}
 $('#run').onclick=async()=>{const r=await post('/api/run',collect());$('#runmsg').textContent=r.error?r.error:'Lancé : '+r.run;if(!r.error){curRun=r.run;show('run')}};

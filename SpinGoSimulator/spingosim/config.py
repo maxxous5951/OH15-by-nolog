@@ -45,6 +45,7 @@ class SimConfig:
     # --- calcul des symboles
     prwin_iterations: int = 200
     prwin_max_iterations: int = 300       # plafond si le profil demande plus (f$prwin_number_of_iterations)
+    pt_db_path: str = ""                 # base de stats persistante (JSON) ; vide = stats de la partie seulement
     use_native_history_symbols: bool = True
     library_dir: str = ""                 # dossier de la bibliothèque OpenPPL (auto si vide)
     # --- sorties

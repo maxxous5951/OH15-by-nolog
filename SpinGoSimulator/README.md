@@ -31,6 +31,7 @@ python3 -m unittest discover -s tests      # tests
 * ≈ 370 symboles natifs recalculés depuis l'état exact de la partie : cartes, `pokerval`, `prwin` (Monte-Carlo), `handrank*`, positions, mises/pots, historique (`did*`, `prevaction`, `hi_*`), raisers/callers, tournoi, `ac_*`…
 * Décision : OpenPPL (constantes d'action, chaîne de repli allin→betpot→betsize→raise→call→check→fold) ou OH-script (`f$allin`, `f$betpot_*`, `f$betsize`, `f$raise`, `f$call`, `f$check`, `f$fold`) ; `f$ini_function_*` et `f$prwin_*` pris en compte.
 * **PokerTracker simulé** : `pt_<stat><siège>` (+ `_raischair`, `_userchair`, `_smallblindchair`…) sont calculés par `pt.py` à partir des mains déjà jouées dans la partie (vpip, pfr, hands, pfats, fbbts, fsbts, ffcbet, cbet, wtsd, wsdp, aggf/aggt/aggr/aggtot, pf_cr) ; `-1` tant qu'un adversaire n'a joué aucune main.
+* **Base PokerTracker persistante** (optionnelle) : `--pt-db fichier.json` (ou champ dans l'UI) charge les stats cumulées par **nom de joueur** comme point de départ et les met à jour en fin de run.
 * Hors périmètre : DLL utilisateur, `mh_*` (bibliothèque externe à OpenHoldem).
 
 ## Sorties (`output/run_AAAAMMJJ_HHMMSS/`)

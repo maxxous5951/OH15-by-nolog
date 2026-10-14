@@ -97,6 +97,10 @@ def run_simulation(cfg, progress=None, on_update=None):
             progress.parse_errors[i] = [("(fichier)", str(e))]
     writer = OutputWriter(out_dir, names, cfg.write_handhistory, cfg.write_player_files)
     stats = {i: PlayerStats(names[i]) for i in range(len(names))}
+    from .pt import PTTracker
+    master = None
+    if cfg.pt_db_path:
+        master = PTTracker(S.load_pt_baseline(cfg.pt_db_path))
     from dataclasses import asdict
     cfg_dict = asdict(cfg)
     workers = cfg.workers or max(1, (os.cpu_count() or 1))
@@ -105,6 +109,9 @@ def run_simulation(cfg, progress=None, on_update=None):
 
     def consume(res):
         writer.write_game(res)
+        if master is not None:
+            for h in res["hand_records"]:
+                master.update(h)
         update_from_game(stats, res, cfg.buyin)
         progress.done += 1
         progress.unknown.update(res.get("unknown_symbols", []))
@@ -137,6 +144,14 @@ def run_simulation(cfg, progress=None, on_update=None):
         raise
     finally:
         writer.close()
+        if master is not None:
+            import json, tempfile
+            d = os.path.dirname(os.path.abspath(cfg.pt_db_path)) or "."
+            os.makedirs(d, exist_ok=True)
+            fd, tmp = tempfile.mkstemp(dir=d, suffix=".tmp")
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(master.to_dict(), f)
+            os.replace(tmp, cfg.pt_db_path)
         progress.rows = [stats[i].row(cfg.buyin) for i in sorted(stats)]
         progress.finished = True
         write_summary(out_dir, cfg, progress.rows, progress)

@@ -899,7 +899,7 @@ class SymbolContext:
         tr = getattr(self.game, "pt", None)
         if tr is None:
             return -1.0
-        v = tr.stat(stat, chair)
+        v = tr.stat(stat, self.t.seats[chair].name)
         return -1.0 if v is None else v
 
     def _card_code(self, name):
@@ -1614,6 +1614,23 @@ _NATIVE_REGEX = [
 #  Chargement de profils
 # ----------------------------------------------------------------------------
 _LIB_CACHE = {}
+_PT_BASE = {}
+
+
+def load_pt_baseline(path):
+    """Base de stats persistante (JSON {nom: compteurs}), lue une fois par processus."""
+    if not path:
+        return None
+    try:
+        mt = os.path.getmtime(path)
+    except OSError:
+        return None
+    k = (path, mt)
+    if k not in _PT_BASE:
+        import json
+        with open(path, encoding="utf-8") as f:
+            _PT_BASE[k] = json.load(f)
+    return _PT_BASE[k]
 _PREFLOP_EQ = {}
 
 
@@ -1735,7 +1752,7 @@ class OHBrain(Brain):
     def end_hand(self, game, record):
         tr = getattr(game, "pt", None)
         if tr is None:
-            tr = game.pt = PTTracker()
+            tr = game.pt = PTTracker(load_pt_baseline(getattr(self.cfg, "pt_db_path", "")))
         tr.update(record)
 
     # --------------------------------------------------------------

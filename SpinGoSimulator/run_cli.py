@@ -23,6 +23,7 @@ def main():
     ap.add_argument("--seed", type=int, default=12345)
     ap.add_argument("--out", default="output")
     ap.add_argument("--workers", type=int, default=0)
+    ap.add_argument("--pt-db", default="", help="base de stats persistante (JSON) pour les symboles pt_*")
     ap.add_argument("--config", help="fichier JSON de configuration complet")
     ap.add_argument("--no-handhistory", action="store_true")
     a = ap.parse_args()
@@ -33,6 +34,7 @@ def main():
         cfg = SimConfig()
     cfg.num_games, cfg.num_players, cfg.seed = a.games, a.players, a.seed
     cfg.level_seconds, cfg.output_dir, cfg.workers = a.level_seconds, a.out, a.workers
+    cfg.pt_db_path = a.pt_db
     if a.no_handhistory:
         cfg.write_handhistory = False
     if a.player:

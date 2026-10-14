@@ -9,15 +9,30 @@ from collections import defaultdict
 STREET = {2: "f", 3: "t", 4: "r"}
 
 
+def _new():
+    return defaultdict(float)
+
+
 class PTTracker:
-    def __init__(self):
-        self.c = defaultdict(lambda: defaultdict(float))
-        self.last_hand = 0
+    """Compteurs par NOM de joueur (comme le « screen name » dans PokerTracker).
+
+    ``baseline`` : compteurs issus de parties précédentes (base persistante), copiés au départ.
+    """
+
+    def __init__(self, baseline=None):
+        self.c = defaultdict(_new)
+        for name, d in (baseline or {}).items():
+            self.c[name].update(d)
+        self.last_hand = None
+
+    def to_dict(self):
+        return {n: dict(d) for n, d in self.c.items()}
 
     def update(self, rec):
-        if rec["hand"] == self.last_hand:
+        key = (rec.get("game"), rec["hand"])
+        if key == self.last_hand:
             return
-        self.last_hand = rec["hand"]
+        self.last_hand = key
         acts = rec["actions"]
         pre = [a for a in acts if a["r"] == 1 and a["k"] not in ("sb", "bb")]
         raises = [a for a in pre if a["k"] == "raise"]
@@ -25,7 +40,7 @@ class PTTracker:
         board3 = len(rec["board"]) >= 3
         for s in rec["seats"]:
             ch = s["chair"]
-            d = self.c[ch]
+            d = self.c[s["name"]]
             d["hands"] += 1
             mine = [a for a in pre if a["c"] == ch]
             if any(a["k"] in ("call", "raise") for a in mine):
@@ -90,8 +105,8 @@ class PTTracker:
                             d["fcbet_fold"] += 1
 
     # ------------------------------------------------------------------
-    def stat(self, name, chair):
-        d = self.c.get(chair)
+    def stat(self, name, player):
+        d = self.c.get(player)
         if not d or d["hands"] <= 0:
             return -1.0
         h = d["hands"]
