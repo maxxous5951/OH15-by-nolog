@@ -14,7 +14,28 @@ python3 run_cli.py --games 300 --level-seconds 90 --out output \
 python3 -m unittest discover -s tests      # tests
 ```
 
-## Ce qui est simulé
+## Deux modes : Spin & Go ou Cash game
+
+Choix dans l'interface (champ « Mode de jeu ») ou en CLI (`--mode spin|cash`).
+
+| Cash game | Détail |
+|---|---|
+| Joueurs | 2 à 9 (un profil par siège, places tournantes) |
+| Blinds | **fixes** : petite/grosse blind au choix (1 jeton = 0,01 € par défaut, réglable) |
+| Tapis | 100 bb par défaut ; recave automatique quand un joueur est à 0, ou tapis remis à chaque main (`cash_stack_mode`) |
+| Rake | 0 ou **2,5 à 10 %** du pot disputé (les mises non suivies sont rendues), plafond optionnel en jetons (`rake_cap`) |
+| No Flop, No Drop | actif par défaut : aucune commission si la main se termine avant le flop (désactivable) |
+| Session | `cash_hands` mains par session ; le nombre de « parties » devient le nombre de sessions |
+| Historique | même format qu'en Spin, avec `Rake` et `(no flop, no drop)` dans le résumé ; `games.csv` = net par session |
+| Stats | `net_eur`, `bb/100` après rake, `bb/100_no_rake`, `rake_paid_bb`, recaves + VPIP/PFR/3-bet/steal (CO/BTN/SB)/AF/c-bet/WTSD/W$SD |
+| Symboles | `istournament`, `issng`, `isspin`, `isfinaltable` valent 0 ; `bblind`/`sblind` constants |
+
+```bash
+python3 run_cli.py --mode cash --players 6 --games 20 --hands 500 --sb 5 --bb 10 --stack 1000 \
+   --rake 5 --rake-cap 300 --player Nit=profiles/Tight_Nit.ohf --player LAG=profiles/Aggro_LAG.ohf
+```
+
+## Ce qui est simulé (Spin & Go)
 
 | Élément | Détail |
 |---|---|

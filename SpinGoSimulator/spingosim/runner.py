@@ -95,8 +95,8 @@ def run_simulation(cfg, progress=None, on_update=None):
             progress.parse_errors[i] = S.profile_errors(fc)
         except Exception as e:
             progress.parse_errors[i] = [("(fichier)", str(e))]
-    writer = OutputWriter(out_dir, names, cfg.write_handhistory, cfg.write_player_files)
-    stats = {i: PlayerStats(names[i]) for i in range(len(names))}
+    writer = OutputWriter(out_dir, names, cfg.write_handhistory, cfg.write_player_files, cash=cfg.is_cash)
+    stats = {i: PlayerStats(names[i], cfg.is_cash) for i in range(len(names))}
     from .pt import PTTracker
     master = None
     if cfg.pt_db_path:
@@ -192,7 +192,7 @@ def write_diagnostics(out_dir, names, progress):
 
 def write_summary(out_dir, cfg, rows, progress):
     with open(os.path.join(out_dir, "summary.json"), "w", encoding="utf-8") as f:
-        json.dump({"games": progress.done, "seconds": round(time.time() - progress.started, 1),
+        json.dump({"mode": cfg.mode, "games": progress.done, "seconds": round(time.time() - progress.started, 1),
                    "players": rows, "unknown_symbols": sorted(progress.unknown)}, f, indent=2, ensure_ascii=False)
     if rows:
         with open(os.path.join(out_dir, "player_stats.csv"), "w", newline="", encoding="utf-8") as f:

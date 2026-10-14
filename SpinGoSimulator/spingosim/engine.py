@@ -28,7 +28,7 @@ class Decision:
 class Seat:
     __slots__ = ("chair", "name", "brain", "stack", "bet", "committed", "cards",
                  "in_hand", "allin", "dealt", "start_stack", "acts", "prevaction",
-                 "busted", "place", "profile_id", "hands_played")
+                 "busted", "place", "profile_id", "hands_played", "rebuys")
 
     def __init__(self, chair, name, brain, stack, profile_id=None):
         self.chair = chair
@@ -48,6 +48,7 @@ class Seat:
         self.place = 0
         self.profile_id = profile_id
         self.hands_played = 0
+        self.rebuys = 0
 
 
 class Table:
@@ -107,14 +108,20 @@ class Game:
         self.game_id = game_id
         n = len(brains)
         self.t = Table(n, game_id)
+        self.cash = cfg.is_cash
         self.t.starting_stack = cfg.starting_stack
         self.t.buyin = cfg.buyin
+        self.total_rake = 0
         for i in range(n):
             pid = profile_ids[i] if profile_ids else i
             self.t.seats.append(Seat(i, names[i], brains[i], cfg.starting_stack, pid))
-        mt = MultiplierTable(cfg.multipliers)
-        self.t.multiplier = multiplier if multiplier is not None else mt.draw(rng)
-        self.t.prizepool = prize_pool(self.t.multiplier, cfg.buyin, n, cfg.prize_pool_mode)
+        if self.cash:
+            self.t.multiplier = 0.0
+            self.t.prizepool = 0.0
+        else:
+            mt = MultiplierTable(cfg.multipliers)
+            self.t.multiplier = multiplier if multiplier is not None else mt.draw(rng)
+            self.t.prizepool = prize_pool(self.t.multiplier, cfg.buyin, n, cfg.prize_pool_mode)
         self.hands = []
         self.finish_order = []   # chairs éliminées dans l'ordre (la première = dernière place)
         self.t.dealer = rng.randrange(n)
@@ -124,6 +131,8 @@ class Game:
 
     # ------------------------------------------------------------------
     def blinds_for_clock(self, clock):
+        if self.cash:
+            return 0, self.cfg.cash_sb, self.cfg.cash_bb
         lvl = int(clock // self.level_seconds)
         if lvl >= len(self.levels):
             lvl = len(self.levels) - 1
@@ -134,7 +143,37 @@ class Game:
         return [s for s in self.t.seats if s.stack > 0]
 
     # ------------------------------------------------------------------
+    def play_cash(self):
+        """Session de cash game : N mains, blinds fixes, recave automatique, rake."""
+        t = self.t
+        cfg = self.cfg
+        for s in t.seats:
+            s.brain.new_game(self)
+        for _ in range(cfg.cash_hands):
+            self.play_hand()
+        chip = cfg.cash_chip_eur
+        net = {s.chair: 0 for s in t.seats}
+        for h in self.hands:
+            for st in h["seats"]:
+                net[st["chair"]] += st["net"]
+        ranking = sorted(t.seats, key=lambda s: -net[s.chair])
+        result = {"mode": "cash", "game": self.game_id, "multiplier": 0.0, "prizepool": 0.0,
+                  "hands": len(self.hands), "seconds": t.clock, "rake": self.total_rake,
+                  "players": []}
+        for rank, s in enumerate(ranking, 1):
+            n_h = max(1, s.hands_played)
+            result["players"].append({
+                "chair": s.chair, "name": s.name, "profile_id": s.profile_id, "place": rank,
+                "net_chips": net[s.chair], "gain": net[s.chair] * chip, "net": net[s.chair] * chip,
+                "rebuys": s.rebuys, "hands": s.hands_played,
+                "bb100": 100.0 * net[s.chair] / cfg.cash_bb / n_h,
+            })
+        result["hand_records"] = self.hands
+        return result
+
     def play(self):
+        if self.cash:
+            return self.play_cash()
         t = self.t
         for s in t.seats:
             s.brain.new_game(self)
@@ -213,6 +252,14 @@ class Game:
             s.dealt = False
             s.acts = {r: [] for r in (1, 2, 3, 4)}
             s.prevaction = PA_UNDEFINED
+        if self.cash:
+            for s in t.seats:
+                if self.cfg.cash_stack_mode == "reset":
+                    s.stack = cfg.cash_stack
+                elif s.stack <= 0:
+                    s.stack = cfg.cash_stack
+                    s.rebuys += 1
+        self._flop_seen = False
         alive = self.alive()
         n = len(alive)
         # bouton
@@ -270,6 +317,8 @@ class Game:
                 t.last_raise_size = bb
             if t.n_in_hand() <= 1:
                 break
+            if rnd == FLOP:
+                self._flop_seen = True
             if rnd == PREFLOP:
                 if n >= 3:
                     first = order[2:] + order[:2]      # UTG ... bouton, SB, BB
@@ -289,7 +338,7 @@ class Game:
             seconds += cfg.showdown_seconds
         t.clock += seconds
         # éliminations
-        busted_now = [s for s in alive if s.stack <= 0]
+        busted_now = [] if self.cash else [s for s in alive if s.stack <= 0]
         busted_now.sort(key=lambda s: (record_start[s.chair], s.chair))
         for s in busted_now:
             s.busted = True
@@ -452,6 +501,18 @@ class Game:
         acted.add(s.chair)
 
     # ------------------------------------------------------------------
+    def _rake_for(self, base):
+        """Rake d'une main (en jetons entiers) : % du pot disputé, plafonné, sauf No Flop No Drop."""
+        cfg = self.cfg
+        if not self.cash or cfg.rake_pct <= 0 or base <= 0:
+            return 0
+        if cfg.no_flop_no_drop and not self._flop_seen:
+            return 0
+        rake = int(base * cfg.rake_pct / 100.0)
+        if cfg.rake_cap > 0:
+            rake = min(rake, int(cfg.rake_cap))
+        return rake
+
     def _settle(self, board_cards):
         t = self.t
         contenders = [s for s in t.seats if s.in_hand]
@@ -466,15 +527,20 @@ class Game:
         if not showdown:
             winner = contenders[0]
             total = sum(committed.values())
-            winner.stack += total
-            collected[winner.chair] = total
-            pots.append({"amount": total, "winners": [winner.chair], "eligible": [winner.chair]})
-            return {"showdown": False, "collected": collected, "pots": pots, "values": {}}
+            others = [v for ch, v in committed.items() if ch != winner.chair]
+            uncalled = max(0, committed[winner.chair] - max(others + [0]))
+            rake = self._rake_for(total - uncalled)
+            winner.stack += total - rake
+            collected[winner.chair] = total - rake
+            self.total_rake += rake
+            pots.append({"amount": total - rake, "winners": [winner.chair], "eligible": [winner.chair]})
+            return {"showdown": False, "collected": collected, "pots": pots, "values": {}, "rake": rake}
         # tapis complété : toutes les cartes du board sont dévoilées
         t.board = list(board_cards)
         values = {s.chair: C.evaluate(s.cards + board_cards) for s in contenders}
         levels = sorted(set(v for v in committed.values() if v > 0))
         prev = 0
+        layers = []
         for lv in levels:
             amount = sum(min(v, lv) - min(v, prev) for v in committed.values())
             eligible = [s.chair for s in contenders if committed[s.chair] >= lv]
@@ -484,12 +550,25 @@ class Game:
             if not eligible:
                 # ne devrait pas arriver : on attribue au contributeur restant le plus engagé
                 eligible = [max(contenders, key=lambda x: committed[x.chair]).chair]
+            layers.append([amount, eligible])
+        # rake prélevé sur les pots disputés (pot principal d'abord) ; les mises non suivies sont rendues
+        rake = self._rake_for(sum(a for a, e in layers if len(e) > 1))
+        left = rake
+        for layer in layers:
+            if len(layer[1]) > 1 and left > 0:
+                take = min(left, layer[0])
+                layer[0] -= take
+                left -= take
+        self.total_rake += rake
+        for amount, eligible in layers:
             if len(eligible) == 1:
                 ch = eligible[0]
                 t.seats[ch].stack += amount
                 collected[ch] += amount
                 pots.append({"amount": amount, "winners": [ch], "eligible": eligible,
                              "uncalled": True})
+                continue
+            if amount <= 0:
                 continue
             best = max(values[ch] for ch in eligible)
             winners = [ch for ch in eligible if values[ch] == best]
@@ -507,7 +586,7 @@ class Game:
                 t.seats[ch].stack += got
                 collected[ch] += got
             pots.append({"amount": amount, "winners": winners, "eligible": eligible})
-        return {"showdown": True, "collected": collected, "pots": pots, "values": values}
+        return {"showdown": True, "collected": collected, "pots": pots, "values": values, "rake": rake}
 
     def _build_record(self, record_start, board_cards, results, lvl, sb, bb):
         t = self.t
@@ -535,6 +614,8 @@ class Game:
             "pots": results["pots"],
             "hand_types": {ch: C.HAND_TYPE_NAMES[C.hand_type(v)] for ch, v in vals.items()},
             "multiplier": t.multiplier, "prizepool": t.prizepool,
+            "rake": results.get("rake", 0), "mode": "cash" if self.cash else "spin",
+            "flop_seen": bool(getattr(self, "_flop_seen", False)),
         }
 
 

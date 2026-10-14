@@ -3,8 +3,10 @@ from collections import defaultdict
 
 
 class PlayerStats:
-    def __init__(self, name):
+    def __init__(self, name, cash=False):
         self.name = name
+        self.cash = cash
+        self.rebuys = 0
         self.games = 0
         self.places = [0, 0, 0]
         self.gain = 0.0
@@ -23,11 +25,27 @@ class PlayerStats:
         self.steal = self.steal_opp = 0
         self.pf_fold = 0
         self.hands_by_level = defaultdict(int)
+        self.rake_paid_bb = 0.0
 
     def row(self, buyin=1.0):
         g = max(self.games, 1)
         h = max(self.hands, 1)
         pct = lambda a, b: round(100.0 * a / b, 1) if b else 0.0
+        if self.cash:
+            return {
+                "name": self.name, "sessions": self.games, "hands": self.hands,
+                "net_eur": round(self.net, 2), "bb/100": round(100.0 * self.bb_net / h, 1),
+                "rake_paid_bb": round(self.rake_paid_bb, 1), "bb/100_no_rake": round(100.0 * (self.bb_net + self.rake_paid_bb) / h, 1),
+                "rebuys": self.rebuys,
+                "vpip%": pct(self.vpip, h), "pfr%": pct(self.pfr, h),
+                "3bet%": pct(self.three_bet, self.three_bet_opp),
+                "fold_to_3bet%": pct(self.fold_to_3bet, self.faced_3bet),
+                "steal%": pct(self.steal, self.steal_opp),
+                "AF": round(self.agg / float(self.calls_post), 2) if self.calls_post else (float(self.agg) if self.agg else 0.0),
+                "cbet%": pct(self.cbet, self.cbet_opp),
+                "WTSD%": pct(self.sd, self.flop_seen), "W$SD%": pct(self.sd_won, self.sd),
+                "allin%": pct(self.allin_hands, h),
+            }
         return {
             "name": self.name, "games": self.games, "hands": self.hands,
             "1st": self.places[0], "2nd": self.places[1], "3rd": self.places[2],
@@ -49,9 +67,14 @@ class PlayerStats:
 
 def update_from_game(stats, res, buyin, paid_places=3):
     """stats: dict name -> PlayerStats (clé = profile_id)."""
+    cash = res.get("mode") == "cash"
     for p in res["players"]:
         st = stats[p["profile_id"]]
         st.games += 1
+        if cash:
+            st.net += p["net"]
+            st.rebuys += p["rebuys"]
+            continue
         if 1 <= p["place"] <= 3:
             st.places[p["place"] - 1] += 1
         st.gain += p["gain"]
@@ -68,9 +91,18 @@ def update_from_game(stats, res, buyin, paid_places=3):
         first_raiser = raises_pre[0]["c"] if raises_pre else None
         three_bet_actor = raises_pre[1]["c"] if len(raises_pre) > 1 else None
         n = len(h["seats"])
+        dealt = sorted(x["chair"] for x in h["seats"])
+        steal_pos = {h["dealer"], h["sb_chair"]}
+        if n >= 4:      # cutoff : joueur juste avant le bouton
+            steal_pos.add(dealt[(dealt.index(h["dealer"]) - 1) % n])
+        # rake payé : réparti au prorata des jetons misés par les gagnants (approximation : à parts égales entre gagnants)
+        rake = h.get("rake", 0)
+        winners = [x["chair"] for x in h["seats"] if x["collected"] > 0]
         for s in h["seats"]:
             ch = s["chair"]
             st = stats[pid_of[ch]]
+            if rake and ch in winners:
+                st.rake_paid_bb += rake / float(len(winners)) / bb
             st.hands += 1
             st.chips_net += s["net"]
             st.bb_net += s["net"] / bb
@@ -107,7 +139,7 @@ def update_from_game(stats, res, buyin, paid_places=3):
                             st.fold_to_3bet += 1
                         break
             # steal : ouverture au bouton/SB en 3-max sans action avant
-            if n >= 3 and ch in (h["dealer"], h["sb_chair"]):
+            if n >= 3 and ch in steal_pos:
                 before = []
                 for a in pre:
                     if a["c"] == ch:

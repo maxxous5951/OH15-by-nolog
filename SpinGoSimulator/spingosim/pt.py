@@ -37,6 +37,10 @@ class PTTracker:
         pre = [a for a in acts if a["r"] == 1 and a["k"] not in ("sb", "bb")]
         raises = [a for a in pre if a["k"] == "raise"]
         n = len(rec["seats"])
+        dealt = sorted(x["chair"] for x in rec["seats"])
+        steal_pos = {rec["dealer"], rec["sb_chair"]}
+        if n >= 4:
+            steal_pos.add(dealt[(dealt.index(rec["dealer"]) - 1) % n])
         board3 = len(rec["board"]) >= 3
         for s in rec["seats"]:
             ch = s["chair"]
@@ -57,7 +61,7 @@ class PTTracker:
                 if a["k"] == "raise":
                     seen = True
             # tentative de vol (bouton / SB, personne n'est entré avant)
-            if n >= 3 and ch in (rec["dealer"], rec["sb_chair"]):
+            if n >= 3 and ch in steal_pos:
                 before = []
                 for a in pre:
                     if a["c"] == ch:
@@ -68,7 +72,7 @@ class PTTracker:
                     if mine and mine[0]["k"] == "raise":
                         d["steal"] += 1
             # défense des blindes face à un vol
-            if raises and n >= 3 and raises[0]["c"] in (rec["dealer"], rec["sb_chair"]) and ch in (rec["sb_chair"], rec["bb_chair"]) and raises[0]["c"] != ch:
+            if raises and n >= 3 and raises[0]["c"] in steal_pos and ch in (rec["sb_chair"], rec["bb_chair"]) and raises[0]["c"] != ch:
                 key = "bb" if ch == rec["bb_chair"] else "sb"
                 after = [a for a in pre if a["c"] == ch and pre.index(a) > pre.index(raises[0])]
                 if after:

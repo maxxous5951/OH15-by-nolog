@@ -17,7 +17,15 @@ from spingosim.runner import run_simulation, Progress  # noqa: E402
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--games", type=int, default=100)
-    ap.add_argument("--players", type=int, default=3, choices=(2, 3))
+    ap.add_argument("--mode", choices=("spin", "cash"), default=None, help="spin (défaut) ou cash")
+    ap.add_argument("--players", type=int, default=3, help="Spin : 2 ou 3 ; cash : 2 à 9")
+    ap.add_argument("--sb", type=int, default=None, help="cash : petite blind (jetons, 1 jeton = 0,01 €)")
+    ap.add_argument("--bb", type=int, default=None, help="cash : grosse blind")
+    ap.add_argument("--stack", type=int, default=None, help="cash : tapis / recave (jetons)")
+    ap.add_argument("--hands", type=int, default=None, help="cash : mains par session")
+    ap.add_argument("--rake", type=float, default=None, help="cash : rake en %% (0 ou 2.5 à 10)")
+    ap.add_argument("--rake-cap", type=int, default=None, help="cash : plafond du rake par main (jetons, 0 = aucun)")
+    ap.add_argument("--drop-preflop", action="store_true", help="cash : désactive No Flop No Drop")
     ap.add_argument("--player", action="append", default=[], help="NOM=chemin.ohf (ou NOM=DefaultBot)")
     ap.add_argument("--level-seconds", type=int, default=90, choices=(60, 90, 120))
     ap.add_argument("--seed", type=int, default=12345)
@@ -35,6 +43,14 @@ def main():
     cfg.num_games, cfg.num_players, cfg.seed = a.games, a.players, a.seed
     cfg.level_seconds, cfg.output_dir, cfg.workers = a.level_seconds, a.out, a.workers
     cfg.pt_db_path = a.pt_db
+    if a.mode:
+        cfg.mode = a.mode
+    for attr, val in (("cash_sb", a.sb), ("cash_bb", a.bb), ("cash_stack", a.stack), ("cash_hands", a.hands),
+                      ("rake_pct", a.rake), ("rake_cap", a.rake_cap)):
+        if val is not None:
+            setattr(cfg, attr, val)
+    if a.drop_preflop:
+        cfg.no_flop_no_drop = False
     if a.no_handhistory:
         cfg.write_handhistory = False
     if a.player:
@@ -48,10 +64,12 @@ def main():
     pr = Progress(cfg.num_games)
 
     def show(p):
-        print("\r%d/%d parties" % (p.done, p.total), end="", flush=True)
+        print("\r%d/%d %s" % (p.done, p.total, "sessions" if cfg.is_cash else "parties"), end="", flush=True)
     run_simulation(cfg, pr, show)
     print()
-    cols = ["name", "games", "1st", "2nd", "3rd", "itm%", "roi%", "net_eur", "vpip%", "pfr%", "3bet%", "AF", "WTSD%", "W$SD%"]
+    cols = (["name", "sessions", "hands", "net_eur", "bb/100", "bb/100_no_rake", "vpip%", "pfr%", "3bet%", "AF", "WTSD%", "W$SD%"]
+            if cfg.is_cash else
+            ["name", "games", "1st", "2nd", "3rd", "itm%", "roi%", "net_eur", "vpip%", "pfr%", "3bet%", "AF", "WTSD%", "W$SD%"])
     print("  ".join("%-10s" % c for c in cols))
     for r in pr.rows:
         print("  ".join("%-10s" % r[c] for c in cols))

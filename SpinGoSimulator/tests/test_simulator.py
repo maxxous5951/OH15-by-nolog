@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(HERE))
 
 from spingosim import cards as C, symbols as S, ohlang as L  # noqa: E402
 from spingosim.config import SimConfig  # noqa: E402
-from spingosim.engine import Game, RandomBrain, CallStationBrain  # noqa: E402
+from spingosim.engine import Game, RandomBrain, CallStationBrain, Brain, Decision  # noqa: E402
 from spingosim.payouts import MultiplierTable, payouts  # noqa: E402
 from spingosim.runner import run_simulation  # noqa: E402
 
@@ -160,6 +160,88 @@ class EndToEnd(unittest.TestCase):
                                {"name": "C", "path": os.path.join(PROFILES, "PushFold_Shorty.ohf")}]
                 res.append([r["net_eur"] for r in run_simulation(cfg).rows])
         self.assertEqual(res[0], res[1])
+
+
+class OpenFoldBrain(Brain):
+    """Ouvre 40 % du temps au préflop puis fold : produit des mains sans flop."""
+
+    def __init__(self, rng):
+        self.rng = rng
+
+    def decide(self, game, chair):
+        t = game.t
+        if t.betround == 1 and t.current_bet <= t.bblind and self.rng.random() < 0.4:
+            return Decision("raise", to=t.bblind * 3, code=2)
+        return Decision("fold", code=-1)
+
+
+class CashGame(unittest.TestCase):
+    def _session(self, n=6, hands=150, foldy=False, **kw):
+        cfg = SimConfig(mode="cash", num_players=n, cash_hands=hands, **kw)
+        cfg.validate()
+        rng = random.Random(5)
+        brains = [OpenFoldBrain(random.Random(i)) if (foldy and i < 3) or i % 3 == 1 else RandomBrain(random.Random(i)) if i % 3 == 2 else CallStationBrain() for i in range(n)]
+        g = Game(cfg, brains, ["P%d" % i for i in range(n)], 1, rng)
+        return cfg, g.play()
+
+    def test_validation(self):
+        for bad in (dict(num_players=10), dict(num_players=1), dict(rake_pct=1.0), dict(rake_pct=12.0),
+                    dict(cash_bb=1, cash_sb=5)):
+            with self.assertRaises(ValueError):
+                SimConfig(mode="cash", **bad).validate()
+        SimConfig(mode="cash", num_players=9, rake_pct=2.5).validate()
+        SimConfig(mode="cash", num_players=2, rake_pct=10).validate()
+        with self.assertRaises(ValueError):
+            SimConfig(num_players=4).validate()
+
+    def test_chips_conserved_with_rake(self):
+        cfg, res = self._session(rake_pct=5.0)
+        total_rake = 0
+        for h in res["hand_records"]:
+            self.assertEqual(sum(s["net"] for s in h["seats"]), -h["rake"])
+            total_rake += h["rake"]
+        self.assertEqual(total_rake, res["rake"])
+        self.assertGreater(total_rake, 0)
+        self.assertEqual(sum(p["net_chips"] for p in res["players"]), -total_rake)
+
+    def test_no_flop_no_drop(self):
+        _, res = self._session(rake_pct=10.0, no_flop_no_drop=True, foldy=True)
+        pre = [h for h in res["hand_records"] if not h["flop_seen"]]
+        self.assertTrue(pre)
+        self.assertTrue(all(h["rake"] == 0 for h in pre))
+        self.assertTrue(any(h["rake"] > 0 for h in res["hand_records"] if h["flop_seen"]))
+        _, res2 = self._session(rake_pct=10.0, no_flop_no_drop=False, foldy=True)
+        self.assertTrue(any(h["rake"] > 0 for h in res2["hand_records"] if not h["flop_seen"]))
+
+    def test_rake_percentage_and_cap(self):
+        _, res = self._session(rake_pct=7.5, rake_cap=25)
+        for h in res["hand_records"]:
+            self.assertLessEqual(h["rake"], 25)
+            contributed = sum(s["committed"] for s in h["seats"])
+            self.assertLessEqual(h["rake"], int(contributed * 0.075))
+        _, none = self._session(rake_pct=0)
+        self.assertEqual(none["rake"], 0)
+
+    def test_fixed_blinds_and_rebuy(self):
+        cfg, res = self._session(n=9, cash_sb=5, cash_bb=10, cash_stack=500)
+        self.assertEqual({(h["sb"], h["bb"]) for h in res["hand_records"]}, {(5, 10)})
+        self.assertTrue(all(len(h["seats"]) == 9 for h in res["hand_records"]))
+        self.assertGreater(sum(p["rebuys"] for p in res["players"]), 0)
+
+    def test_run_with_profiles_cash(self):
+        with tempfile.TemporaryDirectory() as d:
+            cfg = SimConfig(mode="cash", num_players=4, num_games=2, cash_hands=40, rake_pct=5, output_dir=d,
+                            workers=1, seed=2)
+            cfg.players = [{"name": "A", "path": os.path.join(PROFILES, "Tight_Nit.ohf")},
+                           {"name": "B", "path": os.path.join(PROFILES, "Aggro_LAG.ohf")},
+                           {"name": "C", "path": "DefaultBot"}, {"name": "D", "path": "DefaultBot"}]
+            prog = run_simulation(cfg)
+            self.assertEqual(len(prog.rows), 4)
+            self.assertIn("bb/100", prog.rows[0])
+            txt = open(os.path.join(d, "handhistory_global.txt"), encoding="utf-8").read()
+            self.assertIn("Rake", txt)
+            self.assertEqual(txt.count("Dealt to"), 4 * 80)
+            self.assertTrue(open(os.path.join(d, "diagnostics.log"), encoding="utf-8").read())
 
 
 if __name__ == "__main__":

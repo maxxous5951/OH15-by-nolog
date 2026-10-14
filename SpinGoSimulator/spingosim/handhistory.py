@@ -27,9 +27,15 @@ def format_hand(rec, game_label="", only_chair=None, base_time=1760400000):
     ts = time.strftime("%Y/%m/%d %H:%M:%S", time.gmtime(base_time + int(rec["time"])))
     L = []
     hid = "%d%04d" % (rec["game"], rec["hand"])
-    L.append("SpinSim Hand #%s: Hold'em No Limit (%d/%d) - %s UTC  [level %d, %s, clock %ds, x%g]" % (
-        hid, rec["sb"], rec["bb"], ts, rec["level"], game_label, rec["time"], rec["multiplier"]))
-    L.append("Table 'SpinGo %d' %d-max Seat #%d is the button" % (rec["game"], max(3, len(seats)), rec["dealer"] + 1))
+    cash = rec.get("mode") == "cash"
+    if cash:
+        L.append("SpinSim Hand #%s: Hold'em No Limit (%d/%d) - %s UTC  [cash, %s, clock %ds]" % (
+            hid, rec["sb"], rec["bb"], ts, game_label, rec["time"]))
+        L.append("Table 'Cash %d' %d-max Seat #%d is the button" % (rec["game"], len(seats), rec["dealer"] + 1))
+    else:
+        L.append("SpinSim Hand #%s: Hold'em No Limit (%d/%d) - %s UTC  [level %d, %s, clock %ds, x%g]" % (
+            hid, rec["sb"], rec["bb"], ts, rec["level"], game_label, rec["time"], rec["multiplier"]))
+        L.append("Table 'SpinGo %d' %d-max Seat #%d is the button" % (rec["game"], max(3, len(seats)), rec["dealer"] + 1))
     for ch in sorted(seats):
         L.append("Seat %d: %s (%d in chips)" % (ch + 1, seats[ch]["name"], seats[ch]["stack"]))
     acts = rec["actions"]
@@ -90,7 +96,12 @@ def format_hand(rec, game_label="", only_chair=None, base_time=1760400000):
             L.append("%s collected %d from pot" % (seats[ch]["name"], seats[ch]["collected"]))
     L.append("*** SUMMARY ***")
     total = sum(s["committed"] for s in seats.values())
-    L.append("Total pot %d | Board [%s]" % (total, cs(rec["board"]) if rec["board"] else ""))
+    if cash:
+        L.append("Total pot %d | Rake %d%s | Board [%s]" % (
+            total, rec.get("rake", 0),
+            "" if rec.get("flop_seen") else " (no flop, no drop)", cs(rec["board"]) if rec["board"] else ""))
+    else:
+        L.append("Total pot %d | Board [%s]" % (total, cs(rec["board"]) if rec["board"] else ""))
     for ch in sorted(seats):
         s = seats[ch]
         tag = ""
@@ -113,7 +124,8 @@ def format_hand(rec, game_label="", only_chair=None, base_time=1760400000):
 class OutputWriter:
     """Ouvre les fichiers de sortie d'un run et y écrit au fil de l'eau."""
 
-    def __init__(self, out_dir, names, write_hh=True, write_players=True):
+    def __init__(self, out_dir, names, write_hh=True, write_players=True, cash=False):
+        self.cash = cash
         self.dir = out_dir
         os.makedirs(out_dir, exist_ok=True)
         self.write_hh = write_hh
@@ -125,7 +137,11 @@ class OutputWriter:
             os.makedirs(self.pdir, exist_ok=True)
         self.games = open(os.path.join(out_dir, "games.csv"), "w", newline="", encoding="utf-8")
         self.gw = csv.writer(self.games)
-        self.gw.writerow(["game", "multiplier", "prizepool", "hands", "seconds", "player", "chair", "place", "gain", "net"])
+        if cash:
+            self.gw.writerow(["session", "hands", "seconds", "rake_total_chips", "player", "chair", "rank",
+                              "net_chips", "net_eur", "bb/100", "rebuys"])
+        else:
+            self.gw.writerow(["game", "multiplier", "prizepool", "hands", "seconds", "player", "chair", "place", "gain", "net"])
         self.opened = {}
 
     def _player_files(self, name):
@@ -162,6 +178,11 @@ class OutputWriter:
                                 int(h["showdown"] and not s["folded"]),
                                 h["hand_types"].get(s["chair"], "")])
         for p in res["players"]:
+            if self.cash:
+                self.gw.writerow([res["game"], res["hands"], int(res["seconds"]), res["rake"], p["name"],
+                                  p["chair"] + 1, p["place"], p["net_chips"], "%.2f" % p["net"],
+                                  "%.1f" % p["bb100"], p["rebuys"]])
+                continue
             self.gw.writerow([res["game"], res["multiplier"], res["prizepool"], res["hands"], int(res["seconds"]),
                               p["name"], p["chair"] + 1, p["place"], "%.2f" % p["gain"], "%.2f" % p["net"]])
 

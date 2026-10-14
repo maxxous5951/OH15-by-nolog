@@ -22,6 +22,18 @@ DEFAULT_PAYOUT_SPLIT = (0.75, 0.15, 0.10)
 
 @dataclass
 class SimConfig:
+    # --- mode : "spin" (Spin & Go) ou "cash" (cash game, blinds fixes)
+    mode: str = "spin"
+    # --- cash game (1 jeton = cash_chip_eur €)
+    cash_sb: int = 5
+    cash_bb: int = 10
+    cash_stack: int = 1000                # tapis de départ / de recave (100 bb par défaut)
+    cash_chip_eur: float = 0.01
+    cash_hands: int = 1000                # mains par session (num_games = nombre de sessions)
+    cash_stack_mode: str = "rebuy"        # rebuy : recave quand on est à 0 ; reset : tapis remis à chaque main
+    rake_pct: float = 5.0                 # 0 (aucun) ou 2.5 à 10 %
+    rake_cap: int = 0                     # plafond du rake par main en jetons (0 = sans plafond)
+    no_flop_no_drop: bool = True          # pas de rake si la main se termine avant le flop
     # --- format
     buyin: float = 1.0                    # € par joueur
     starting_stack: int = 500
@@ -66,8 +78,31 @@ class SimConfig:
         base.validate()
         return base
 
+    @property
+    def is_cash(self):
+        return self.mode == "cash"
+
     def validate(self):
-        if self.num_players not in (2, 3):
+        if self.mode not in ("spin", "cash"):
+            raise ValueError("Mode inconnu : %s (spin ou cash)" % self.mode)
+        if self.is_cash:
+            if not 2 <= self.num_players <= 9:
+                raise ValueError("Le cash game supporte 2 à 9 joueurs")
+            if self.cash_sb <= 0 or self.cash_bb < self.cash_sb:
+                raise ValueError("Blinds cash invalides : %s/%s" % (self.cash_sb, self.cash_bb))
+            if self.cash_stack < 2 * self.cash_bb:
+                raise ValueError("Le tapis cash doit valoir au moins 2 big blinds")
+            if self.cash_hands < 1:
+                raise ValueError("Nombre de mains par session invalide")
+            if self.cash_stack_mode not in ("rebuy", "reset"):
+                raise ValueError("cash_stack_mode : rebuy ou reset")
+            if not (self.rake_pct == 0 or 2.5 <= self.rake_pct <= 10):
+                raise ValueError("Le rake doit valoir 0 ou être compris entre 2,5 et 10 %")
+            if self.rake_cap < 0:
+                raise ValueError("Plafond de rake invalide")
+            self.starting_stack = self.cash_stack
+            self.buyin = self.cash_stack * self.cash_chip_eur
+        elif self.num_players not in (2, 3):
             raise ValueError("Le format Spin & Go supporte 2 ou 3 joueurs")
         if self.level_seconds <= 0:
             raise ValueError("La durée d'un niveau doit être positive")
