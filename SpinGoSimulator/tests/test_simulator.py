@@ -244,5 +244,67 @@ class CashGame(unittest.TestCase):
             self.assertTrue(open(os.path.join(d, "diagnostics.log"), encoding="utf-8").read())
 
 
+class CustomFunctionRegressions(unittest.TestCase):
+    """Profils à fonctions personnalisées (Gecko, DefaultBot) : bugs de résolution de symboles."""
+
+    def _ctx(self, text, cards="Ah Kd", board=""):
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", suffix=".ohf", delete=False, encoding="utf-8") as f:
+            f.write(text)
+        cfg = SimConfig(mode="cash", num_players=3)
+        cfg.validate()
+        b = S.make_brain(f.name, cfg, random.Random(1), "T")
+        os.unlink(f.name)
+        g = Game(cfg, [b, CallStationBrain(), CallStationBrain()], ["T", "B", "C"], 1, random.Random(2))
+        t = g.t
+        for s in t.seats:
+            s.dealt = s.in_hand = True
+        t.seats[0].cards = cs(cards)
+        t.board = cs(board) if board else []
+        t.betround = 2 if board else 1
+        t.sblind, t.bblind = 5, 10
+        t.seats[1].bet = 10
+        t.current_bet = 10
+        b.ctx.new_hand(g, 0)
+        b.ctx.prepare(g, 0)
+        return b.ctx
+
+    def test_call_symbol_is_amount_not_constant(self):
+        ctx = self._ctx("##f$call##\n1\n\n##Call##\n-1000010\n")
+        self.assertEqual(ctx.symbol("call"), 10.0)
+
+    def test_bare_list_is_hand_membership(self):
+        ctx = self._ctx("##listGecko01##\nAKo AA\n\n##list07##\n72o\n")
+        self.assertEqual(ctx.symbol("listGecko01"), 1.0)
+        self.assertEqual(ctx.symbol("list07"), 0.0)
+
+    def test_nhandshi_preflop(self):
+        aa = self._ctx("##f$call##\n1\n", cards="Ah As")
+        self.assertEqual(aa.symbol("nhandshi"), 0.0)
+        trash = self._ctx("##f$call##\n1\n", cards="7h 2d")
+        self.assertGreater(trash.symbol("nhandshi"), 800)
+
+    def test_role_chair_balance(self):
+        ctx = self._ctx("##f$call##\n1\n")
+        self.assertGreaterEqual(ctx.symbol("balance_raischair"), 0.0)
+        self.assertNotIn("balance_raischair", ctx.unknown)
+
+    def test_gecko_default_bot_not_always_folding_or_calling(self):
+        cfg = SimConfig(mode="cash", num_players=6, cash_hands=60, rake_pct=0)
+        cfg.validate()
+        brains = [S.make_brain("DefaultBot", cfg, random.Random(i), "D%d" % i) for i in range(6)]
+        res = Game(cfg, brains, ["D%d" % i for i in range(6)], 1, random.Random(3)).play()
+        vp = pf = n = 0
+        for h in res["hand_records"]:
+            pre = [a for a in h["actions"] if a["r"] == 1 and a["k"] not in ("sb", "bb")]
+            n += len(h["seats"])
+            for seat in h["seats"]:
+                mine = [a["k"] for a in pre if a["c"] == seat["chair"]]
+                vp += any(k in ("call", "raise") for k in mine)
+                pf += "raise" in mine
+        self.assertTrue(0.05 < vp / n < 0.45, vp / n)
+        self.assertGreater(pf, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

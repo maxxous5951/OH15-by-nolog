@@ -29,6 +29,9 @@ PV_ROYAL = 0x800EDCBA
 HT = C  # alias
 
 
+_HU_RANK = [None]
+
+
 def hv(cards):
     """(type, rangs[5]) façon poker-eval, rangs 0..12 ; gère 1 à 7 cartes."""
     n = len(cards)
@@ -380,14 +383,15 @@ class SymbolContext:
 
     def symbol(self, name):
         fn = self.fc.functions.get(name)
-        if fn is None:
-            low = self.fnlower.get(name.lower())
-            if low is not None:
-                fn = self.fc.functions[low]
         if fn is not None:
             return self._call_function(fn)
+        # symbole natif d'abord : « call » (montant à payer) ne doit pas être confondu avec la
+        # constante OpenPPL « Call » ; la recherche insensible à la casse ne sert qu'en dernier recours
         v = self._native(name)
         if v is None:
+            low = self.fnlower.get(name.lower())
+            if low is not None:
+                return self._call_function(self.fc.functions[low])
             self.unknown.add(name)
             self.unknown_count[name] = self.unknown_count.get(name, 0) + 1
             return 0.0
@@ -399,7 +403,8 @@ class SymbolContext:
         if key in self._fn_cache:
             return self._fn_cache[key]
         if fn.is_list:
-            return 0.0
+            # « list07 » seul = « ma main est dans la liste 07 » (comme islist07)
+            return self._is_list(fn.name[4:]) if fn.name.lower().startswith("list") else 0.0
         if not fn.parsed:
             self.fc.parse_one(fn)
         if fn.tree is None:
@@ -780,6 +785,23 @@ class SymbolContext:
                     total += 1
                     o = C.evaluate([rest[i], rest[j]] + self._board)
                     if o > mine:
+                        hi += 1
+                    elif o == mine:
+                        ti += 1
+                    else:
+                        lo += 1
+        elif len(self._hole) == 2:
+            # préflop : OpenHoldem lit une table « main contre main » ; on classe les mains adverses
+            # d'après le rang heads-up (handrank169) : hi = mains adverses meilleures que la nôtre
+            if _HU_RANK[0] is None:
+                _HU_RANK[0] = {cls: i for i, cls in enumerate(HANDRANK_169[1])}
+            hu = _HU_RANK[0]
+            mine = hu.get(C.hand_class_169(self._hole[0], self._hole[1]), 0)
+            for i in range(len(rest)):
+                for j in range(i + 1, len(rest)):
+                    total += 1
+                    o = hu.get(C.hand_class_169(rest[i], rest[j]), 0)
+                    if o < mine:
                         hi += 1
                     elif o == mine:
                         ti += 1
@@ -1599,7 +1621,7 @@ def _round_name(c, m):
 
 
 _NATIVE_REGEX = [
-    (re.compile(r"^(balance|currentbet|stacksize|startingstacksize)_(bigblind|smallblind|dealer|button|cutoff|ep1|ep2|ep3|mp1|mp2|mp3|utg|lastraiser|firstraiser|bigstack|smallstack|headsup|user)chair$"), _chair_stat),
+    (re.compile(r"^(balance|currentbet|stacksize|startingstacksize)_(bigblind|smallblind|dealer|button|cutoff|ep1|ep2|ep3|mp1|mp2|mp3|utg|lastraiser|firstraiser|bigstack|smallstack|headsup|user|rais|firstcaller|lastcaller)chair$"), _chair_stat),
     (re.compile(r"^([a-z]+)_(preflop|flop|turn|river)$"), _round_name),
     (re.compile(r"^suitbits(player|common)_(clubs|diamonds|hearts|spades)$"),
      lambda c, m: _fl(c._srankbits(c._hole if m.group(1) == "player" else c._board,
@@ -1792,6 +1814,13 @@ class OHBrain(Brain):
         flags["call"] = ev("f$call")
         flags["check"] = ev("f$check")
         flags["fold"] = ev("f$fold")
+        # ancien WinHoldem : f$srai > 0 = relance de « f$srai » jetons au-dessus de call + mise courante
+        # (OpenHoldem ajuste au minimum légal) ; utilisé quand aucune relance moderne n'est définie
+        if "f$srai" in fc and not any(flags[k] for k in ("allin", "bp21", "bp11", "bp34", "bp23", "bp12",
+                                                         "bp13", "bp14", "betsize", "raise")):
+            sr = ctx.evaluate_named("f$srai") or 0.0
+            if sr > 0:
+                flags["betsize"] = ctx.me.bet + ctx._call_amount() + sr
         return flags
 
     # --- OpenPPL
