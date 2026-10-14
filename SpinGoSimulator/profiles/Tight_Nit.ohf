@@ -1,0 +1,29 @@
+##Notes##
+// Profil OpenPPL d'exemple : joueur serré (nit) pour Spin & Go.
+
+##f$preflop##
+// Ouvertures / relances : uniquement les meilleures mains
+WHEN StackSize <= 8 AND handrank169 <= 40 RaiseMax FORCE
+WHEN Raises = 0 AND handrank169 <= 24 RaiseTo 3 FORCE
+WHEN Raises = 0 AND InSmallBlind AND handrank169 <= 40 RaiseTo 3 FORCE
+WHEN Raises = 0 AND InBigBlind Check FORCE
+WHEN Raises >= 1 AND handrank169 <= 8 RaiseTo 9 FORCE
+WHEN Raises >= 1 AND handrank169 <= 18 Call FORCE
+WHEN Others Fold FORCE
+
+##f$flop##
+WHEN prwin > 0.80 RaiseThreeFourthPot FORCE
+WHEN prwin > 0.62 RaiseHalfPot FORCE
+WHEN prwin > 0.50 Call FORCE
+WHEN Others Check FORCE
+
+##f$turn##
+WHEN prwin > 0.82 RaiseThreeFourthPot FORCE
+WHEN prwin > 0.60 Call FORCE
+WHEN Others Check FORCE
+
+##f$river##
+WHEN prwin > 0.85 RaiseMax FORCE
+WHEN prwin > 0.70 RaiseHalfPot FORCE
+WHEN prwin > 0.58 Call FORCE
+WHEN Others Check FORCE

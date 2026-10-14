@@ -1,0 +1,22 @@
+##Notes##
+// Profil OpenPPL d'exemple : "calling station", suit presque tout et relance rarement.
+
+##f$preflop##
+WHEN handrank169 <= 5 RaiseTo 4 FORCE
+WHEN Raises >= 1 AND handrank169 > 110 Fold FORCE
+WHEN Others Call FORCE
+
+##f$flop##
+WHEN prwin > 0.85 RaiseHalfPot FORCE
+WHEN prwin > 0.25 Call FORCE
+WHEN Others Check FORCE
+
+##f$turn##
+WHEN prwin > 0.88 RaiseHalfPot FORCE
+WHEN prwin > 0.28 Call FORCE
+WHEN Others Check FORCE
+
+##f$river##
+WHEN prwin > 0.90 RaiseHalfPot FORCE
+WHEN prwin > 0.30 Call FORCE
+WHEN Others Check FORCE
