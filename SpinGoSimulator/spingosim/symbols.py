@@ -14,6 +14,7 @@ import random as _random
 from . import cards as C
 from .engine import (Brain, Decision, PREFLOP, FLOP, TURN, RIVER,
                      PA_UNDEFINED, PA_FOLD, PA_CHECK, PA_CALL, PA_RAISE, PA_BETSIZE, PA_ALLIN)
+from .pt import PTTracker
 from .handrank_data import HANDRANK_169, HANDRANK_2652
 from .ohlang import FormulaCollection, MAIN_OPENPPL, default_function_for, parse_hand_list
 
@@ -852,9 +853,9 @@ class SymbolContext:
             if m:
                 return self.hist_snap.get((m.group(1), int(m.group(2))), 0.0)
             return 0.0
-        if low.startswith(("pt_", "ptt_", "dll$", "sitename$", "log$", "msgbox$", "mh_")):
-            if low.startswith("sitename$"):
-                return 0.0
+        if low.startswith(("pt_", "ptt_")):
+            return self._pt_symbol(low)
+        if low.startswith(("dll$", "sitename$", "log$", "msgbox$", "mh_")):
             return 0.0
         fn = _NATIVE_TABLE.get(low)
         if fn is not None:
@@ -869,6 +870,32 @@ class SymbolContext:
             if mm:
                 return f3(self, mm)
         return None
+
+    _PT_ROLES = {"raischair": lambda c: c.raischair(), "headsupchair": lambda c: int(_headsup_chair(c)),
+                 "smallblindchair": lambda c: c.t.sb_chair, "bigblindchair": lambda c: c.t.bb_chair,
+                 "dealerchair": lambda c: c.t.dealer, "cutoffchair": lambda c: c._logical_chair(1),
+                 "userchair": lambda c: c.chair, "firstraiserchair": lambda c: int(_first_raiser(c)),
+                 "firstcallerchair": lambda c: int(_first_caller(c)), "lastcallerchair": lambda c: int(_last_caller(c))}
+
+    def _pt_symbol(self, low):
+        """Symboles PokerTracker simulés par les stats des mains déjà jouées dans la partie."""
+        m = re.match(r"^ptt?_(?:r_)?([a-z_0-9]+?)(\d|_(?:%s))$" % "|".join(self._PT_ROLES), low)
+        if not m:
+            return -1.0
+        if low.startswith("pt_r_"):
+            return -1.0
+        stat, suf = m.group(1), m.group(2)
+        if suf.isdigit():
+            chair = int(suf)
+        else:
+            chair = self._PT_ROLES[suf[1:]](self)
+        if chair is None or chair < 0 or chair >= self.t.nchairs:
+            return -1.0
+        tr = getattr(self.game, "pt", None)
+        if tr is None:
+            return -1.0
+        v = tr.stat(stat, chair)
+        return -1.0 if v is None else v
 
     def _card_code(self, name):
         m = re.match(r"^\$\$(p|c)(c|r|s)(\d)$", name)
@@ -1701,7 +1728,10 @@ class OHBrain(Brain):
         pass  # fait dans decide (besoin du siège)
 
     def end_hand(self, game, record):
-        pass
+        tr = getattr(game, "pt", None)
+        if tr is None:
+            tr = game.pt = PTTracker()
+        tr.update(record)
 
     # --------------------------------------------------------------
     def decide(self, game, chair):

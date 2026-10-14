@@ -120,6 +120,19 @@ class Symbols(unittest.TestCase):
         self.assertEqual(c.symbol("handrank169"), 1.0)
 
 
+class PokerTrackerSim(unittest.TestCase):
+    def test_pt_stats_from_hands(self):
+        cfg = SimConfig()
+        rng = random.Random(2)
+        b = [S.make_brain(os.path.join(PROFILES, "Aggro_LAG.ohf"), cfg, random.Random(i)) for i in range(3)]
+        g = Game(cfg, b, ["a", "b", "c"], 1, rng)
+        g.play()
+        c = b[0].ctx
+        c._bind(g, 0)
+        self.assertGreaterEqual(c.symbol("pt_vpip1"), 0.0)
+        self.assertGreater(c.symbol("pt_hands2"), 0)
+
+
 class EndToEnd(unittest.TestCase):
     def test_run_with_profiles(self):
         with tempfile.TemporaryDirectory() as d:
