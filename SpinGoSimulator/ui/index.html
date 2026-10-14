@@ -77,6 +77,7 @@ pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:
 <section id="s-run">
   <div class="card"><h2>Progression</h2><div class="bar"><i id="bar"></i></div>
     <p class="mut" id="ptxt">Aucune simulation en cours.</p><div id="perr" class="neg"></div></div>
+  <div class="card"><h2>Diagnostics (erreurs, symboles inconnus)</h2><pre id="diag" style="max-height:260px">Disponible à la fin de la simulation.</pre></div>
   <div class="card"><h2>Statistiques en direct</h2><div class="scroll" id="livestats"></div></div>
 </section>
 
@@ -159,7 +160,7 @@ async function poll(){const s=await api('/api/status');if(s.idle)return;
   const pct=s.total?100*s.done/s.total:0;$('#bar').style.width=pct+'%';
   const rate=s.elapsed>0?s.done/s.elapsed:0;const eta=rate>0?Math.max(0,(s.total-s.done)/rate):0;
   $('#ptxt').textContent=s.done+' / '+s.total+' parties · '+s.elapsed+' s'+(s.finished?' · terminé':' · reste ≈ '+Math.round(eta)+' s');
-  $('#perr').textContent=s.error||'';$('#livestats').innerHTML=table(s.rows);
+  $('#perr').textContent=s.error||'';if(s.diagnostics)$('#diag').textContent=s.diagnostics;$('#livestats').innerHTML=table(s.rows);
   $('#run').disabled=!s.finished;$('#cancel').style.display=s.finished?'none':'';
   if(s.unknown_symbols&&s.unknown_symbols.length)$('#ptxt').textContent+=' · symboles inconnus: '+s.unknown_symbols.slice(0,8).join(', ');
   if(wasRunning&&s.finished){curRun=s.run_name}wasRunning=!s.finished}
@@ -168,7 +169,7 @@ async function loadRuns(){const rs=await api('/api/runs');const sel=$('#runsel')
 $('#refreshruns').onclick=loadRuns;$('#runsel').onchange=e=>loadRun(e.target.value);
 async function loadRun(name){curRun=name;const s=await api('/api/stats?run='+name);if(s.error){$('#stats').textContent=s.error;return}
   $('#stats').innerHTML=table(s.players);
-  const fl=['summary.json','player_stats.csv','games.csv','handhistory_global.txt','config.json'];
+  const fl=['diagnostics.log','summary.json','player_stats.csv','games.csv','handhistory_global.txt','config.json'];
   $('#files').innerHTML=fl.map(f=>'<a class="pill" href="/api/download?run='+name+'&file='+f+'">'+f+'</a>').join('')+s.players.map(p=>'<a class="pill" href="/api/download?run='+name+'&file=players/'+p.name+'_hands.txt">'+p.name+'_hands.txt</a>').join('');
   $('#hplayer').innerHTML='<option value="global">Historique global (toutes les cartes)</option>'+s.players.map(p=>'<option>'+p.name+'</option>').join('');hoff=0;loadHands()}
 let hoff=0;

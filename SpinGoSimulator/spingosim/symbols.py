@@ -7,6 +7,7 @@ Les symboles natifs sont recalculés à partir de l'état exact de la table
 des estimations de scraping).
 """
 import math
+import sys
 import os
 import re
 import random as _random
@@ -260,6 +261,8 @@ class SymbolContext:
         self.memory = {}
         self.uservars = {}
         self.unknown = set()
+        self.unknown_count = {}
+        self.runtime_errors = {}
         self._cache = {}
         self._fn_cache = {}
         self._active = set()
@@ -385,8 +388,8 @@ class SymbolContext:
             return self._call_function(fn)
         v = self._native(name)
         if v is None:
-            if name not in self.unknown:
-                self.unknown.add(name)
+            self.unknown.add(name)
+            self.unknown_count[name] = self.unknown_count.get(name, 0) + 1
             return 0.0
         return float(v)
 
@@ -413,6 +416,8 @@ class SymbolContext:
         except (ZeroDivisionError, OverflowError, ValueError, TypeError, KeyError, IndexError):
             val = 0.0
             self.fc_errors += 1
+            k = (fn.name, type(sys.exc_info()[1]).__name__)
+            self.runtime_errors[k] = self.runtime_errors.get(k, 0) + 1
         finally:
             self._active.discard(key)
             self._depth -= 1
@@ -1462,7 +1467,7 @@ _NATIVE_TABLE = {
     "betpositionrais": lambda c: _fl(c._betpos(c.raischair())) if c.raischair() >= 0 else 0.0,
     "nchairsdealtright": lambda c: _fl(sum(1 for i in range(1, c.t.nchairs) if c.t.seats[(c.t.dealer + i) % c.t.nchairs].dealt and (c.t.dealer + i) % c.t.nchairs != c.chair and c._dealpos((c.t.dealer + i) % c.t.nchairs) < c._dealpos(c.chair))) ,
     "nchairsdealtleft": lambda c: _fl(sum(1 for s in c.t.seats if s.dealt and s.chair != c.chair and c._dealpos(s.chair) > c._dealpos(c.chair))),
-    "buttonchair": lambda c: _fl(c.t.dealer), "br": lambda c: _fl(c.t.betround),
+    "buttonchair": lambda c: _fl(c.t.dealer), "_dealerchair": lambda c: _fl(c.t.dealer), "br": lambda c: _fl(c.t.betround),
     "nopponentsraising": lambda c: _fl(c.n_truly_raising()),
     "ac_preflop_pos": lambda c: _ac_lookup(_AC_PRE, _n_dealt(c), c._dealpos(c.chair)),
     "ac_prefloprais_pos": lambda c: _ac_lookup(_AC_PRE, _n_dealt(c), c._dealpos(c.raischair())) if c.raischair() >= 0 else 0.0,
