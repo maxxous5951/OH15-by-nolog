@@ -46,18 +46,9 @@ namespace {
 const UINT WMU_ADVISOR_UPDATE = WM_APP + 0x0470;
 const UINT_PTR kAdvisorTimerId = 1;
 const UINT kAdvisorTimerMilliseconds = 30;      // follows the table smoothly
-const int  kObservationHeartbeatsLimit = 12;    // then we give up to detect the action
 
 // Amounts are compared with a small tolerance
 const double kEpsilon = 0.005;
-
-// Raise / allin are the same "family" when comparing with the real action
-bool SameFamily(AdvisorActionKind a, AdvisorActionKind b) {
-  if (a == b) return true;
-  const bool a_aggressive = (a == kAdvisorActionRaise || a == kAdvisorActionAllin);
-  const bool b_aggressive = (b == kAdvisorActionRaise || b == kAdvisorActionAllin);
-  return a_aggressive && b_aggressive;
-}
 
 std::wstring ToWideString(const CString& text) {
   return std::wstring(CT2W((LPCTSTR)text));
@@ -99,13 +90,7 @@ END_MESSAGE_MAP()
 CAdvisor::CAdvisor() {
   modernui::GdiplusAcquire();
   _reset_requested = false;
-  _waiting_for_user_action = false;
-  _observation_heartbeats = 0;
-  _turn_user_bet = 0;
-  _turn_call = 0;
-  _turn_user_balance = 0;
-  _turn_pot = 0;
-  _turn_betround = 0;
+  _pending_kind = kAdvisorActionNone;
   _dragging = false;
   _table_window = NULL;
   _last_table_rect.SetRectEmpty();
@@ -301,92 +286,11 @@ void CAdvisor::EvaluateBestAction(AdvisorData* data) {
   }
 }
 
-void CAdvisor::StartObservingUserAction() {
-  CSymbolEngineChipAmounts *chips = p_engine_container->symbol_engine_chip_amounts();
-  _waiting_for_user_action = true;
-  _observation_heartbeats = 0;
-  _turn_user_bet = p_table_state->User()->_bet.GetValue();
-  _turn_user_balance = p_table_state->User()->_balance.GetValue();
-  _turn_call = chips->call();
-  _turn_pot = chips->pot();
-  _turn_betround = p_betround_calculator->betround();
-  // A new decision: forget what we saw last time
-  CSLock lock(_data_critsec);
-  _data.taken_kind = kAdvisorActionNone;
-  _data.taken_text = "";
-}
-
-bool CAdvisor::ObserveUserAction(bool force) {
-  // Called while it is not (or no longer) our turn. We compare the situation
-  // with the one at the beginning of the turn.
-  ++_observation_heartbeats;
-  AdvisorActionKind kind = kAdvisorActionNone;
-  CString text;
-  if (p_engine_container->symbol_engine_userchair()->userchair_confirmed()) {
-    CPlayer *user = p_table_state->User();
-    const double bet_now = user->_bet.GetValue();
-    const double balance_now = user->_balance.GetValue();
-    const bool still_playing = (p_engine_container->symbol_engine_active_dealt_playing()->playersplayingbits()
-      & p_engine_container->symbol_engine_userchair()->userchairbit()) != 0;
-    const bool betround_changed = (p_betround_calculator->betround() != _turn_betround);
-    const double total_to_call = _turn_user_bet + _turn_call;
-    // Required number of heartbeats before we trust the observation:
-    // a changed bet is very reliable, "nothing happened" is not.
-    int required = 0;
-    if (!betround_changed && bet_now > _turn_user_bet + kEpsilon) {
-      required = 1;
-      const bool went_allin = (balance_now <= kEpsilon) && (_turn_user_balance > kEpsilon);
-      if (bet_now <= total_to_call + kEpsilon && _turn_call > kEpsilon) {
-        kind = kAdvisorActionCall;
-        text = ActionText(kind, bet_now - _turn_user_bet);
-      } else if (went_allin) {
-        kind = kAdvisorActionAllin;
-        text = ActionText(kind, 0);
-      } else {
-        kind = kAdvisorActionRaise;
-        text = ((_turn_call > kEpsilon) ? "RAISE to " : "BET ") + MoneyText(bet_now);
-      }
-    } else if (!still_playing) {
-      required = 2;
-      kind = kAdvisorActionFold;
-      text = ActionText(kind, 0);
-    } else if (betround_changed) {
-      // The chips were already swept into the pot: the action closed the round
-      required = 2;
-      if (_turn_call > kEpsilon) {
-        kind = kAdvisorActionCall;
-        text = ActionText(kind, _turn_call);
-      } else {
-        kind = kAdvisorActionCheck;
-        text = ActionText(kind, 0);
-      }
-    } else if (_turn_call <= kEpsilon) {
-      required = 3;
-      kind = kAdvisorActionCheck;
-      text = ActionText(kind, 0);
-    }
-    if (kind != kAdvisorActionNone && _observation_heartbeats < required && !force) {
-      return false;   // wait a bit longer
-    }
-  }
-  if (kind == kAdvisorActionNone) {
-    if (!force && _observation_heartbeats <= kObservationHeartbeatsLimit) {
-      return false;
-    }
-    text = "not detected";
-  }
-  _waiting_for_user_action = false;
-  CSLock lock(_data_critsec);
-  _data.taken_kind = kind;
-  _data.taken_text = text;
-  return true;
-}
-
 void CAdvisor::OnHeartbeat() {
   if (_reset_requested) {
     _reset_requested = false;
-    _waiting_for_user_action = false;
-    _observation_heartbeats = 0;
+    _pending_kind = kAdvisorActionNone;
+    _pending_text = "";
   }
   if (!Preferences()->advisor_enabled()) {
     return;
@@ -414,23 +318,11 @@ void CAdvisor::OnHeartbeat() {
         changed = true;
       }
     } else {
-      if (_waiting_for_user_action && _observation_heartbeats > 0) {
-        // Our turn again. Either a glitch of the scraper (nothing changed)
-        // or already the next decision (something changed): conclude the old one first.
-        CSymbolEngineChipAmounts *chips = p_engine_container->symbol_engine_chip_amounts();
-        const bool something_changed =
-          (p_betround_calculator->betround() != _turn_betround)
-          || (fabs(p_table_state->User()->_bet.GetValue() - _turn_user_bet) > kEpsilon)
-          || (fabs(chips->call() - _turn_call) > kEpsilon);
-        if (something_changed) {
-          ObserveUserAction(true);
-        }
-      }
-      if (!_waiting_for_user_action) {
-        StartObservingUserAction();
-      }
       AdvisorData fresh;
       EvaluateBestAction(&fresh);
+      // Remember the decision of the bot for this turn
+      _pending_kind = fresh.best_kind;
+      _pending_text = fresh.best_text;
       CSLock lock(_data_critsec);
       _data.autoplayer_engaged = false;
       _data.my_turn = true;
@@ -440,11 +332,15 @@ void CAdvisor::OnHeartbeat() {
       changed = true;
     }
   } else {
-    // Not our turn
-    if (_waiting_for_user_action) {
-      if (ObserveUserAction(false)) changed = true;
-    }
+    // Not our turn: the decision of the last turn is now the action taken by the bot
     CSLock lock(_data_critsec);
+    if (_data.my_turn && _pending_kind != kAdvisorActionNone) {
+      _data.taken_kind = _pending_kind;
+      _data.taken_text = _pending_text;
+      _pending_kind = kAdvisorActionNone;
+      _pending_text = "";
+      changed = true;
+    }
     if (_data.my_turn || _data.autoplayer_engaged) {
       _data.my_turn = false;
       _data.autoplayer_engaged = false;
@@ -688,14 +584,7 @@ void CAdvisor::OnPaint() {
   if (taken_text.IsEmpty()) taken_text = "-";
   DWORD taken_colour = has_taken ? kind_colour(d.taken_kind) : c.text_dim;
   DrawLabel(g, ToWideString(taken_text), GetFont(15 * s, true),
-            RectF(16 * s, 127 * s, w - 64 * s, 22 * s), Rgba(taken_colour), HAlign::Left, true);
-  if (has_taken && has_best) {
-    // Did the user follow the advice?
-    const bool followed = SameFamily(d.taken_kind, d.best_kind);
-    DrawIcon(g, followed ? Icon::Check : Icon::About,
-             RectF(w - 38 * s, 128 * s, 20 * s, 20 * s),
-             Rgba(followed ? c.success : c.warning), 2.2f);
-  }
+            RectF(16 * s, 127 * s, w - 32 * s, 22 * s), Rgba(taken_colour), HAlign::Left, true);
 
   // Details (pot, amount to call)
   DrawLabel(g, ToWideString(d.detail_text), GetFont(10.5f * s, false),

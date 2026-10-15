@@ -11,7 +11,7 @@
 //   Instead of playing automatically (autoplayer) OpenHoldem shows a small,
 //   themed window on top of the poker table, which tells
 //     * the BEST ACTION, i.e. what the profile would do right now
-//     * the ACTION TAKEN, i.e. what the user really did.
+//     * the ACTION TAKEN, i.e. the action of the bot in the last turn.
 //
 //   The window
 //     * is only visible if the advisor is enabled and we are connected
@@ -54,8 +54,8 @@ struct AdvisorData {
   AdvisorActionKind best_kind;
   CString best_text;      // "RAISE to 12.50"
   CString detail_text;    // "Pot 6.00 | To call 2.00"
-  AdvisorActionKind taken_kind;
-  CString taken_text;     // "CALL 2.00"
+  AdvisorActionKind taken_kind;   // what the bot did in the last turn
+  CString taken_text;
   bool    my_turn;
   bool    autoplayer_engaged;
   AdvisorData() : best_kind(kAdvisorActionNone), taken_kind(kAdvisorActionNone),
@@ -98,9 +98,6 @@ class CAdvisor : public CWnd {
   // heartbeat thread
   bool ItIsMyTurnAndWeKnowTheAnswer();
   void EvaluateBestAction(AdvisorData* data);
-  void StartObservingUserAction();
-  // Tries to find out what the user did. "force": give a result in any case.
-  bool ObserveUserAction(bool force);
   CString MoneyText(double amount);
   CString ActionText(AdvisorActionKind kind, double amount);
  private:
@@ -117,13 +114,8 @@ class CAdvisor : public CWnd {
  private:
   // heartbeat thread only: tracking the action of the user
   volatile bool _reset_requested;  // set by the GUI thread, consumed by the heartbeat thread
-  bool   _waiting_for_user_action;
-  int    _observation_heartbeats;
-  double _turn_user_bet;           // bet of the user at the beginning of the turn
-  double _turn_call;               // amount to call at the beginning of the turn
-  double _turn_user_balance;
-  double _turn_pot;
-  int    _turn_betround;
+  AdvisorActionKind _pending_kind;   // decision of the bot in the current turn
+  CString _pending_text;
  private:
   // GUI thread only
   bool   _dragging;
