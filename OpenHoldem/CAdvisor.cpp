@@ -449,14 +449,14 @@ void CAdvisor::OnPaint() {
 
   // Header: icon, title, status
   DrawIcon(g, Icon::Lightbulb, RectF(14 * s, 11 * s, 17 * s, 17 * s), Rgba(c.accent), 2.0f);
-  DrawLabel(g, L"Advisor", GetFont(13 * s, true), RectF(37 * s, 8 * s, 90 * s, 22 * s),
+  DrawLabel(g, L"Advisor", modernui::GetFont(13 * s, true), RectF(37 * s, 8 * s, 90 * s, 22 * s),
             Rgba(c.text), HAlign::Left, true);
   std::wstring status;
   DWORD status_colour = c.text_dim;
   if (d.autoplayer_engaged)  { status = L"Autoplayer on"; status_colour = c.warning; }
   else if (d.my_turn)        { status = L"Your turn";     status_colour = c.success; }
   else                       { status = L"Waiting";       status_colour = c.text_dim; }
-  const Font* status_font = GetFont(11.5f * s, false);
+  const Font* status_font = modernui::GetFont(11.5f * s, false);
   const float status_width = MeasureLabel(g, status, status_font);
   const float status_right = w - 16 * s;
   DrawLabel(g, status, status_font, RectF(status_right - status_width - 2 * s, 8 * s, status_width + 4 * s, 22 * s),
@@ -468,7 +468,7 @@ void CAdvisor::OnPaint() {
   }
 
   // Best action
-  const Font* caption_font = GetFont(10.5f * s, true);
+  const Font* caption_font = modernui::GetFont(10.5f * s, true);
   DrawLabel(g, L"BEST ACTION", caption_font, RectF(16 * s, 44 * s, w - 32 * s, 16 * s),
             Rgba(c.text_dim), HAlign::Left, false);
   const RectF pill(12 * s, 62 * s, w - 24 * s, 40 * s);
@@ -481,7 +481,7 @@ void CAdvisor::OnPaint() {
   }
   CString best_text = d.best_text;
   if (best_text.IsEmpty()) best_text = d.autoplayer_engaged ? "Autoplayer plays" : "-";
-  DrawLabel(g, ToWideString(best_text), GetFont(18 * s, true),
+  DrawLabel(g, ToWideString(best_text), modernui::GetFont(18 * s, true),
             RectF(pill.X + 12 * s, pill.Y, pill.Width - 24 * s, pill.Height),
             Rgba(has_best ? (d.my_turn ? best_colour : c.text_dim) : c.text_dim), HAlign::Left, true);
 
@@ -492,10 +492,10 @@ void CAdvisor::OnPaint() {
   const bool has_taken = (d.taken_kind != kAdvisorActionNone);
   if (taken_text.IsEmpty()) taken_text = "-";
   DWORD taken_colour = has_taken ? kind_colour(d.taken_kind) : c.text_dim;
-  DrawLabel(g, ToWideString(taken_text), GetFont(15 * s, true),
+  DrawLabel(g, ToWideString(taken_text), modernui::GetFont(15 * s, true),
             RectF(16 * s, 127 * s, w - 32 * s, 22 * s), Rgba(taken_colour), HAlign::Left, true);
 
   // Details (pot, amount to call)
-  DrawLabel(g, ToWideString(d.detail_text), GetFont(10.5f * s, false),
+  DrawLabel(g, ToWideString(d.detail_text), modernui::GetFont(10.5f * s, false),
             RectF(16 * s, 150 * s, w - 32 * s, 16 * s), Rgba(c.text_dim), HAlign::Left, true);
 }
