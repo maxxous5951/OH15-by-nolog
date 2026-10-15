@@ -334,6 +334,7 @@
     <ClCompile Include="ModernFrameSupport.cpp" />
     <ClCompile Include="DialogPreferences.cpp" />
     <ClCompile Include="ModernControls.cpp" />
+    <ClCompile Include="ModernDialogs.cpp" />
     <ClCompile Include="ModernHandGrid.cpp" />
     <ClCompile Include="ModernFindBar.cpp" />
     <ClCompile Include="ScintillaWnd.cpp" />
@@ -671,6 +672,7 @@
     <ClInclude Include="ModernFrameSupport.h" />
     <ClInclude Include="DialogPreferences.h" />
     <ClInclude Include="ModernControls.h" />
+    <ClInclude Include="ModernDialogs.h" />
     <ClInclude Include="ModernHandGrid.h" />
     <ClInclude Include="ModernFindBar.h" />
     <ClInclude Include="ScintillaWnd.h" />

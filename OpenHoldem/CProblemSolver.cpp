@@ -78,7 +78,7 @@ void CProblemSolver::TryToDetectBeginnersProblems()
   p_configurationcheck->ForceAllConfigurationChercks();
 	if (NoTableMapsInScraperFolder())
 	{
-		MessageBox_Interactive(
+		modernglue::ModernMessageBox(
 			"BAD NEWS:\n"
 			"    - No tablemaps in scraper folder.\n"
 			"\n"
@@ -88,7 +88,7 @@ void CProblemSolver::TryToDetectBeginnersProblems()
 	}
 	else if (NotConnected())
 	{
-		MessageBox_Interactive(
+		modernglue::ModernMessageBox(
 			"GOOD NEWS:\n"
 			"    - At least one tablemap in scraper folder.\n"
 			"\n"
@@ -105,7 +105,7 @@ void CProblemSolver::TryToDetectBeginnersProblems()
 	}
 	else if (NoOpponents())
 	{
-		MessageBox_Interactive(
+		modernglue::ModernMessageBox(
 			"GOOD NEWS:\n"
 			"    - At least one tablemap in scraper folder.\n."
 			"    - You are connected to a table.\n"
@@ -121,7 +121,7 @@ void CProblemSolver::TryToDetectBeginnersProblems()
 	}
 	else if (UserChairUnknown())
 	{
-		MessageBox_Interactive(
+		modernglue::ModernMessageBox(
 			"GOOD NEWS:\n"
 			"    - At least one tablemap in scraper folder.\n"
 			"    - You are connected to a table.\n"
@@ -140,7 +140,7 @@ void CProblemSolver::TryToDetectBeginnersProblems()
 	else if (AutoPlayerDidActAtLeastOnce())
 	{
 		// This is the GOOD case!
-		MessageBox_Interactive(
+		modernglue::ModernMessageBox(
 			"REALLY GOOD NEWS:\n"
 			"    - At least one tablemap in scraper folder.\n"
 			"    - You are connected to a table.\n"
@@ -161,7 +161,7 @@ void CProblemSolver::TryToDetectBeginnersProblems()
 	// even if everything is ok.
 	else if (NoCardsVisible())
 	{
-		MessageBox_Interactive(
+		modernglue::ModernMessageBox(
 			"GOOD NEWS:\n"
 			"    - At least one tablemap in scraper folder\n."
 			"    - You are connected to a table.\n"
@@ -177,7 +177,7 @@ void CProblemSolver::TryToDetectBeginnersProblems()
 	}
 	else if (NotEnoughButtonsVisible())
 	{
-		MessageBox_Interactive(
+		modernglue::ModernMessageBox(
 			"GOOD NEWS:\n"
 			"    - At least one tablemap in scraper folder\n."
 			"    - You are connected to a table.\n"
@@ -196,7 +196,7 @@ void CProblemSolver::TryToDetectBeginnersProblems()
 	{
 		// This should not happen.
 		// No error detected, but autoplayer did not yet act.
-		MessageBox_Interactive(
+		modernglue::ModernMessageBox(
 			"GOOD NEWS:\n"
 			"    - At least one tablemap in scraper folder\n."
 			"    - You are connected to a table\n"
