@@ -144,12 +144,12 @@ def hand_ranks(value):
     return [(value >> (4 * (4 - i))) & 0xF for i in range(5)]
 
 
-def equity_vs_random(hole, board, n_opponents, iterations, rng=None):
-    """Probabilité de gagner (win, tie, lose) contre n adversaires aux mains aléatoires.
+def equity_vs_random(hole, board, n_opponents, iterations, rng=None, opp_prob=None):
+    """Probabilité de gagner (win, tie, lose) contre n adversaires.
 
-    Estimation Monte-Carlo ; ``iterations`` tirages.  Les égalités comptent pour
-    ``1/k`` victoire (k = nombre de joueurs à égalité) dans ``win + tie/2`` côté
-    appelant ; ici on retourne les trois fréquences brutes.
+    Estimation Monte-Carlo ; ``iterations`` tirages.  Par défaut les mains adverses sont aléatoires ;
+    avec ``opp_prob`` (table 52x52 de :func:`opp_prob_table`) elles sont tirées dans la plage pondérée
+    (prwin pondéré d'OpenHoldem).  Les égalités sont retournées séparément.
     """
     rng = rng or random
     known = set(hole) | set(board)
@@ -158,13 +158,27 @@ def equity_vs_random(hole, board, n_opponents, iterations, rng=None):
     need = need_board + 2 * n_opponents
     wins = ties = losses = 0
     for _ in range(iterations):
-        draw = rng.sample(remaining, need)
-        full_board = list(board) + draw[:need_board]
+        if opp_prob is None:
+            draw = rng.sample(remaining, need)
+            full_board = list(board) + draw[:need_board]
+            opps = [draw[need_board + 2 * o:need_board + 2 * o + 2] for o in range(n_opponents)]
+        else:
+            pool = list(remaining)
+            opps = []
+            for _o in range(n_opponents):
+                for _try in range(400):
+                    a, b = rng.sample(pool, 2)
+                    p = opp_prob[a][b]
+                    if p >= 1.0 or rng.random() < p:
+                        break
+                pool.remove(a)
+                pool.remove(b)
+                opps.append([a, b])
+            full_board = list(board) + rng.sample(pool, need_board)
         mine = evaluate(list(hole) + full_board)
         best_opp = -1
-        for o in range(n_opponents):
-            i = need_board + 2 * o
-            v = evaluate(draw[i:i + 2] + full_board)
+        for o in opps:
+            v = evaluate(o + full_board)
             if v > best_opp:
                 best_opp = v
         if mine > best_opp:
@@ -189,3 +203,49 @@ def hand_class_169(c0, c1):
 
 def all_combinations(cards, k):
     return combinations(cards, k)
+
+
+# --- pondération de prwin (f$prwin_willplay / wontplay / mustplay / topclip) ---------------
+# Classement Sklansky-Chubukov utilisé par OpenHoldem (CIteratorThread.cpp, prwin_handrank_table_169)
+PRWIN_HANDRANK_169 = ['AAo', 'KKo', 'AKs', 'QQo', 'AKo', 'JJo', 'AQs', 'TTo', 'AQo', '99o', 'AJs', '88o', 'ATs', 'AJo', '77o', '66o', 'ATo', 'A9s', '55o', 'A8s', 'KQs', '44o', 'A9o', 'A7s', 'KJs', 'A5s', 'A8o', 'A6s', 'A4s', '33o', 'KTs', 'A7o', 'A3s', 'KQo', 'A2s', 'A5o', 'A6o', 'A4o', 'KJo', 'QJs', 'A3o', '22o', 'K9s', 'A2o', 'KTo', 'QTs', 'K8s', 'K7s', 'JTs', 'K9o', 'K6s', 'QJo', 'Q9s', 'K5s', 'K8o', 'K4s', 'QTo', 'K7o', 'K3s', 'K2s', 'Q8s', 'K6o', 'J9s', 'K5o', 'Q9o', 'JTo', 'K4o', 'Q7s', 'T9s', 'Q6s', 'K3o', 'J8s', 'Q5s', 'K2o', 'Q8o', 'Q4s', 'J9o', 'Q3s', 'T8s', 'J7s', 'Q7o', 'Q2s', 'Q6o', '98s', 'Q5o', 'J8o', 'T9o', 'J6s', 'T7s', 'J5s', 'Q4o', 'J4s', 'J7o', 'Q3o', '97s', 'T8o', 'J3s', 'T6s', 'Q2o', 'J2s', '87s', 'J6o', '98o', 'T7o', '96s', 'J5o', 'T5s', 'T4s', '86s', 'J4o', 'T6o', '97o', 'T3s', '76s', '95s', 'J3o', 'T2s', '87o', '85s', '96o', 'T5o', 'J2o', '75s', '94s', 'T4o', '65s', '86o', '93s', '84s', '95o', 'T3o', '76o', '92s', '74s', '54s', 'T2o', '85o', '64s', '83s', '94o', '75o', '82s', '73s', '93o', '65o', '53s', '63s', '84o', '92o', '43s', '74o', '72s', '54o', '64o', '52s', '62s', '83o', '42s', '82o', '73o', '53o', '63o', '32s', '43o', '72o', '52o', '62o', '42o', '32o']
+_PRWIN_RANK = {n: i + 1 for i, n in enumerate(PRWIN_HANDRANK_169)}
+_OPP_PROB_CACHE = {}
+
+
+def prwin_range_probability(hrank, willplay, wontplay, topclip, mustplay):
+    """Probabilité qu'un adversaire joue une main de rang ``hrank`` (IsHandInWeightedRange d'OpenHoldem)."""
+    if hrank >= wontplay:
+        return 0.0
+    if hrank <= mustplay:
+        return 1.0
+    if topclip < hrank <= willplay:
+        return 1.0
+    if hrank <= topclip:
+        # OpenHoldem : topclip * (1 - rand()) est négatif -> toujours vrai
+        return 1.0
+    d = wontplay - willplay
+    if d < 3:
+        return 1.0
+    return max(0, d - 1 - (hrank - willplay)) / float(d)
+
+
+def opp_prob_table(willplay, wontplay, topclip, mustplay, nopp):
+    """Table 52x52 des probabilités de jeu d'un adversaire, ou None si la pondération est désactivée."""
+    willplay, wontplay, topclip, mustplay = int(willplay), int(wontplay), int(topclip), int(mustplay)
+    if not willplay:
+        return None
+    if willplay < 2 * nopp + 1:
+        willplay = 2 * nopp + 1
+    if wontplay < willplay:
+        wontplay = willplay
+    key = (willplay, wontplay, topclip, mustplay)
+    t = _OPP_PROB_CACHE.get(key)
+    if t is None:
+        probs = {n: prwin_range_probability(r, willplay, wontplay, topclip, mustplay) for n, r in _PRWIN_RANK.items()}
+        t = [[0.0] * 52 for _ in range(52)]
+        for a in range(52):
+            for b in range(52):
+                if a != b:
+                    t[a][b] = probs[hand_class_169(a, b)]
+        _OPP_PROB_CACHE[key] = t
+    return t

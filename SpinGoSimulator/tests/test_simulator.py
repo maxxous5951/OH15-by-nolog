@@ -350,5 +350,45 @@ class RaisesCounter(unittest.TestCase):
         self.assertTrue([a for a in g.hands[0]["actions"] if a["c"] == 0][-1]["allin"])
 
 
+class WeightedPrwin(unittest.TestCase):
+    def test_range_probability_matches_openholdem(self):
+        f = C.prwin_range_probability
+        self.assertEqual(f(5, 20, 60, 0, 0), 1.0)          # sous willplay : toujours joué
+        self.assertEqual(f(60, 20, 60, 0, 0), 0.0)         # au-delà de wontplay : jamais
+        mid = f(40, 20, 60, 0, 0)
+        self.assertTrue(0.0 < mid < 1.0)
+        self.assertGreater(f(30, 20, 60, 0, 0), f(50, 20, 60, 0, 0))  # pente décroissante
+
+    def test_weighted_equity_is_lower_than_random(self):
+        hole, board = cs("Ah Kd"), cs("7c 8d 2s")
+        rnd = C.equity_vs_random(hole, board, 2, 2500, random.Random(1))
+        tab = C.opp_prob_table(14, 40, 0, 0, 2)
+        wgt = C.equity_vs_random(hole, board, 2, 2500, random.Random(1), tab)
+        self.assertLess(wgt[0], rnd[0] - 0.03)
+        self.assertIsNone(C.opp_prob_table(0, 40, 0, 0, 2))   # willplay = 0 : pondération désactivée
+
+    def test_profile_functions_drive_prwin(self):
+        import tempfile
+        out = []
+        for ww in ("0", "12"):
+            txt = "##f$prwin_willplay##\n%s\n##f$prwin_wontplay##\n30\n##f$prwin_number_of_opponents##\n2\n" % ww
+            with tempfile.NamedTemporaryFile("w", suffix=".ohf", delete=False, encoding="utf-8") as f:
+                f.write(txt)
+            cfg = SimConfig(mode="cash", num_players=3, prwin_iterations=1500, prwin_max_iterations=1500)
+            cfg.validate()
+            b = S.make_brain(f.name, cfg, random.Random(1), "T")
+            os.unlink(f.name)
+            g = Game(cfg, [b, CallStationBrain(), CallStationBrain()], ["T", "B", "C"], 1, random.Random(2))
+            for s in g.t.seats:
+                s.dealt = s.in_hand = True
+            g.t.seats[0].cards = cs("Ah Kd")
+            g.t.board = cs("7c 8d 2s")
+            g.t.betround = 2
+            b.ctx.new_hand(g, 0)
+            b.ctx.prepare(g, 0)
+            out.append(b.ctx.symbol("prwin"))
+        self.assertLess(out[1], out[0] - 0.03)
+
+
 if __name__ == "__main__":
     unittest.main()

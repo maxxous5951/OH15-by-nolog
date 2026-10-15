@@ -715,23 +715,37 @@ class SymbolContext:
             v = self.cfg.prwin_iterations
         return int(max(20, min(v, self.cfg.prwin_max_iterations)))
 
+    def _opp_weights(self, nopp):
+        """Table de pondération des mains adverses (f$prwin_willplay & co), None si désactivée."""
+        if "_oppw" in self._cache:
+            return self._cache["_oppw"]
+        vals = []
+        for fn in ("f$prwin_willplay", "f$prwin_wontplay", "f$prwin_topclip", "f$prwin_mustplay"):
+            v = self.evaluate_named(fn)
+            vals.append(v or 0)
+        t = C.opp_prob_table(vals[0], vals[1], vals[2], vals[3], nopp)
+        key = None if t is None else (int(vals[0]), int(vals[1]), int(vals[2]), int(vals[3]))
+        self._cache["_oppw"] = (t, key)
+        return self._cache["_oppw"]
+
     def _prwin_triplet(self, nopp, iterations=None):
-        key = (nopp, len(self._board))
+        table, wkey = self._opp_weights(nopp)
+        key = (nopp, len(self._board), wkey)
         if key in self._prw:
             return self._prw[key]
         if len(self._hole) < 2:
             res = (0.0, 0.0, 0.0)
         else:
             if not self._board:
-                ck = (C.hand_class_169(self._hole[0], self._hole[1]), nopp)
+                ck = (C.hand_class_169(self._hole[0], self._hole[1]), nopp, wkey)
                 res = _PREFLOP_EQ.get(ck)
                 if res is None:
                     rr = _random.Random(hash(ck) & 0xffff)
-                    res = C.equity_vs_random(self._hole, [], nopp, 1500, rr)
+                    res = C.equity_vs_random(self._hole, [], nopp, 1500 if table is None else 800, rr, table)
                     _PREFLOP_EQ[ck] = res
             else:
                 res = C.equity_vs_random(self._hole, self._board, nopp,
-                                         iterations or self._prwin_iterations(), self.rng)
+                                         iterations or self._prwin_iterations(), self.rng, table)
         self._prw[key] = res
         return res
 
