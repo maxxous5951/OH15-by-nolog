@@ -71,3 +71,11 @@ Onglets : *Configuration* (blinds, durée des niveaux, multiplicateurs, profil p
 `spingosim/` : `ohlang.py` (langage), `symbols.py` (symboles + décision), `engine.py` (jeu), `cards.py`, `payouts.py`,
 `handhistory.py`, `stats.py`, `runner.py` (multiprocessing). `profiles/` : exemples OpenPPL.
 `tests/` : tests unitaires + `coverage_check.py` (évalue toute la bibliothèque) + `demobots_check.py`.
+
+## Profils Shanky PPL
+
+Les fichiers PPL « Shanky » bruts (sans balises `##f$...##`, sections `preflop` / `flop` / `turn` / `river`) sont
+reconnus automatiquement et convertis à la volée en OpenPPL, avec les règles du convertisseur officiel du dépôt
+(`hand = AKs` → `hand$AKSuited`, `Raise 90%` → `RaiseBy 90%`, `Bet` → `Raise`, `StackSize = x` → `~~`,
+`calledonflop` → `BotCalledOnFlop`, `Have2ndBestKicker` → `HaveSecondBestKicker`, FORCE ajouté si absent…).
+Les noms de symboles ne sont pas sensibles à la casse.

@@ -1731,7 +1731,13 @@ def build_profile(path, cfg=None):
     fc.parse_errors = []
     user = FormulaCollection()
     if path and path != "DefaultBot":
-        user.add_file(path)
+        with open(path, "r", encoding="latin-1", errors="replace") as fh:
+            raw = fh.read()
+        from . import shanky
+        if shanky.is_shanky(raw):
+            user.add_text(shanky.convert(raw), path)
+        else:
+            user.add_text(raw, path)
     names = []
     for k, f in user.functions.items():
         if k.startswith("f$debug") or k.lower() == "f$debug":

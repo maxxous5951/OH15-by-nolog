@@ -390,5 +390,38 @@ class WeightedPrwin(unittest.TestCase):
         self.assertLess(out[1], out[0] - 0.03)
 
 
+
+class ShankyPPL(unittest.TestCase):
+    SRC = ("MaxSessionHands = 100\ncustom\npreflop\n"
+           "When hand = AKs or hand = QQ Raise 90% force\n"
+           "When (hand = AJ suited) and StackSize = 50 Call\n"
+           "When Random <= 20 Bet force\n"
+           "When calledonflop Fold force\n"
+           "flop\nWhen Have2ndBestKicker Bet 66% force\n")
+
+    def test_detection_and_conversion(self):
+        from spingosim import shanky
+        self.assertTrue(shanky.is_shanky(self.SRC))
+        self.assertFalse(shanky.is_shanky("##f$preflop##\nWHEN Others Fold FORCE\n"))
+        c = shanky.convert(self.SRC)
+        self.assertIn("##f$preflop##", c)
+        self.assertIn("hand$AKSuited or hand$QQ RaiseBy 90% FORCE", c)
+        self.assertIn("hand$AJSuited", c)
+        self.assertIn("StackSize ~~ 50 Call FORCE", c)
+        self.assertIn("Random <= 20 Raise FORCE", c)
+        self.assertIn("BotCalledOnFlop Fold FORCE", c)
+        self.assertIn("RaiseBy 66% FORCE", c)
+        self.assertIn("HaveSecondBestKicker", c)
+
+    def test_profile_loads(self):
+        import tempfile, os
+        from spingosim import symbols as S
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "shanky.ohf")
+            open(p, "w").write(self.SRC)
+            fc = S.build_profile(p)
+            self.assertEqual(S.profile_errors(fc), [])
+            self.assertIn("f$preflop", fc.functions)
+
 if __name__ == "__main__":
     unittest.main()
