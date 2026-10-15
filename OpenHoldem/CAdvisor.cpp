@@ -313,6 +313,10 @@ int CAdvisor::NearestCorner(const CRect& table, const CRect& advisor) {
 
 void CAdvisor::UpdateVisibilityAndPosition() {
   if (m_hWnd == NULL) return;
+  // Safety: our idea of "visible" must match reality
+  if (_visible_state && !::IsWindowVisible(m_hWnd)) {
+    _visible_state = false;
+  }
   // Visible only: advisor enabled, connected to a table, table visible
   bool want = Preferences()->advisor_enabled()
     && p_autoconnector != NULL && p_autoconnector->IsConnectedToAnything();
@@ -325,12 +329,20 @@ void CAdvisor::UpdateVisibilityAndPosition() {
       ShowWindow(SW_HIDE);
       _visible_state = false;
     }
+    // Forget the table: a later (re)connection must set the owner and show us again
+    _table_window = NULL;
     _dragging = false;
     return;
   }
   if (table != _table_window) {
     // Owned by the table: stays on top of it, minimizes with it,
     // but does not cover other applications.
+    // Changing the owner of a visible window does not update its z-order
+    // (we could end up hidden behind the table): hide, change owner, show again.
+    if (_visible_state) {
+      ShowWindow(SW_HIDE);
+      _visible_state = false;
+    }
     _table_window = table;
     ::SetWindowLongPtr(m_hWnd, GWLP_HWNDPARENT, (LONG_PTR)table);
   }
@@ -356,6 +368,8 @@ void CAdvisor::UpdateVisibilityAndPosition() {
   _last_table_rect = table_client;
   if (!_visible_state) {
     ShowWindow(SW_SHOWNOACTIVATE);
+    // Directly above the table
+    SetWindowPos(&CWnd::wndTop, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     _visible_state = true;
   }
 }
