@@ -13,6 +13,7 @@
 
 #include <stdafx.h>
 #include "CProblemSolver.h"
+#include "ModernDialogs.h"
 
 #include "CAutoConnector.h"
 #include "CCasinoInterface.h"

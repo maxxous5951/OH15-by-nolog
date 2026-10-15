@@ -198,7 +198,7 @@ CSize CDlgModernMessage::LayoutContent(Graphics& g, float s) {
   const float text_width = (float)(width - 2 * pad - icon - gap);
   CString text = _message;
   text.Replace("\r\n", "\n");
-  const float text_height = MeasureParagraphHeight(g, ToWide(text), GetFont(14.5f * s), text_width);
+  const float text_height = MeasureParagraphHeight(g, ToWide(text), modernui::GetFont(14.5f * s), text_width);
   const int content_height = max((int)(text_height + 0.5f), icon);
   _icon_rect = RectF((float)pad, (float)pad, (float)icon, (float)icon);
   _text_rect = RectF((float)(pad + icon + gap), (float)pad + (content_height - text_height) / 2.0f,
@@ -250,7 +250,7 @@ void CDlgModernMessage::PaintContent(Graphics& g, float s, float width, float he
   if (icon == MB_ICONERROR) {
     DrawIcon(g, Icon::Close, glyph_rect, Rgba(colour), 2.4f);
   } else if (icon == MB_ICONWARNING) {
-    DrawLabel(g, L"!", GetFont(26 * s, true), _icon_rect, Rgba(colour), HAlign::Center, false);
+    DrawLabel(g, L"!", modernui::GetFont(26 * s, true), _icon_rect, Rgba(colour), HAlign::Center, false);
   } else if (icon == MB_ICONQUESTION) {
     DrawIcon(g, Icon::Help, glyph_rect, Rgba(colour), 2.2f);
   } else {
@@ -259,7 +259,7 @@ void CDlgModernMessage::PaintContent(Graphics& g, float s, float width, float he
   // Text
   CString text = _message;
   text.Replace("\r\n", "\n");
-  DrawParagraph(g, ToWide(text), GetFont(14.5f * s), _text_rect, Rgba(c.text));
+  DrawParagraph(g, ToWide(text), modernui::GetFont(14.5f * s), _text_rect, Rgba(c.text));
 }
 
 // ---------------------------------------------------------------------------
@@ -323,7 +323,7 @@ CSize CDlgModernAbout::LayoutContent(Graphics& g, float s) {
   y = _separator2 + px(16);
   const float disclaimer_height = MeasureParagraphHeight(g,
     L"Disclaimer: this is an open-source project.\nWe are not related to any shops, stores and/or scam-artists.",
-    GetFont(13 * s), (float)inner);
+    modernui::GetFont(13 * s), (float)inner);
   _disclaimer_rect = RectF((float)pad, (float)y, (float)inner, disclaimer_height + 2.0f);
   y += (int)(disclaimer_height + 0.5f) + px(24);
   const int button_width = px(96), button_height = px(34);
@@ -345,26 +345,26 @@ void CDlgModernAbout::PaintContent(Graphics& g, float s, float width, float heig
     }
     ::DestroyIcon(icon);
   }
-  DrawLabel(g, L"OpenHoldem", GetFont(28 * s, true), _title_rect, Rgba(c.text), HAlign::Left, true);
-  DrawLabel(g, ToWide(CString("Version ") + VERSION_TEXT), GetFont(15 * s, true), _version_rect,
+  DrawLabel(g, L"OpenHoldem", modernui::GetFont(28 * s, true), _title_rect, Rgba(c.text), HAlign::Left, true);
+  DrawLabel(g, ToWide(CString("Version ") + VERSION_TEXT), modernui::GetFont(15 * s, true), _version_rect,
             Rgba(c.accent), HAlign::Left, true);
-  DrawLabel(g, L"Licensed under GPLv3", GetFont(13 * s), _license_rect, Rgba(c.text_dim), HAlign::Left, true);
+  DrawLabel(g, L"Licensed under GPLv3", modernui::GetFont(13 * s), _license_rect, Rgba(c.text_dim), HAlign::Left, true);
 
   Pen separator(Rgba(c.border), 1.0f);
   g.DrawLine(&separator, _caption_rect.X, (float)_separator1, _caption_rect.X + _caption_rect.Width, (float)_separator1);
   g.DrawLine(&separator, _caption_rect.X, (float)_separator2, _caption_rect.X + _caption_rect.Width, (float)_separator2);
 
-  DrawLabel(g, L"FORUMS, SOURCE CODE AND LICENSE", GetFont(11 * s, true), _caption_rect,
+  DrawLabel(g, L"FORUMS, SOURCE CODE AND LICENSE", modernui::GetFont(11 * s, true), _caption_rect,
             Rgba(c.text_dim), HAlign::Left, true);
   for (int i = 0; i < (int)_links.size(); ++i) {
     const RectF& r = _links[i].rect;
     const bool hot = (i == _hot_link);
     if (hot) FillRoundRect(g, r, 6 * s, Rgba(c.accent_soft));
-    DrawLabel(g, ToWide(_links[i].text), GetFont(14 * s, false),
+    DrawLabel(g, ToWide(_links[i].text), modernui::GetFont(14 * s, false),
               RectF(r.X + 8 * s, r.Y, r.Width - 16 * s, r.Height), Rgba(c.accent), HAlign::Left, true);
   }
   DrawParagraph(g, L"Disclaimer: this is an open-source project.\nWe are not related to any shops, stores and/or scam-artists.",
-                GetFont(13 * s), _disclaimer_rect, Rgba(c.text_dim));
+                modernui::GetFont(13 * s), _disclaimer_rect, Rgba(c.text_dim));
 }
 
 int CDlgModernAbout::LinkAt(CPoint point) const {
