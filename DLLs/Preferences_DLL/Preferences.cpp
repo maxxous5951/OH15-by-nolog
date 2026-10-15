@@ -142,6 +142,8 @@ const char* k_registry_keys_for_numerical_values[k_prefs_last_numerical_value + 
   "scraper_zoom",
   "popup_blocker",
   "capture_method",
+  "advisor_enabled",
+  "advisor_corner",
   // doubles
   // Only one double left, just to check for outdated ICM-config
   "icm_prize1",
@@ -237,6 +239,8 @@ void CPreferences::InitDefaults(void) {
   prefs_numerical_values[k_prefs_lazy_scraping_when_to_scrape] = k_lazy_scraping_always;
   prefs_numerical_values[k_prefs_table_positioner_options] = k_position_tables_cascaded;
   prefs_numerical_values[k_prefs_capture_method] = k_CaptureMethod_Original;
+  prefs_numerical_values[k_prefs_advisor_enabled] = false;
+  prefs_numerical_values[k_prefs_advisor_corner] = 1;   // top right
   // Doubles
   prefs_numerical_values[k_prefs_icm_prize1] = kUndefinedZero;
   // CString

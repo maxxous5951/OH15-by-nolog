@@ -534,6 +534,7 @@
 #define ID_EDIT_VIEWLOG                 32997
 #define ID_EDIT_TAGLOG                  32998
 #define ID_EDIT_CLEARLOG                32999
+#define ID_MAIN_TOOLBAR_ADVISOR         33001
 
 #define IDC_RADIO_CAPTURE_ORIGINAL      1427
 #define IDC_RADIO_CAPTURE_PRINTWINDOW   1428
@@ -545,7 +546,7 @@
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        190
-#define _APS_NEXT_COMMAND_VALUE         33001
+#define _APS_NEXT_COMMAND_VALUE         33002
 #define _APS_NEXT_CONTROL_VALUE         1433
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

@@ -162,6 +162,9 @@ enum {
   k_prefs_scraper_zoom,
   k_prefs_popup_blocker,
   k_prefs_capture_method,
+  // Advisor mode (suggestions window, no automatic play)
+  k_prefs_advisor_enabled,
+  k_prefs_advisor_corner,        // 0 = top left, 1 = top right, 2 = bottom left, 3 = bottom right
   // Double values
   // Only on double left, just to check for outdated ICM-config
   k_prefs_icm_prize1,
@@ -336,6 +339,9 @@ public:
   // Popup blocker
   const int popup_blocker() { return prefs_numerical_values[k_prefs_popup_blocker]; }
   const int capture_method() { return prefs_numerical_values[k_prefs_capture_method]; }
+  // Advisor
+  const bool advisor_enabled() { return prefs_numerical_values[k_prefs_advisor_enabled] != 0; }
+  const int advisor_corner() { return (int)prefs_numerical_values[k_prefs_advisor_corner]; }
   // Obscure
   LPCSTR window_class_name() { return NonEmptyStringValueElseDefault(k_prefs_window_class_name); }
   LPCSTR mutex_name() { return NonEmptyStringValueElseDefault(k_prefs_mutex_name); }

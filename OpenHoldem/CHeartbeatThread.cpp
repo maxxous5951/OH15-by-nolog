@@ -16,6 +16,7 @@
 
 #include <process.h>
 #include "CAutoconnector.h"
+#include "CAdvisor.h"
 #include "CAutoplayer.h"
 #include "CAutoplayerFunctions.h"
 #include "CBetroundCalculator.h"
@@ -186,6 +187,12 @@ void CHeartbeatThread::ScrapeEvaluateAct() {
 	if (p_autoplayer->autoplayer_engaged()) {
 		write_log(Preferences()->debug_heartbeat(), "[HeartBeatThread] Calling DoAutoplayer.\n");
 		p_autoplayer->DoAutoplayer();
+	}
+	////////////////////////////////////////////////////////////////////////////////////////////
+	// Advisor: shows the recommended action, never clicks anything
+	CAdvisor *advisor = p_advisor;
+	if (advisor != NULL) {
+		advisor->OnHeartbeat();
 	}
 }
 

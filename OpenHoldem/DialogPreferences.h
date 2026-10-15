@@ -87,7 +87,7 @@ namespace modernglue {
 // The list of categories on the left
 class CPrefsSidebar : public CWnd {
  public:
-  CPrefsSidebar() : _selected(0), _hot(-1), _tracking(false) {}
+  CPrefsSidebar() : _selected(0), _hot(-1), _tracking(false), _scroll(0.0f) {}
   BOOL CreateSidebar(CWnd* parent, const CRect& rect, UINT id);
   void SetTitles(const std::vector<CString>& titles) { _titles = titles; if (m_hWnd) Invalidate(FALSE); }
   void Select(int index, bool notify);
@@ -102,32 +102,47 @@ class CPrefsSidebar : public CWnd {
   afx_msg UINT OnGetDlgCode();
   afx_msg void OnSetFocus(CWnd* pOld);
   afx_msg void OnKillFocus(CWnd* pNew);
+  afx_msg BOOL OnMouseWheel(UINT nFlags, short zDelta, CPoint pt);
   DECLARE_MESSAGE_MAP()
  private:
-  float TopOffset(float scale) const { return 12.0f * scale; }
-  float RowHeight(float scale) const { return 36.0f * scale; }
+  float TopOffset(float scale) const;      // the list starts below the heading
+  float RowHeight(float scale) const;      // shrinks to fit, min. 26 px
+  float MaxScroll(float scale) const;
+  void  ScrollTo(float pixels);
+  void  EnsureSelectedVisible();
   int   HitTest(CPoint point) const;
   std::vector<CString> _titles;
   int  _selected, _hot;
   bool _tracking;
+  float _scroll;                          // pixels
 };
 
 // The controls of one page. Hands all commands and notifications of its
 // children to the dialog and gives them the colours of the theme.
 class CPrefsPageWnd : public CWnd {
  public:
-  CPrefsPageWnd() : _owner(NULL) {}
+  CPrefsPageWnd() : _owner(NULL), _content_height(0), _scroll_pos(0) {}
   BOOL CreatePage(CWnd* parent, CWnd* owner, const CRect& rect);
   void ApplyTheme();
+  // Height of all controls; shows a scrollbar if it is more than the window
+  void SetContentHeight(int height);
+  // Scrolls so that the control is visible (keyboard focus, validation)
+  void EnsureVisible(CWnd* control);
  protected:
   afx_msg BOOL OnEraseBkgnd(CDC* pDC);
+  afx_msg void OnVScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar);
+  afx_msg BOOL OnMouseWheel(UINT nFlags, short zDelta, CPoint pt);
+  afx_msg void OnSize(UINT nType, int cx, int cy);
   afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
   virtual BOOL OnCommand(WPARAM wParam, LPARAM lParam);
   virtual BOOL OnNotify(WPARAM wParam, LPARAM lParam, LRESULT* pResult);
   DECLARE_MESSAGE_MAP()
  private:
+  void ScrollTo(int position);
+  void UpdateScrollbar();
   CWnd*  _owner;
   CBrush _brush_window, _brush_field;
+  int    _content_height, _scroll_pos;
 };
 
 }  // namespace modernglue
@@ -155,6 +170,7 @@ class CDlgPreferences : public CDialog {
   afx_msg BOOL OnEraseBkgnd(CDC* pDC);
   afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
   afx_msg void OnDestroy();
+  afx_msg BOOL OnMouseWheel(UINT nFlags, short zDelta, CPoint pt);
   DECLARE_MESSAGE_MAP()
 
  private:

@@ -45,6 +45,7 @@ enum class Icon {
   Rename,
   Delete,
   Files,
+  Lightbulb,
   Count_
 };
 
@@ -238,6 +239,11 @@ static const char* const kIcon_Files[] = {
   "M9 18a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h7l4 4v10a2 2 0 0 1-2 2Z",
   "M3 7.6v12.8A1.6 1.6 0 0 0 4.6 22h9.8",
 };
+static const char* const kIcon_Lightbulb[] = {
+  "M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5",
+  "M9 18h6",
+  "M10 22h4",
+};
 
 static const IconDef kIconDefs[] = {
   { nullptr, 0 },  // Icon::None
@@ -279,6 +285,7 @@ static const IconDef kIconDefs[] = {
   { kIcon_Rename, (int)(sizeof(kIcon_Rename) / sizeof(kIcon_Rename[0])) },
   { kIcon_Delete, (int)(sizeof(kIcon_Delete) / sizeof(kIcon_Delete[0])) },
   { kIcon_Files, (int)(sizeof(kIcon_Files) / sizeof(kIcon_Files[0])) },
+  { kIcon_Lightbulb, (int)(sizeof(kIcon_Lightbulb) / sizeof(kIcon_Lightbulb[0])) },
 };
 
 }  // namespace modernui

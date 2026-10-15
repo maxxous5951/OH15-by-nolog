@@ -20,7 +20,7 @@ ICONS = [  # (C++ identifier, lucide file name)
   ("Sun","sun"), ("Moon","moon"), ("Monitor","monitor"), ("ChevronRight","chevron-right"),
   ("Undo","undo-2"), ("Redo","redo-2"), ("Cut","scissors"), ("Copy","copy"),
   ("Paste","clipboard-paste"), ("Search","search"), ("WrapText","wrap-text"),
-  ("Rename","pencil"), ("Delete","trash-2"), ("Files","files"),
+  ("Rename","pencil"), ("Delete","trash-2"), ("Files","files"), ("Lightbulb","lightbulb"),
 ]
 
 def f(v): return float(v)

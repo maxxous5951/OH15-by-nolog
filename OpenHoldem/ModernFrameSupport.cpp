@@ -171,6 +171,7 @@ void ConfigureHeader(ModernHeader* header, CFrameWnd* frame) {
   OH_TOOL(ID_FILE_OPEN,                   Icon::FileOpen,   L"Open",        false, false, false)
   OH_TOOL(ID_FILE_SAVE,                   Icon::Save,       L"Save",        false, false, false)
   OH_TOOL(ID_MAIN_TOOLBAR_AUTOPLAYER,     Icon::Play,       L"Autoplayer",  true,  true,  true)
+  OH_TOOL(ID_MAIN_TOOLBAR_ADVISOR,        Icon::Lightbulb,  L"Advisor",     true,  false, false)
   OH_TOOL(ID_MAIN_TOOLBAR_FORMULA,        Icon::Braces,     L"Formula",     true,  false, false)
   OH_TOOL(ID_MAIN_TOOLBAR_VALIDATOR,      Icon::Check,      L"Validator",   true,  false, false)
   OH_TOOL(ID_MAIN_TOOLBAR_TAGLOGFILE,     Icon::Tag,        L"Tag log",     true,  false, false)

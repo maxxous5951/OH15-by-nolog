@@ -22,6 +22,7 @@
 #include "..\DLLs\StringFunctions_DLL\string_functions.h"
 #include "..\DLLs\WindowFunctions_DLL\window_functions.h"
 #include "CAutoConnector.h"
+#include "CAdvisor.h"
 #include "CAutoplayer.h"
 #include "CAutoplayerFunctions.h"
 #include "CEngineContainer.h"
@@ -81,6 +82,7 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 
 	// Main toolbar 
 	ON_BN_CLICKED(ID_MAIN_TOOLBAR_AUTOPLAYER, &CMainFrame::OnAutoplayer)
+	ON_BN_CLICKED(ID_MAIN_TOOLBAR_ADVISOR, &CMainFrame::OnAdvisor)
 	ON_BN_CLICKED(ID_MAIN_TOOLBAR_FORMULA, &CMainFrame::OnEditFormula)
 	ON_BN_CLICKED(ID_MAIN_TOOLBAR_VALIDATOR, &CMainFrame::OnValidator)
 	ON_BN_CLICKED(ID_MAIN_TOOLBAR_TAGLOGFILE, &CMainFrame::OnEditTagLog)
@@ -150,6 +152,11 @@ CMainFrame::CMainFrame() {
 }
 
 CMainFrame::~CMainFrame() {
+	if (p_advisor != NULL) {
+		CAdvisor *advisor = p_advisor;
+		p_advisor = NULL;   // the heartbeat thread must not use it any longer
+		delete advisor;
+	}
 	if (p_flags_toolbar != NULL) {
 		delete(p_flags_toolbar);
 	}
@@ -168,6 +175,10 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct) {
 	::SetMenu(m_hWnd, NULL);
 	// Header (title bar, menu bar, toolbar, flags)
 	p_flags_toolbar = new CFlagsToolbar(this);
+	// Advisor mode: small window on top of the table, visible only if enabled
+	p_advisor = new CAdvisor();
+	p_advisor->CreateAdvisorWindow(this);
+	p_advisor->RefreshFromPreferences();
 	// Status bar
 	p_openholdem_statusbar = new COpenHoldemStatusbar(this);
 	// Light / dark / system theme
@@ -528,6 +539,13 @@ void CMainFrame::OnAutoplayer() {
 	bool is_autoplaying = p_autoplayer->autoplayer_engaged();
 	// Toggle the autoplayer-state
 	p_autoplayer->EngageAutoplayer(!is_autoplaying);
+}
+
+void CMainFrame::OnAdvisor() {
+	// Toggle the advisor mode (button in the toolbar)
+	if (p_advisor != NULL) {
+		p_advisor->SetEnabled(!p_advisor->IsEnabled());
+	}
 }
 
 void CMainFrame::OnValidator() {

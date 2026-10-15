@@ -17,6 +17,7 @@
 
 #include <regex>
 #include <string>
+#include "CAdvisor.h"
 #include "CDisplayAffinity.h"
 #include "CHandHistoryWriter.h"
 #include "COpenHoldemTitle.h"
@@ -358,6 +359,17 @@ void CDlgPreferences::BuildPages() {
     p.items.push_back(PREF_CHECK("Restore mouse position and window focus at real casinos",
       restore_position_and_focus, k_prefs_restore_position_and_focus));
     p.items.push_back(PREF_CHECK("Advance replay frames during replay", use_auto_replay, k_prefs_use_auto_replay));
+    p.items.push_back(Heading("Advisor mode"));
+    PrefsItem advisor = PREF_CHECK("Enable advisor (shows the best action instead of playing automatically)",
+      advisor_enabled, k_prefs_advisor_enabled);
+    // Keeps the toolbar button in sync and shows / hides the window immediately
+    advisor.after_apply = []() { if (p_advisor != NULL) p_advisor->RefreshFromPreferences(); };
+    p.items.push_back(advisor);
+    p.items.push_back(Note("A small window on the table shows what the profile would do (best action) "
+      "and what you did (action taken). It follows the table window; drag it to snap it to a corner."));
+    p.items.push_back(Radio({ "Top left", "Top right", "Bottom left", "Bottom right" },
+      []() -> int { return Preferences()->advisor_corner(); },
+      [](int index) { SetNumber(k_prefs_advisor_corner, index); }));
   }
 
   // ----- Auto-starter -----
@@ -637,6 +649,7 @@ BEGIN_MESSAGE_MAP(CDlgPreferences, CDialog)
   ON_WM_ERASEBKGND()
   ON_WM_CTLCOLOR()
   ON_WM_DESTROY()
+  ON_WM_MOUSEWHEEL()
 END_MESSAGE_MAP()
 
 CDlgPreferences::CDlgPreferences(CWnd* pParent /*=NULL*/)
@@ -688,6 +701,22 @@ BOOL CDlgPreferences::OnInitDialog() {
   CenterWindow();
   _sidebar.SetFocus();
   return FALSE;   // we have set the focus ourselves
+}
+
+BOOL CDlgPreferences::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt) {
+  // The wheel scrolls what is under the mouse, not what has the focus
+  static bool forwarding = false;     // a control may hand the wheel back to us
+  if (!forwarding) {
+    HWND target = ::WindowFromPoint(pt);
+    if (target != NULL && target != m_hWnd && ::IsChild(m_hWnd, target)) {
+      forwarding = true;
+      // Controls hand the wheel to their parent (the page) if they do not use it themselves
+      ::SendMessage(target, WM_MOUSEWHEEL, MAKEWPARAM(nFlags, zDelta), MAKELPARAM(pt.x, pt.y));
+      forwarding = false;
+      return TRUE;
+    }
+  }
+  return CDialog::OnMouseWheel(nFlags, zDelta, pt);
 }
 
 void CDlgPreferences::OnDestroy() {
@@ -794,18 +823,6 @@ void CDlgPreferences::CreateControls(int page_index) {
         edit->SetFont(&_font);
         modernglue::ApplyControlTheme(edit->GetSafeHwnd());
         item.ctrl = edit;
-        if (item.kind == PrefsItem::kNumber) {
-          CtrlRef spin_ref = { page_index, i, 1 };
-          _refs.push_back(spin_ref);
-          CSpinButtonCtrl* spin = new CSpinButtonCtrl();
-          Own(spin);
-          spin->Create(child | UDS_ALIGNRIGHT | UDS_SETBUDDYINT | UDS_ARROWKEYS | UDS_NOTHOUSANDS,
-            nowhere, window, item.first_id + 1);
-          spin->SetBuddy(edit);
-          spin->SetRange32(item.min_value, item.max_value);
-          modernglue::ApplyControlTheme(spin->GetSafeHwnd());
-          item.spin = spin;
-        }
         break;
       }
       case PrefsItem::kLines: {
@@ -854,7 +871,8 @@ void CDlgPreferences::LayoutPage(int page_index) {
   PrefsPage& page = _pages[page_index];
   const float s = modernui::DpiScale(m_hWnd);
   auto px = [s](float value) { return (int)(value * s + 0.5f); };
-  const int width = _content_rect.Width();
+  // The right part is reserved for the scrollbar of the page
+  const int width = _content_rect.Width() - ::GetSystemMetrics(SM_CXVSCROLL) - px(4);
   int y = 0, last_row_y = 0;
 
   CClientDC dc(page.window);
@@ -903,7 +921,7 @@ void CDlgPreferences::LayoutPage(int page_index) {
         break;
       }
       case PrefsItem::kNumber: {
-        const int edit_width = px(110);
+        const int edit_width = px(90);
         item.label_ctrl->MoveWindow(0, y, width - edit_width - px(16), px(28));
         item.ctrl->MoveWindow(width - edit_width, y + px(1), edit_width, px(26));
         y += px(36);
@@ -942,6 +960,7 @@ void CDlgPreferences::LayoutPage(int page_index) {
     }
   }
   dc.SelectObject(old_font);
+  static_cast<modernglue::CPrefsPageWnd*>(page.window)->SetContentHeight(y + px(8));
 }
 
 void CDlgPreferences::ShowPage(int page_index) {
@@ -1000,7 +1019,6 @@ void CDlgPreferences::LoadValues() {
           CString text;
           text.Format("%d", item.get_int());
           item.ctrl->SetWindowText(text);
-          static_cast<CSpinButtonCtrl*>(item.spin)->SetPos32(item.get_int());
           break;
         }
         case PrefsItem::kText:
@@ -1033,6 +1051,7 @@ bool CDlgPreferences::Validate() {
         ShowPage((int)p);
         MessageBox_Interactive(error.GetString(), "ERROR", MB_OK);
         item.ctrl->SetFocus();
+        static_cast<modernglue::CPrefsPageWnd*>(_pages[p].window)->EnsureVisible(item.ctrl);
         return false;
       }
     }
@@ -1138,20 +1157,6 @@ BOOL CDlgPreferences::OnCommand(WPARAM wParam, LPARAM lParam) {
 }
 
 BOOL CDlgPreferences::OnNotify(WPARAM wParam, LPARAM lParam, LRESULT* pResult) {
-  NMHDR* header = reinterpret_cast<NMHDR*>(lParam);
-  if (header != NULL && header->code == UDN_DELTAPOS) {
-    // Some delays change in steps of 100 ms
-    const int index = (int)header->idFrom - kFirstControlId;
-    if (index >= 0 && index < (int)_refs.size()) {
-      const CtrlRef& ref = _refs[index];
-      const PrefsItem& item = _pages[ref.page].items[ref.item];
-      if (item.kind == PrefsItem::kNumber && item.step > 1) {
-        reinterpret_cast<NMUPDOWN*>(lParam)->iDelta *= item.step;
-      }
-    }
-    *pResult = 0;
-    return TRUE;
-  }
   return CDialog::OnNotify(wParam, lParam, pResult);
 }
 
@@ -1168,7 +1173,6 @@ void CDlgPreferences::ApplyTheme() {
       if (item.kind == PrefsItem::kText || item.kind == PrefsItem::kNumber || item.kind == PrefsItem::kLines) {
         modernglue::ApplyControlTheme(item.ctrl->GetSafeHwnd());
       }
-      if (item.spin != NULL) modernglue::ApplyControlTheme(item.spin->GetSafeHwnd());
     }
   }
 }
@@ -1212,6 +1216,7 @@ BEGIN_MESSAGE_MAP(CPrefsSidebar, CWnd)
   ON_WM_GETDLGCODE()
   ON_WM_SETFOCUS()
   ON_WM_KILLFOCUS()
+  ON_WM_MOUSEWHEEL()
 END_MESSAGE_MAP()
 
 BOOL CPrefsSidebar::CreateSidebar(CWnd* parent, const CRect& rect, UINT id) {
@@ -1219,9 +1224,64 @@ BOOL CPrefsSidebar::CreateSidebar(CWnd* parent, const CRect& rect, UINT id) {
   return CWnd::CreateEx(0, class_name, "", WS_CHILD | WS_VISIBLE | WS_TABSTOP, rect, parent, id);
 }
 
+float CPrefsSidebar::TopOffset(float scale) const {
+  return 58.0f * scale;       // below the "Preferences" heading
+}
+
+float CPrefsSidebar::RowHeight(float scale) const {
+  // Rows shrink a bit so that all categories fit; the list scrolls if still too long
+  CRect client;
+  GetClientRect(&client);
+  float row = 36.0f * scale;
+  if (!_titles.empty()) {
+    const float available = (float)client.Height() - TopOffset(scale) - 8.0f * scale;
+    const float fitting = available / (float)_titles.size();
+    if (fitting < row) row = fitting;
+  }
+  if (row < 26.0f * scale) row = 26.0f * scale;
+  return row;
+}
+
+float CPrefsSidebar::MaxScroll(float scale) const {
+  CRect client;
+  GetClientRect(&client);
+  const float total = TopOffset(scale) + RowHeight(scale) * (float)_titles.size() + 8.0f * scale;
+  const float max_scroll = total - (float)client.Height();
+  return max_scroll > 0.0f ? max_scroll : 0.0f;
+}
+
+void CPrefsSidebar::ScrollTo(float pixels) {
+  const float s = DpiScale(m_hWnd);
+  if (pixels > MaxScroll(s)) pixels = MaxScroll(s);
+  if (pixels < 0.0f) pixels = 0.0f;
+  if (pixels != _scroll) {
+    _scroll = pixels;
+    if (m_hWnd) Invalidate(FALSE);
+  }
+}
+
+void CPrefsSidebar::EnsureSelectedVisible() {
+  if (m_hWnd == NULL) return;
+  const float s = DpiScale(m_hWnd);
+  CRect client;
+  GetClientRect(&client);
+  const float top = _selected * RowHeight(s);                  // relative to the list
+  const float bottom = top + RowHeight(s);
+  const float visible = (float)client.Height() - TopOffset(s);
+  if (top < _scroll) ScrollTo(top);
+  else if (bottom > _scroll + visible - 8.0f * s) ScrollTo(bottom - visible + 8.0f * s);
+}
+
+BOOL CPrefsSidebar::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt) {
+  const float s = DpiScale(m_hWnd);
+  ScrollTo(_scroll - (float)zDelta / (float)WHEEL_DELTA * RowHeight(s) * 2.0f);
+  return TRUE;
+}
+
 void CPrefsSidebar::Select(int index, bool notify) {
   if (index < 0 || index >= (int)_titles.size()) return;
   _selected = index;
+  EnsureSelectedVisible();
   if (m_hWnd) Invalidate(FALSE);
   if (notify && GetParent() != NULL) {
     GetParent()->SendMessage(WMU_PREFS_SELECT, (WPARAM)index, 0);
@@ -1230,8 +1290,8 @@ void CPrefsSidebar::Select(int index, bool notify) {
 
 int CPrefsSidebar::HitTest(CPoint point) const {
   const float s = DpiScale(m_hWnd);
-  const float y = (float)point.y - TopOffset(s);
-  if (y < 0) return -1;
+  if ((float)point.y < TopOffset(s)) return -1;
+  const float y = (float)point.y - TopOffset(s) + _scroll;
   const int index = (int)(y / RowHeight(s));
   return (index >= 0 && index < (int)_titles.size()) ? index : -1;
 }
@@ -1246,14 +1306,12 @@ void CPrefsSidebar::OnPaint() {
   SolidBrush background(Rgba(c.surface));
   g.FillRectangle(&background, RectF(0, 0, w, h));
   Pen border(Rgba(c.border), 1.0f);
-  g.DrawLine(&border, w - 0.5f, 0.0f, w - 0.5f, h);
-
-  DrawLabel(g, L"Preferences", modernui::GetFont(17.0f * s, true), RectF(22 * s, 14 * s, w - 44 * s, 32 * s),
-            Rgba(c.text), HAlign::Left, true);
 
   const bool focused = (::GetFocus() == m_hWnd);
+  const float row_height = RowHeight(s);
   for (int i = 0; i < (int)_titles.size(); ++i) {
-    const RectF r(10 * s, TopOffset(s) + i * RowHeight(s), w - 21 * s, RowHeight(s) - 4 * s);
+    const RectF r(10 * s, TopOffset(s) + i * row_height - _scroll, w - 21 * s, row_height - 4 * s);
+    if (r.Y + r.Height < TopOffset(s) || r.Y > h) continue;
     DWORD text = c.text_dim;
     if (i == _selected) {
       FillRoundRect(g, r, 8 * s, Rgba(c.accent_soft));
@@ -1266,6 +1324,12 @@ void CPrefsSidebar::OnPaint() {
     DrawLabel(g, ToWide((LPCTSTR)_titles[i]), modernui::GetFont(13.5f * s, i == _selected),
               RectF(r.X + 14 * s, r.Y, r.Width - 20 * s, r.Height), Rgba(text), HAlign::Left, true);
   }
+
+  // The heading covers the rows that scrolled underneath it
+  g.FillRectangle(&background, RectF(0, 0, w - 1.0f, TopOffset(s) - 4 * s));
+  DrawLabel(g, L"Preferences", modernui::GetFont(17.0f * s, true), RectF(22 * s, 14 * s, w - 44 * s, 32 * s),
+            Rgba(c.text), HAlign::Left, true);
+  g.DrawLine(&border, w - 0.5f, 0.0f, w - 0.5f, h);
 }
 
 void CPrefsSidebar::OnLButtonDown(UINT nFlags, CPoint point) {
@@ -1316,13 +1380,91 @@ void CPrefsSidebar::OnKillFocus(CWnd* pNew) { CWnd::OnKillFocus(pNew); Invalidat
 BEGIN_MESSAGE_MAP(CPrefsPageWnd, CWnd)
   ON_WM_ERASEBKGND()
   ON_WM_CTLCOLOR()
+  ON_WM_VSCROLL()
+  ON_WM_MOUSEWHEEL()
+  ON_WM_SIZE()
 END_MESSAGE_MAP()
 
 BOOL CPrefsPageWnd::CreatePage(CWnd* parent, CWnd* owner, const CRect& rect) {
   _owner = owner;
   LPCTSTR class_name = AfxRegisterWndClass(CS_HREDRAW | CS_VREDRAW, ::LoadCursor(NULL, IDC_ARROW), NULL, NULL);
   // Not visible until the page gets selected. CONTROLPARENT: Tab moves between the controls.
-  return CWnd::CreateEx(WS_EX_CONTROLPARENT, class_name, "", WS_CHILD | WS_CLIPCHILDREN, rect, parent, 0);
+  return CWnd::CreateEx(WS_EX_CONTROLPARENT, class_name, "", WS_CHILD | WS_CLIPCHILDREN | WS_VSCROLL,
+    rect, parent, 0);
+}
+
+void CPrefsPageWnd::UpdateScrollbar() {
+  if (m_hWnd == NULL) return;
+  CRect client;
+  GetClientRect(&client);
+  SCROLLINFO info = { sizeof(SCROLLINFO) };
+  info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+  info.nMin = 0;
+  info.nMax = (_content_height > 0 ? _content_height : 1) - 1;
+  info.nPage = client.Height();
+  info.nPos = _scroll_pos;
+  SetScrollInfo(SB_VERT, &info, TRUE);
+}
+
+void CPrefsPageWnd::SetContentHeight(int height) {
+  _content_height = height;
+  UpdateScrollbar();
+}
+
+void CPrefsPageWnd::ScrollTo(int position) {
+  CRect client;
+  GetClientRect(&client);
+  int max_position = _content_height - client.Height();
+  if (max_position < 0) max_position = 0;
+  if (position > max_position) position = max_position;
+  if (position < 0) position = 0;
+  if (position == _scroll_pos) return;
+  const int delta = _scroll_pos - position;
+  _scroll_pos = position;
+  ScrollWindowEx(0, delta, NULL, NULL, NULL, NULL, SW_SCROLLCHILDREN | SW_INVALIDATE | SW_ERASE);
+  UpdateScrollbar();
+  UpdateWindow();
+}
+
+void CPrefsPageWnd::EnsureVisible(CWnd* control) {
+  if (control == NULL || m_hWnd == NULL) return;
+  CRect rect, client;
+  control->GetWindowRect(&rect);
+  ScreenToClient(&rect);
+  GetClientRect(&client);
+  if (rect.top < 0) ScrollTo(_scroll_pos + rect.top - 8);
+  else if (rect.bottom > client.Height()) ScrollTo(_scroll_pos + rect.bottom - client.Height() + 8);
+}
+
+void CPrefsPageWnd::OnSize(UINT nType, int cx, int cy) {
+  CWnd::OnSize(nType, cx, cy);
+  UpdateScrollbar();
+}
+
+void CPrefsPageWnd::OnVScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar) {
+  CRect client;
+  GetClientRect(&client);
+  SCROLLINFO info = { sizeof(SCROLLINFO) };
+  info.fMask = SIF_ALL;
+  GetScrollInfo(SB_VERT, &info);
+  int position = _scroll_pos;
+  switch (nSBCode) {
+    case SB_LINEUP:        position -= 30; break;
+    case SB_LINEDOWN:      position += 30; break;
+    case SB_PAGEUP:        position -= client.Height() - 30; break;
+    case SB_PAGEDOWN:      position += client.Height() - 30; break;
+    case SB_THUMBTRACK:
+    case SB_THUMBPOSITION: position = info.nTrackPos; break;
+    case SB_TOP:           position = 0; break;
+    case SB_BOTTOM:        position = _content_height; break;
+    default: return;
+  }
+  ScrollTo(position);
+}
+
+BOOL CPrefsPageWnd::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt) {
+  ScrollTo(_scroll_pos - (int)((float)zDelta / (float)WHEEL_DELTA * 60.0f));
+  return TRUE;
 }
 
 void CPrefsPageWnd::ApplyTheme() {
@@ -1331,6 +1473,7 @@ void CPrefsPageWnd::ApplyTheme() {
   _brush_window.CreateSolidBrush(ToColorRef(c.window_bg));
   _brush_field.DeleteObject();
   _brush_field.CreateSolidBrush(ToColorRef(c.surface));
+  if (m_hWnd) ApplyControlTheme(m_hWnd);   // themed scrollbar
   if (m_hWnd) RedrawWindow(NULL, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
 }
 
