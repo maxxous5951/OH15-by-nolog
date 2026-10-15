@@ -53,6 +53,8 @@
     <ClCompile Include="CSymbolengineConstants.cpp" />
     <ClCompile Include="CSymbolEngineGameType.cpp" />
     <ClCompile Include="CSymbolEngineICM.cpp" />
+    <ClCompile Include="CSymbolEngineExploitEV.cpp" />
+    <ClCompile Include="..\ExploitEV\ExploitEV.cpp" />
     <ClCompile Include="CSymbolengineIsRush.cpp" />
     <ClCompile Include="CSymbolEngineMTTInfo.cpp" />
     <ClCompile Include="CSymbolEngineMultiplexer.cpp" />
@@ -270,6 +272,8 @@
     <ClInclude Include="CSymbolengineConstants.h" />
     <ClInclude Include="CSymbolEngineGameType.h" />
     <ClInclude Include="CSymbolEngineICM.h" />
+    <ClInclude Include="CSymbolEngineExploitEV.h" />
+    <ClInclude Include="..\ExploitEV\ExploitEV.h" />
     <ClInclude Include="CSymbolEngineIsRush.h" />
     <ClInclude Include="CSymbolengineMTTInfo.h" />
     <ClInclude Include="CSymbolengineMultiplexer.h" />

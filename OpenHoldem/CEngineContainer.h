@@ -61,6 +61,7 @@ class CSymbolEngineVariousDataLookup;
 class CSymbolEngineVersus;
 class CSymbolEngineRange;
 class CSymbolEngineICM;
+class CSymbolEngineExploitEV;
 
 class CEngineContainer : public CSpaceOptimizedGlobalObject {
  public:
@@ -200,6 +201,8 @@ public:
 	{ return p_symbol_engine_range; }
   CSymbolEngineICM *symbol_engine_icm()
     { return p_symbol_engine_icm; }
+  CSymbolEngineExploitEV *symbol_engine_exploit_ev()
+    { return p_symbol_engine_exploit_ev; }
 private:
   CSymbolEngineActiveDealtPlaying *p_symbol_engine_active_dealt_playing;
   CSymbolEngineAutoplayer *p_symbol_engine_autoplayer;
@@ -247,6 +250,7 @@ private:
   CSymbolEngineVersus *p_symbol_engine_versus;
   CSymbolEngineRange *p_symbol_engine_range;
   CSymbolEngineICM *p_symbol_engine_icm;
+  CSymbolEngineExploitEV *p_symbol_engine_exploit_ev;
 };
 
 extern CEngineContainer *p_engine_container;

@@ -48,6 +48,7 @@
 #include "CSymbolEngineHandrank.h"
 #include "CSymbolEngineHistory.h"
 #include "CSymbolEngineICM.h"
+#include "CSymbolEngineExploitEV.h"
 #include "CSymbolEngineIniFunctions.h"
 #include "CSymbolEngineIsOmaha.h"
 #include "CSymbolEngineIsRush.h"
@@ -232,6 +233,11 @@ void CEngineContainer::CreateSymbolEngines() {
   // CSymbolEnginePokerTracker
   p_symbol_engine_pokertracker = new CSymbolEnginePokerTracker;
   AddSymbolEngine(p_symbol_engine_pokertracker);
+  // CSymbolEngineExploitEV
+  // Depends on chip-amounts, userchair, active-dealt-playing and
+  // (optionally) PokerTracker, therefore placed after these.
+  p_symbol_engine_exploit_ev = new CSymbolEngineExploitEV;
+  AddSymbolEngine(p_symbol_engine_exploit_ev);
   // CSymbolEngineIniFunctions
   // "depends" on all other engines,
   // as it can only be called after all symbols have been initialized.
