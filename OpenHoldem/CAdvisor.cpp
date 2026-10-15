@@ -54,18 +54,6 @@ std::wstring ToWideString(const CString& text) {
   return std::wstring(CT2W((LPCTSTR)text));
 }
 
-// Betpot-functions in the order of the autoplayer, with their names
-struct BetpotName { int function; const char* text; };
-const BetpotName kBetpots[] = {
-  { k_autoplayer_function_betpot_2_1, "2x pot" },
-  { k_autoplayer_function_betpot_1_1, "pot" },
-  { k_autoplayer_function_betpot_3_4, "3/4 pot" },
-  { k_autoplayer_function_betpot_2_3, "2/3 pot" },
-  { k_autoplayer_function_betpot_1_2, "1/2 pot" },
-  { k_autoplayer_function_betpot_1_3, "1/3 pot" },
-  { k_autoplayer_function_betpot_1_4, "1/4 pot" },
-};
-
 }  // namespace
 
 // ---------------------------------------------------------------------------
@@ -89,8 +77,6 @@ END_MESSAGE_MAP()
 
 CAdvisor::CAdvisor() {
   modernui::GdiplusAcquire();
-  _reset_requested = false;
-  _pending_kind = kAdvisorActionNone;
   _dragging = false;
   _table_window = NULL;
   _last_table_rect.SetRectEmpty();
@@ -161,7 +147,6 @@ void CAdvisor::RefreshFromPreferences() {
 }
 
 void CAdvisor::Reset() {
-  _reset_requested = true;
   {
     CSLock lock(_data_critsec);
     _data = AdvisorData();
@@ -185,165 +170,89 @@ CString CAdvisor::MoneyText(double amount) {
   return text;
 }
 
-CString CAdvisor::ActionText(AdvisorActionKind kind, double amount) {
-  switch (kind) {
-    case kAdvisorActionFold:  return "FOLD";
-    case kAdvisorActionCheck: return "CHECK";
-    case kAdvisorActionCall:
-      return (amount > kEpsilon) ? ("CALL " + MoneyText(amount)) : CString("CALL");
-    case kAdvisorActionRaise:
-      return (amount > kEpsilon) ? ("RAISE to " + MoneyText(amount)) : CString("RAISE");
-    case kAdvisorActionAllin: return "ALL-IN";
-    default: return "";
-  }
-}
-
-bool CAdvisor::ItIsMyTurnAndWeKnowTheAnswer() {
-  return p_engine_container->symbol_engine_userchair()->userchair_confirmed()
-    && p_engine_container->symbol_engine_autoplayer()->ismyturn()
-    && p_engine_container->symbol_engine_autoplayer()->isfinalanswer();
-}
-
-void CAdvisor::EvaluateBestAction(AdvisorData* data) {
-  // Same evaluation and same priorities as the autoplayer,
-  // but nothing gets clicked.
-  p_autoplayer_functions->CalcPrimaryFormulas();
-  CSymbolEngineChipAmounts *chips = p_engine_container->symbol_engine_chip_amounts();
-  const double to_call = chips->call();
+void CAdvisor::ClassifyAction(const CString& raw, double betsize, double to_call,
+    AdvisorActionKind* kind, CString* text) {
+  // "raw" is what the autoplayer-log says: "f$call", "f$betsize = 12.50",
+  // "f$betpot_2_3", "no action", ...
+  CString name = raw;
+  name.Trim();
+  name.MakeLower();
+  const int equals = name.Find('=');
+  if (equals > 0) name = name.Left(equals);
+  name.Trim();
+  if (name.Left(2) == "f$") name = name.Mid(2);
   const bool facing_a_bet = (to_call > kEpsilon);
+  *kind = kAdvisorActionNone;
+  *text = "";
+  if (name == "fold") {
+    *kind = kAdvisorActionFold;  *text = "FOLD";
+  } else if (name == "check") {
+    *kind = kAdvisorActionCheck; *text = "CHECK";
+  } else if (name == "call") {
+    *kind = kAdvisorActionCall;
+    *text = facing_a_bet ? ("CALL " + MoneyText(to_call)) : CString("CALL");
+  } else if (name == "allin") {
+    *kind = kAdvisorActionAllin; *text = "ALL-IN";
+  } else if (name == "raise") {
+    *kind = kAdvisorActionRaise; *text = facing_a_bet ? "RAISE" : "BET";
+  } else if (name == "betsize") {
+    *kind = kAdvisorActionRaise;
+    CString verb = facing_a_bet ? "RAISE to " : "BET ";
+    *text = (betsize > kEpsilon) ? (verb + MoneyText(betsize)) : CString(facing_a_bet ? "RAISE" : "BET");
+  } else if (name.Left(7) == "betpot_") {
+    *kind = kAdvisorActionRaise;
+    CString fraction = name.Mid(7);
+    CString label = fraction;
+    if (fraction == "2_1") label = "2x pot";
+    else if (fraction == "1_1") label = "pot";
+    else if (fraction == "3_4") label = "3/4 pot";
+    else if (fraction == "2_3") label = "2/3 pot";
+    else if (fraction == "1_2") label = "1/2 pot";
+    else if (fraction == "1_3") label = "1/3 pot";
+    else if (fraction == "1_4") label = "1/4 pot";
+    *text = (facing_a_bet ? "RAISE " : "BET ") + label;
+  } else {
+    *text = "No action";
+  }
+}
 
-  data->best_kind = kAdvisorActionNone;
-  data->best_text = "";
-  // 1) all-in
-  if (p_function_collection->EvaluateAutoplayerFunction(k_autoplayer_function_allin)) {
-    data->best_kind = kAdvisorActionAllin;
-    data->best_text = ActionText(kAdvisorActionAllin, 0);
+void CAdvisor::OnDecision(CString best_action, CString action_taken,
+    double pot, double to_call, double betsize) {
+  if (!Preferences()->advisor_enabled()) return;
+  AdvisorData fresh;
+  ClassifyAction(best_action, betsize, to_call, &fresh.best_kind, &fresh.best_text);
+  ClassifyAction(action_taken, betsize, to_call, &fresh.taken_kind, &fresh.taken_text);
+  CString detail = "Pot " + MoneyText(pot);
+  if (to_call > kEpsilon) {
+    detail += "   |   To call " + MoneyText(to_call);
   }
-  // 2) pot-sized bets / raises
-  if (data->best_kind == kAdvisorActionNone) {
-    for (int i = 0; i < (int)(sizeof(kBetpots) / sizeof(kBetpots[0])); ++i) {
-      const int function = kBetpots[i].function;
-      if (!p_autoplayer_functions->GetAutoplayerFunctionValue(function)) continue;
-      if (ChangeBetPotActionToAllin(function)) {
-        data->best_kind = kAdvisorActionAllin;
-        data->best_text = ActionText(kAdvisorActionAllin, 0);
-      } else {
-        const double amount = BetsizeForBetpot(function);
-        data->best_kind = kAdvisorActionRaise;
-        CString text = facing_a_bet ? "RAISE to " : "BET ";
-        text += MoneyText(amount);
-        text += CString("  (") + kBetpots[i].text + ")";
-        data->best_text = text;
-      }
-      break;
-    }
+  {
+    CSLock lock(_data_critsec);
+    _data.best_kind = fresh.best_kind;
+    _data.best_text = fresh.best_text;
+    _data.taken_kind = fresh.taken_kind;
+    _data.taken_text = fresh.taken_text;
+    _data.detail_text = detail;
+    _data.my_turn = true;
   }
-  // 3) user-defined betsize
-  if (data->best_kind == kAdvisorActionNone) {
-    const double betsize = p_function_collection->EvaluateAutoplayerFunction(k_autoplayer_function_betsize);
-    if (betsize > 0) {
-      if (ChangeBetsizeToAllin(betsize)) {
-        data->best_kind = kAdvisorActionAllin;
-        data->best_text = ActionText(kAdvisorActionAllin, 0);
-      } else {
-        data->best_kind = kAdvisorActionRaise;
-        data->best_text = (facing_a_bet ? "RAISE to " : "BET ") + MoneyText(betsize);
-      }
-    }
-  }
-  // 4) the elementary actions
-  if (data->best_kind == kAdvisorActionNone) {
-    for (int i = k_autoplayer_function_raise; i <= k_autoplayer_function_fold; ++i) {
-      if (i == k_autoplayer_function_check && facing_a_bet) continue;  // impossible
-      if (!p_function_collection->Evaluate(k_standard_function_names[i])) continue;
-      switch (i) {
-        case k_autoplayer_function_raise:
-          data->best_kind = kAdvisorActionRaise;
-          data->best_text = facing_a_bet ? "RAISE" : "BET";
-          break;
-        case k_autoplayer_function_call:
-          data->best_kind = kAdvisorActionCall;
-          data->best_text = ActionText(kAdvisorActionCall, to_call);
-          break;
-        case k_autoplayer_function_check:
-          data->best_kind = kAdvisorActionCheck;
-          data->best_text = ActionText(kAdvisorActionCheck, 0);
-          break;
-        case k_autoplayer_function_fold:
-          data->best_kind = kAdvisorActionFold;
-          data->best_text = ActionText(kAdvisorActionFold, 0);
-          break;
-      }
-      break;
-    }
-  }
-  if (data->best_kind == kAdvisorActionNone) {
-    data->best_text = "No action";
-  }
-  data->detail_text = "Pot " + MoneyText(chips->pot());
-  if (facing_a_bet) {
-    data->detail_text += "   |   To call " + MoneyText(to_call);
+  if (m_hWnd != NULL && ::IsWindow(m_hWnd)) {
+    ::PostMessage(m_hWnd, WMU_ADVISOR_UPDATE, 0, 0);
   }
 }
 
 void CAdvisor::OnHeartbeat() {
-  if (_reset_requested) {
-    _reset_requested = false;
-    _pending_kind = kAdvisorActionNone;
-    _pending_text = "";
-  }
   if (!Preferences()->advisor_enabled()) {
     return;
   }
+  const bool my_turn = p_engine_container->symbol_engine_userchair()->userchair_confirmed()
+    && p_engine_container->symbol_engine_autoplayer()->ismyturn();
+  const bool engaged = (p_autoplayer != NULL && p_autoplayer->autoplayer_engaged());
   bool changed = false;
-  if (p_autoplayer != NULL && p_autoplayer->autoplayer_engaged()) {
-    // The autoplayer takes the decisions, there is nothing to advise.
+  {
     CSLock lock(_data_critsec);
-    if (!_data.autoplayer_engaged) {
-      _data = AdvisorData();
-      _data.autoplayer_engaged = true;
-      changed = true;
-    }
-  } else if (p_engine_container->symbol_engine_userchair()->userchair_confirmed()
-      && p_engine_container->symbol_engine_autoplayer()->ismyturn()) {
-    if (!p_engine_container->symbol_engine_autoplayer()->isfinalanswer()) {
-      // Still calculating (prwin simulation)
-      CSLock lock(_data_critsec);
-      _data.autoplayer_engaged = false;
-      _data.my_turn = true;
-      if (_data.best_text != "Analysing...") {
-        _data.best_kind = kAdvisorActionNone;
-        _data.best_text = "Analysing...";
-        _data.detail_text = "";
-        changed = true;
-      }
-    } else {
-      AdvisorData fresh;
-      EvaluateBestAction(&fresh);
-      // Remember the decision of the bot for this turn
-      _pending_kind = fresh.best_kind;
-      _pending_text = fresh.best_text;
-      CSLock lock(_data_critsec);
-      _data.autoplayer_engaged = false;
-      _data.my_turn = true;
-      _data.best_kind = fresh.best_kind;
-      _data.best_text = fresh.best_text;
-      _data.detail_text = fresh.detail_text;
-      changed = true;
-    }
-  } else {
-    // Not our turn: the decision of the last turn is now the action taken by the bot
-    CSLock lock(_data_critsec);
-    if (_data.my_turn && _pending_kind != kAdvisorActionNone) {
-      _data.taken_kind = _pending_kind;
-      _data.taken_text = _pending_text;
-      _pending_kind = kAdvisorActionNone;
-      _pending_text = "";
-      changed = true;
-    }
-    if (_data.my_turn || _data.autoplayer_engaged) {
-      _data.my_turn = false;
-      _data.autoplayer_engaged = false;
+    if (_data.my_turn != my_turn || _data.autoplayer_engaged != engaged) {
+      _data.my_turn = my_turn;
+      _data.autoplayer_engaged = engaged;
       changed = true;
     }
   }

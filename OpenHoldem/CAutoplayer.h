@@ -33,6 +33,10 @@ public:
 public:
 	// public accessors
 	const bool autoplayer_engaged() { return _autoplayer_engaged; }
+	// Advisor mode: the autoplayer logic runs completely (evaluation, trace, log),
+	// but nothing gets clicked or typed and the symbol engines do not
+	// register an action. Only active if the real autoplayer is not engaged.
+	bool advisor_mode_engaged();
 	bool TimeToHandleSecondaryFormulas();
 
 public:
@@ -56,10 +60,13 @@ private:
 	bool DoBetsize();
 	bool DoPrefold();
 	bool DoChat();
+	void UpdateEnginesAfterAction(int autoplayer_action_code);
+	bool AdvisorDecisionIsNew();
 
 private:
 	// private variables - use public accessors and public mutators to address these
 	bool	_autoplayer_engaged;
+	CString _advisor_last_decision_key;
 
 private:
 	POINT	cursor_position;
@@ -71,6 +78,9 @@ private:
 };
 
 extern CAutoplayer *p_autoplayer;
+
+// True if input (mouse, keyboard, hotkeys) must be simulated instead of sent.
+bool AdvisorBlocksInput();
 
 
 #endif //INC_CAUTOPLAYER_H

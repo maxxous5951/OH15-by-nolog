@@ -19,6 +19,8 @@
 #include "BetpotCalculations.h"
 #include "BringKeyboard.h"
 #include "CAutoplayerTrace.h"
+#include "CBetroundCalculator.h"
+#include "CHandresetDetector.h"
 #include "CAutoconnector.h"
 #include "CAutoplayerFunctions.h"
 #include "CCasinoInterface.h"
@@ -56,11 +58,47 @@ CAutoplayer::CAutoplayer(void) {
 	_autoplayer_engaged = false;
 	action_sequence_needs_to_be_finished = false;
   _already_executing_allin_adjustment = false;
+  _advisor_last_decision_key = "";
 }
 
 
 CAutoplayer::~CAutoplayer(void) {
 	FinishActionSequenceIfNecessary();
+}
+
+bool CAutoplayer::advisor_mode_engaged() {
+  // The real autoplayer has priority: if it is engaged it plays for real.
+  return (Preferences()->advisor_enabled() && !_autoplayer_engaged);
+}
+
+bool AdvisorBlocksInput() {
+  return (p_autoplayer != NULL && p_autoplayer->advisor_mode_engaged());
+}
+
+void CAutoplayer::UpdateEnginesAfterAction(int autoplayer_action_code) {
+  if (advisor_mode_engaged()) {
+    // The action got only simulated. The human decides what really happens,
+    // therefore the symbol engines must not register it.
+    return;
+  }
+  p_engine_container->UpdateAfterAutoplayerAction(autoplayer_action_code);
+}
+
+bool CAutoplayer::AdvisorDecisionIsNew() {
+  // Without clicking the table does not change after the "action".
+  // We want exactly one decision (and log) per situation, not one per heartbeat.
+  CString key;
+  key.Format("%s|%d|%.4f|%.4f|%.4f",
+    p_handreset_detector->GetHandNumber(),
+    p_betround_calculator->betround(),
+    p_engine_container->symbol_engine_chip_amounts()->call(),
+    p_engine_container->symbol_engine_chip_amounts()->pot(),
+    p_table_state->User()->_bet.GetValue());
+  if (key == _advisor_last_decision_key) {
+    return false;
+  }
+  _advisor_last_decision_key = key;
+  return true;
 }
 
 void CAutoplayer::EngageAutoPlayerUponConnectionIfNeeded() {
@@ -93,14 +131,16 @@ void CAutoplayer::PrepareActionSequence() {
 
 void CAutoplayer::FinishActionSequenceIfNecessary() {
 	if (action_sequence_needs_to_be_finished) {
-    if (p_engine_container->symbol_engine_casino()->ConnectedToOHReplay() && Preferences()->use_auto_replay()) {
+    if (!advisor_mode_engaged() && p_engine_container->symbol_engine_casino()->ConnectedToOHReplay() && Preferences()->use_auto_replay()) {
       // Needs to be done very early
       // before we restore the focus
       p_casino_interface->PressTabToSwitchOHReplayToNextFrame();
     }
     // avoid multiple-clicks within a short frame of time
-    p_stableframescounter->UpdateOnAutoplayerAction();
-    if (p_engine_container->symbol_engine_casino()->ConnectedToOfflineSimulation() || Preferences()->restore_position_and_focus()) {
+    if (!advisor_mode_engaged()) {
+      p_stableframescounter->UpdateOnAutoplayerAction();
+    }
+    if (!advisor_mode_engaged() && (p_engine_container->symbol_engine_casino()->ConnectedToOfflineSimulation() || Preferences()->restore_position_and_focus())) {
       // Restore mouse position and window focus
       // Only for simulations, not for real casinos (stealth).
 		  // Restoring the original state has to be done in reversed order
@@ -165,7 +205,7 @@ bool CAutoplayer::DoBetPot(void) {
     if (success) {
 			// Register the action
 			// Treat betpot like swagging, i.e. raising a user-defined amount
-      p_engine_container->UpdateAfterAutoplayerAction(k_autoplayer_function_betsize);
+      UpdateEnginesAfterAction(k_autoplayer_function_betsize);
       p_autoplayer_trace->Print(ActionConstantNames(i), kAlwaysLogAutoplayerFunctions);
 			return true;
     }
@@ -272,7 +312,7 @@ bool CAutoplayer::ExecuteRaiseCallCheckFold() {
     }
 		if (p_function_collection->Evaluate(k_standard_function_names[i])) 	{
 			if (p_casino_interface->LogicalAutoplayerButton(i)->Click()) 			{				
-        p_engine_container->UpdateAfterAutoplayerAction(i);
+        UpdateEnginesAfterAction(i);
         p_autoplayer_trace->Print(ActionConstantNames(i), kAlwaysLogAutoplayerFunctions);
 				return true;
 			}
@@ -447,7 +487,7 @@ bool CAutoplayer::DoAllin(void) {
 		// Not really necessary to register the action,
 		// as the game is over and there is no doallin-symbol,
 		// but it does not hurt to register it anyway.
-    p_engine_container->UpdateAfterAutoplayerAction(k_autoplayer_function_allin);
+    UpdateEnginesAfterAction(k_autoplayer_function_allin);
     p_autoplayer_trace->Print(ActionConstantNames(k_autoplayer_function_allin), kAlwaysLogAutoplayerFunctions);
 		return true;
 	}
@@ -456,19 +496,22 @@ bool CAutoplayer::DoAllin(void) {
 
 void CAutoplayer::DoAutoplayer(void) {
 	write_log(Preferences()->debug_autoplayer(), "[AutoPlayer] Starting Autoplayer cadence...\n");
-  CheckBringKeyboard();
+  if (!advisor_mode_engaged()) {
+    CheckBringKeyboard();
+  }
   write_log(Preferences()->debug_autoplayer(), "[AutoPlayer] Number of visible buttons: %d (%s)\n", 
 		p_casino_interface->NumberOfVisibleAutoplayerButtons(),
 		p_engine_container->symbol_engine_autoplayer()->GetFCKRAString());
 	// Care about i86X regions first, because they are usually used 
 	// to handle popups which occlude the table (unstable input)
-	if (p_casino_interface->HandleInterfacebuttonsI86())	{
+	if (!advisor_mode_engaged() && p_casino_interface->HandleInterfacebuttonsI86())	{
     write_log(Preferences()->debug_autoplayer(), "[AutoPlayer] Interface buttons (popups) handled\n");
     action_sequence_needs_to_be_finished = true;
 	  goto AutoPlayerCleanupAndFinalization;
   }
   // Care about sitin, sitout, leave, etc.
-  if (TimeToHandleSecondaryFormulas())	{
+  // (Advisor mode advises on playing decisions only: no sitin, sitout, rebuy, chat, ...)
+  if (!advisor_mode_engaged() && TimeToHandleSecondaryFormulas())	{
 	  p_autoplayer_functions->CalcSecondaryFormulas();	  
     if (ExecuteSecondaryFormulasIfNecessary())	{
       write_log(Preferences()->debug_autoplayer(), "[AutoPlayer] Secondary formulas executed\n");
@@ -488,9 +531,17 @@ void CAutoplayer::DoAutoplayer(void) {
 		goto AutoPlayerCleanupAndFinalization;
   }
 	write_log(Preferences()->debug_autoplayer(), "[AutoPlayer] Going to evaluate primary formulas.\n");
+	if (advisor_mode_engaged() && !p_engine_container->symbol_engine_autoplayer()->ismyturn()) {
+		// Next time it is our turn we want a new decision
+		_advisor_last_decision_key = "";
+	}
 	if (p_engine_container->symbol_engine_autoplayer()->isfinalanswer())	{
-		p_autoplayer_functions->CalcPrimaryFormulas();
-		ExecutePrimaryFormulasIfNecessary();
+		if (advisor_mode_engaged() && !AdvisorDecisionIsNew()) {
+			write_log(Preferences()->debug_autoplayer(), "[AutoPlayer] Advisor: decision for this situation already logged.\n");
+		} else {
+			p_autoplayer_functions->CalcPrimaryFormulas();
+			ExecutePrimaryFormulasIfNecessary();
+		}
 	}	else {
 		write_log(Preferences()->debug_autoplayer(), "[AutoPlayer] No final answer, therefore not executing autoplayer-logic.\n");
 	}
@@ -525,7 +576,7 @@ bool CAutoplayer::DoBetsize() {
 		if (success) {
       write_log(Preferences()->debug_autoplayer(), "[AutoPlayer] betsize %.2f (adjusted) entered\n",
         betsize);
-      p_engine_container->UpdateAfterAutoplayerAction(k_autoplayer_function_betsize);
+      UpdateEnginesAfterAction(k_autoplayer_function_betsize);
       p_autoplayer_trace->Print(ActionConstantNames(k_autoplayer_function_betsize), kAlwaysLogAutoplayerFunctions);
 			return true;
 		}
@@ -544,7 +595,7 @@ bool CAutoplayer::DoPrefold(void) {
 		write_log(Preferences()->debug_autoplayer(), "[AutoPlayer] Smells like a bad f$prefold-function.\n");
 	}
 	if (p_casino_interface->LogicalAutoplayerButton(k_standard_function_prefold)->Click())	{
-    p_engine_container->UpdateAfterAutoplayerAction(k_autoplayer_function_fold);
+    UpdateEnginesAfterAction(k_autoplayer_function_fold);
 		write_log(Preferences()->debug_autoplayer(), "[AutoPlayer] Prefold executed.\n");
 		return true;
 	}

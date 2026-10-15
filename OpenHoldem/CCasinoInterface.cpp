@@ -12,6 +12,7 @@
 //******************************************************************************
 
 #include "stdafx.h"
+#include "CAutoplayer.h"
 #include <oleacc.h>
 #include <atlbase.h>
 #include "CCasinoInterface.h"
@@ -117,6 +118,7 @@ bool CCasinoInterface::TableLostFocus() {
 }
 
 void CCasinoInterface::ClickRect(RECT rect) {
+	if (AdvisorBlocksInput()) return;   // advisor mode: nothing gets clicked
 	write_log(Preferences()->debug_autoplayer(), "[CasinoInterface] Calling mouse.dll to single click button: %d,%d %d,%d\n", 
     rect.left, rect.top, rect.right, rect.bottom);
 	(theApp._dll_mouse_click) (p_autoconnector->attached_hwnd(), rect, MouseLeft, 1);
@@ -124,6 +126,7 @@ void CCasinoInterface::ClickRect(RECT rect) {
 }
 
 void CCasinoInterface::DoubleClickRect(RECT rect) {
+  if (AdvisorBlocksInput()) return;
   write_log(Preferences()->debug_autoplayer(), "[CasinoInterface] Calling mouse.dll to double click button: %d,%d %d,%d\n", 
     rect.left, rect.top, rect.right, rect.bottom);
   (theApp._dll_mouse_click) (p_autoconnector->attached_hwnd(), rect, MouseLeft, 2);
@@ -131,6 +134,11 @@ void CCasinoInterface::DoubleClickRect(RECT rect) {
 }
 
 bool CCasinoInterface::ClickButtonSequence(int first_button, int second_button, int delay_in_milli_seconds) {
+	if (AdvisorBlocksInput()) {
+		// Simulation: no delay, no focus check, but both buttons must be available
+		return (LogicalAutoplayerButton(first_button)->Click()
+			&& LogicalAutoplayerButton(second_button)->Click());
+	}
 	if (LogicalAutoplayerButton(first_button)->Click()) {
 		Sleep(delay_in_milli_seconds); 
 		if (TableLostFocus())	{
@@ -142,6 +150,7 @@ bool CCasinoInterface::ClickButtonSequence(int first_button, int second_button, 
 }
 
 bool CCasinoInterface::CloseWindow() {
+	if (AdvisorBlocksInput()) return false;
 	// Now we attempt to close first attached window with SendMessage method, then with TerminateProcess
 	// and finally search the close window region and click into it,
 	// for universal compatibility with all kind of windows with their personalised
@@ -203,6 +212,7 @@ bool CCasinoInterface::CloseWindow() {
 }
 
 void CCasinoInterface::PressTabToSwitchOHReplayToNextFrame() {
+  if (AdvisorBlocksInput()) return;
   RECT	rect_somewhere = {1, 1, 2, 2};
 	POINT	cur_pos = {0};
 
@@ -212,6 +222,7 @@ void CCasinoInterface::PressTabToSwitchOHReplayToNextFrame() {
 }
 
 bool CCasinoInterface::EnterChatMessage(CString &message) {
+	if (AdvisorBlocksInput()) return false;
 	RECT			rect_chatbox;
 	POINT			cur_pos = {0};
 
@@ -262,6 +273,10 @@ bool CCasinoInterface::EnterBetsizeForAllin() {
 }
 
 bool CCasinoInterface::EnterBetsize(double total_betsize_in_dollars) {
+  if (AdvisorBlocksInput()) {
+    // Simulation: possible if the tablemap supports the betsize-input-box
+    return _betsize_input_box.IsReadyToBeUsed();
+  }
   if (_betsize_input_box.IsReadyToBeUsed()) {
     return _betsize_input_box.EnterBetsize(total_betsize_in_dollars);
   }
@@ -269,10 +284,12 @@ bool CCasinoInterface::EnterBetsize(double total_betsize_in_dollars) {
 }
 
 bool CCasinoInterface::UseSliderForAllin() {
+  if (AdvisorBlocksInput()) return _bet_slider.SlideIsPossible();
   return _bet_slider.SlideAllin();
 }
 
 bool CCasinoInterface::UseSliderForBetsize(double betsize, double betsize_for_allin) {
+    if (AdvisorBlocksInput()) return _bet_slider.SlideIsPossible();
     return _bet_slider.SlideBetsize(betsize, betsize_for_allin);
 }
 
@@ -342,6 +359,7 @@ bool CCasinoInterface::AllinOptionAvailable() {
 }
 
 void CCasinoInterface::SendKey(const char ascii_key) {
+	if (AdvisorBlocksInput()) return;
 	RECT r_null;
 	// !! kUndefined causes SendKey to return early
 	// !! keyboard-DLL is a mess.
@@ -358,6 +376,7 @@ void CCasinoInterface::SendKey(const char ascii_key) {
 }
 
 void CCasinoInterface::SendHotKey(const char* hot_key) {
+	if (AdvisorBlocksInput()) return;
 	RECT r_null;
 	r_null.bottom = kUndefinedZero;
 	r_null.left = kUndefinedZero;

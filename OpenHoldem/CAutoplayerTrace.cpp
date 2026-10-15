@@ -14,6 +14,7 @@
 #include "stdafx.h"
 #include "CAutoplayerTrace.h"
 
+#include "CAdvisor.h"
 #include "CAutoplayerFunctions.h"
 #include "CBetroundCalculator.h"
 #include "CEngineContainer.h"
@@ -336,7 +337,16 @@ void CAutoplayerTrace::LogBasicInfo(const char *action_taken) {
   // Also show "BestAction" in the statusbar.
   // This needs to be set exactly once to avoid multiple evaluations 
   // of the autoplayer functions
-  p_openholdem_statusbar->SetLastAction(BestAction());
+  CString best_action = BestAction();
+  p_openholdem_statusbar->SetLastAction(best_action);
+  p_openholdem_statusbar->SetActionTaken(action_taken);
+  // Advisor window: shows exactly what the log says
+  if (p_advisor != NULL) {
+    p_advisor->OnDecision(best_action, action_taken,
+      p_engine_container->symbol_engine_chip_amounts()->pot(),
+      p_engine_container->symbol_engine_chip_amounts()->call(),
+      p_function_collection->EvaluateAutoplayerFunction(k_autoplayer_function_betsize));
+  }
 }
 
 void CAutoplayerTrace::LogPlayers() {

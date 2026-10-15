@@ -75,10 +75,13 @@ class CAdvisor : public CWnd {
   // Any thread: re-reads the preferences (enabled, corner)
   void RefreshFromPreferences();
  public:
-  // Heartbeat thread: evaluates the profile (if it is our turn),
-  // remembers what the user did and tells the window to repaint.
+  // Heartbeat thread: called by the autoplayer-trace when the decision got logged
+  // ("Best action" / "Action taken" of the log). Nothing is evaluated here.
+  void OnDecision(CString best_action, CString action_taken,
+                  double pot, double to_call, double betsize);
+  // Heartbeat thread: updates "your turn" / "waiting"
   void OnHeartbeat();
-  // Heartbeat thread: forget everything (disconnection)
+  // Forget everything (disabled, disconnected)
   void Reset();
  protected:
   afx_msg int  OnCreate(LPCREATESTRUCT lpCreateStruct);
@@ -96,10 +99,9 @@ class CAdvisor : public CWnd {
   DECLARE_MESSAGE_MAP()
  private:
   // heartbeat thread
-  bool ItIsMyTurnAndWeKnowTheAnswer();
-  void EvaluateBestAction(AdvisorData* data);
   CString MoneyText(double amount);
-  CString ActionText(AdvisorActionKind kind, double amount);
+  void ClassifyAction(const CString& raw, double betsize, double to_call,
+                      AdvisorActionKind* kind, CString* text);
  private:
   // GUI thread
   void UpdateVisibilityAndPosition();
@@ -111,11 +113,6 @@ class CAdvisor : public CWnd {
   // shared between the threads
   CCritSec    _data_critsec;
   AdvisorData _data;
- private:
-  // heartbeat thread only: tracking the action of the user
-  volatile bool _reset_requested;  // set by the GUI thread, consumed by the heartbeat thread
-  AdvisorActionKind _pending_kind;   // decision of the bot in the current turn
-  CString _pending_text;
  private:
   // GUI thread only
   bool   _dragging;

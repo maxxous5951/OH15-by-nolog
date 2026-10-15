@@ -184,7 +184,8 @@ void CHeartbeatThread::ScrapeEvaluateAct() {
 	write_log(Preferences()->debug_heartbeat(), "[HeartBeatThread] p_engine_container->symbol_engine_userchair()->userchair()_confirmed(): %s\n", 
 		Bool2CString(p_engine_container->symbol_engine_userchair()->userchair_confirmed()));
 	// If autoplayer is engaged, we know our chair, and the DLL hasn't told us to wait, then go do it!
-	if (p_autoplayer->autoplayer_engaged()) {
+	// Advisor mode: the same logic and the same log, but nothing gets clicked
+	if (p_autoplayer->autoplayer_engaged() || p_autoplayer->advisor_mode_engaged()) {
 		write_log(Preferences()->debug_heartbeat(), "[HeartBeatThread] Calling DoAutoplayer.\n");
 		p_autoplayer->DoAutoplayer();
 	}

@@ -27,11 +27,14 @@ class COpenHoldemStatusbar {
 	void Move(int x, int y, int width, int height);
  public:
    void SetLastAction(CString action) { _last_action = action; }
+   // What the autoplayer (or the advisor) really did / would do
+   void SetActionTaken(CString action) { _action_taken = action; }
    void SetHandrank(int handrank)     { _handrank = handrank; }
    void SetPrWin(double prwin, double prtie, double prlos);
  private:
 	void InitStatusbar();
   CString LastAction();
+  CString ActionTaken() { return _action_taken; }
  private:
 	modernui::ModernStatusbar *_status_bar;
 	CWnd    *_main_window;
@@ -43,6 +46,7 @@ class COpenHoldemStatusbar {
  private:
   // Info to be displayed
   CString _last_action;
+  CString _action_taken;
   // to do!!! last line
   CString	_status_handrank;
   CString	_status_prwin;

@@ -12,6 +12,7 @@
 //******************************************************************************
 
 #include "stdafx.h"
+#include "CAutoplayer.h"
 #include "CAutoplayerButton.h"
 
 #include "CCasinoHotkey.h"
@@ -54,6 +55,12 @@ void CAutoplayerButton::Reset() {
 
 bool CAutoplayerButton::Click() {
   if (_clickable) {
+    if (AdvisorBlocksInput()) {
+      // Advisor mode: pretend the click worked (the button is visible and
+      // clickable), but touch nothing.
+      write_log(Preferences()->debug_autoplayer(), "[CAutoplayerButton] Advisor mode: simulated click on button [%s]\n", _label);
+      return true;
+    }
     // Try to send a hotkey first, if specified in tablemap
     if (_hotkey.PressHotkey()) {
       write_log(Preferences()->debug_autoplayer(), "[CasinoInterface] Pressed hotkey for button button %s\n", _label);
