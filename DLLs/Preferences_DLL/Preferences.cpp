@@ -156,6 +156,8 @@ const char* k_registry_keys_for_numerical_values[k_prefs_last_numerical_value + 
   "mouse_yield_to_user",
   "mouse_user_timeout_s",
   "mouse_user_settle_ms",
+  "mouse_after_action",
+  "mouse_return_radius_px",
   // doubles
   // Only one double left, just to check for outdated ICM-config
   "icm_prize1",
@@ -266,6 +268,8 @@ void CPreferences::InitDefaults(void) {
   prefs_numerical_values[k_prefs_mouse_yield_to_user] = 1;
   prefs_numerical_values[k_prefs_mouse_user_timeout_s] = 10;
   prefs_numerical_values[k_prefs_mouse_user_settle_ms] = 1000;
+  prefs_numerical_values[k_prefs_mouse_after_action] = 1;
+  prefs_numerical_values[k_prefs_mouse_return_radius_px] = 120;
   // Doubles
   prefs_numerical_values[k_prefs_icm_prize1] = kUndefinedZero;
   // CString

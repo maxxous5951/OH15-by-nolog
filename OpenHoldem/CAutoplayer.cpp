@@ -146,8 +146,9 @@ void CAutoplayer::FinishActionSequenceIfNecessary() {
 		  // Restoring the original state has to be done in reversed order
 		  SetFocus(window_with_focus);
 		  if (theApp.HumanMouseSelected()) {
-			  // Move back the way a human would, instead of teleporting
-			  (theApp._dll_mouse_process_message)("mouse_move_to", &cursor_position);
+			  // Not a teleport back to the very same pixel every time:
+			  // the mouse DLL decides (stay, or go back to the neighbourhood)
+			  (theApp._dll_mouse_process_message)("mouse_rest", &cursor_position);
 		  } else {
 			  SetCursorPos(cursor_position.x, cursor_position.y);
 		  }

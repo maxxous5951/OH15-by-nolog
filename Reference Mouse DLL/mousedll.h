@@ -45,6 +45,11 @@ struct MouseSettings {
   int yield_to_user;      // 1 = wait if the user moves the mouse
   int user_timeout_s;     // give up after that many seconds          (1..120)
   int user_settle_ms;     // mouse has to rest that long afterwards   (200..5000)
+  int after_action;       // what to do with the cursor after an action sequence:
+                          //   0 = leave it where it is
+                          //   1 = go back to the neighbourhood of the old position (never the same pixel)
+                          //   2 = go back to exactly the old position
+  int return_radius_px;   // size of that neighbourhood               (20..600)
 };
 
 // Default values of the human mode (also used by the preferences)
@@ -59,6 +64,8 @@ const int kMouseDefaultHoldMaxMs = 130;
 const int kMouseDefaultYieldToUser = 1;
 const int kMouseDefaultUserTimeoutS = 10;
 const int kMouseDefaultUserSettleMs = 1000;
+const int kMouseDefaultAfterAction = 1;
+const int kMouseDefaultReturnRadiusPx = 120;
 
 typedef int(*mouse_click_t)(const HWND hwnd, const RECT rect, const MouseButton button, const int clicks);
 MOUSEDLL_API int MouseClick(const HWND hwnd, const RECT rect, const MouseButton button, const int clicks);
@@ -69,8 +76,11 @@ MOUSEDLL_API int MouseClickDrag(const HWND hwnd, const RECT rect, bool is_horizo
 // Messages:
 //   "mouse_settings"  param = const MouseSettings*
 //   "mouse_move_to"   param = const POINT* (screen coordinates),
-//                     moves the cursor (humanly in human mode), used to restore
-//                     the position after an action sequence.
+//                     moves the cursor (humanly in human mode).
+//   "mouse_rest"      param = const POINT* (position before the action sequence).
+//                     Human mode: waits a moment, then moves the cursor according to
+//                     MouseSettings.after_action (never back to the exact same pixel
+//                     unless explicitly requested). Fast mode: SetCursorPos().
 typedef void (*mouse_process_message_t)(const char *message, const void *param);
 MOUSEDLL_API void ProcessMessage(const char *message, const void *param);
 

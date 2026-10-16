@@ -78,6 +78,8 @@ MouseSettings DefaultSettings() {
   s.yield_to_user = kMouseDefaultYieldToUser;
   s.user_timeout_s = kMouseDefaultUserTimeoutS;
   s.user_settle_ms = kMouseDefaultUserSettleMs;
+  s.after_action = kMouseDefaultAfterAction;
+  s.return_radius_px = kMouseDefaultReturnRadiusPx;
   return s;
 }
 
@@ -99,6 +101,8 @@ void Sanitize(MouseSettings* s) {
   s->yield_to_user = s->yield_to_user ? 1 : 0;
   s->user_timeout_s = Clamp(s->user_timeout_s, 1, 120);
   s->user_settle_ms = Clamp(s->user_settle_ms, 200, 5000);
+  s->after_action = Clamp(s->after_action, 0, 2);
+  s->return_radius_px = Clamp(s->return_radius_px, 20, 600);
 }
 
 std::mutex g_settings_mutex;
@@ -485,6 +489,35 @@ int HumanDrag(HWND hwnd, RECT rect, bool is_horizontal_drag) {
   return (int)ok;
 }
 
+// After an action sequence the cursor used to jump back to the very same pixel,
+// every single time. A person never does that: either the mouse stays where it
+// is, or it ends up somewhere roughly in the same area. So we pick a new random
+// spot around the old position (never closer than 25 px to it).
+POINT PickRestingPlace(POINT old_position, int radius) {
+  for (int attempt = 0; attempt < 10; ++attempt) {
+    // Gaussian distance (most of the time close to 60 % of the radius, sometimes further)
+    double distance = fabs(Gauss(radius * 0.6, radius * 0.4));
+    distance = std::max(25.0, std::min(distance, radius * 1.5));
+    const double angle = Uniform(0.0, 6.28318530717959);
+    POINT p;
+    p.x = (LONG)floor(old_position.x + cos(angle) * distance + 0.5);
+    p.y = (LONG)floor(old_position.y + sin(angle) * distance + 0.5);
+    p = ClampToDesktop(p);
+    // Still far enough away after clamping to the screen?
+    if (!IsNear(p, old_position, 24)) return p;
+  }
+  return ClampToDesktop(old_position);
+}
+
+void RestCursorHuman(POINT old_position) {
+  const MouseSettings s = Snapshot();
+  if (s.after_action == 0) return;                // leave it where it is
+  Sleep(SkewedDelay(120, 500));                   // nobody moves away at the very instant of the click
+  POINT target = old_position;
+  if (s.after_action == 1) target = PickRestingPlace(old_position, s.return_radius_px);
+  MoveCursorHuman(target, 40, true, 1.0, 1.0, 1.0, false);
+}
+
 // ---------------------------------------------------------------------------
 // Fast mode: the original reference implementation, unchanged
 // ---------------------------------------------------------------------------
@@ -641,6 +674,14 @@ MOUSEDLL_API void ProcessMessage(const char *message, const void *param) {
   if (message == NULL) return;
   if (strcmp(message, "mouse_settings") == 0) {
     StoreSettings(static_cast<const MouseSettings*>(param));
+  } else if (strcmp(message, "mouse_rest") == 0) {
+    if (param == NULL) return;
+    const POINT old_position = *static_cast<const POINT*>(param);
+    if (Snapshot().mode == kMouseModeHuman) {
+      RestCursorHuman(old_position);
+    } else {
+      SetCursorPos(old_position.x, old_position.y);
+    }
   } else if (strcmp(message, "mouse_move_to") == 0) {
     if (param == NULL) return;
     const POINT target = *static_cast<const POINT*>(param);

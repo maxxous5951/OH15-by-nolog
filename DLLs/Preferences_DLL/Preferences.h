@@ -178,6 +178,8 @@ enum {
   k_prefs_mouse_yield_to_user,
   k_prefs_mouse_user_timeout_s,
   k_prefs_mouse_user_settle_ms,
+  k_prefs_mouse_after_action,       // 0 = leave, 1 = back to the neighbourhood, 2 = back to the exact position
+  k_prefs_mouse_return_radius_px,
   // Double values
   // Only on double left, just to check for outdated ICM-config
   k_prefs_icm_prize1,
@@ -368,6 +370,8 @@ public:
   const bool mouse_yield_to_user() { return prefs_numerical_values[k_prefs_mouse_yield_to_user] != 0; }
   const int mouse_user_timeout_s() { return (int)prefs_numerical_values[k_prefs_mouse_user_timeout_s]; }
   const int mouse_user_settle_ms() { return (int)prefs_numerical_values[k_prefs_mouse_user_settle_ms]; }
+  const int mouse_after_action() { return (int)prefs_numerical_values[k_prefs_mouse_after_action]; }
+  const int mouse_return_radius_px() { return (int)prefs_numerical_values[k_prefs_mouse_return_radius_px]; }
   // Obscure
   LPCSTR window_class_name() { return NonEmptyStringValueElseDefault(k_prefs_window_class_name); }
   LPCSTR mutex_name() { return NonEmptyStringValueElseDefault(k_prefs_mutex_name); }

@@ -575,6 +575,23 @@ void CDlgPreferences::BuildPages() {
       p.items.push_back(item);
     }
 
+    p.items.push_back(Heading("After an action (needs \"Restore mouse position\" on the Autoplayer page)"));
+    {
+      PrefsItem item = WithDefault(Radio({ "Leave the mouse where it is",
+                                           "Go back to the neighbourhood of the old position (never the same pixel)",
+                                           "Go back to exactly the old position" },
+        []() -> int { return Preferences()->mouse_after_action(); },
+        [](int index) { SetNumber(k_prefs_mouse_after_action, index); }), kMouseDefaultAfterAction);
+      SendMouseSettingsAfterApply(&item);
+      p.items.push_back(item);
+    }
+    {
+      PrefsItem item = WithDefault(PREF_NUMBER("Size of the neighbourhood (20-600 px)", 20, 600, 10,
+        mouse_return_radius_px, k_prefs_mouse_return_radius_px, "Invalid size (20-600)"), kMouseDefaultReturnRadiusPx);
+      SendMouseSettingsAfterApply(&item);
+      p.items.push_back(item);
+    }
+
     p.items.push_back(Heading("If you move the mouse yourself"));
     {
       PrefsItem item = WithDefault(PREF_CHECK("Wait until the mouse rests, then continue",

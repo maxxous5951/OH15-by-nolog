@@ -347,6 +347,8 @@ void COpenHoldemApp::SendMouseSettings() {
   settings.yield_to_user = Preferences()->mouse_yield_to_user() ? 1 : 0;
   settings.user_timeout_s = Preferences()->mouse_user_timeout_s();
   settings.user_settle_ms = Preferences()->mouse_user_settle_ms();
+  settings.after_action = Preferences()->mouse_after_action();
+  settings.return_radius_px = Preferences()->mouse_return_radius_px();
   (_dll_mouse_process_message)("mouse_settings", &settings);
   write_log(Preferences()->debug_openholdem(), "[OpenHoldem] Mouse mode: %s\n",
     settings.mode == kMouseModeHuman ? "human" : "fast");
