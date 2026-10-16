@@ -49,6 +49,7 @@
 #include "CSymbolEngineHistory.h"
 #include "CSymbolEngineICM.h"
 #include "CSymbolEngineExploitEV.h"
+#include "CSymbolEnginePreflopCharts.h"
 #include "CSymbolEngineIniFunctions.h"
 #include "CSymbolEngineIsOmaha.h"
 #include "CSymbolEngineIsRush.h"
@@ -233,6 +234,11 @@ void CEngineContainer::CreateSymbolEngines() {
   // CSymbolEnginePokerTracker
   p_symbol_engine_pokertracker = new CSymbolEnginePokerTracker;
   AddSymbolEngine(p_symbol_engine_pokertracker);
+  // CSymbolEnginePreflopCharts
+  // Push/fold and chart based preflop strategy. Has to be created before
+  // CSymbolEngineExploitEV, which uses its opponent ranges.
+  p_symbol_engine_preflop_charts = new CSymbolEnginePreflopCharts;
+  AddSymbolEngine(p_symbol_engine_preflop_charts);
   // CSymbolEngineExploitEV
   // Depends on chip-amounts, userchair, active-dealt-playing and
   // (optionally) PokerTracker, therefore placed after these.

@@ -21,6 +21,7 @@
 #include <conio.h>
 #include <windows.h>
 #include "OpenHoldemFunctions.h"
+#include "ExploitBridge.h"
 
 //******************************************************************************
 //
@@ -64,6 +65,11 @@ void __stdcall DLLUpdateOnHeartbeat() {
 DLL_IMPLEMENTS double __stdcall ProcessQuery(const char* pquery) {
   if (pquery == NULL) {
     return 0;
+  }
+  // ExploitEV bridge: dll$decision, dll$raiseto, dll$allin, dll$pf_*
+  {
+    double bridged = 0;
+    if (BridgeQuery(pquery, &GetSymbol, &bridged)) return bridged;
   }
   if (strncmp(pquery,"dll$test",9)==0) {
 	  char* question = "blahdibah";

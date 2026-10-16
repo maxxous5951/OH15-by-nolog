@@ -62,6 +62,7 @@ class CSymbolEngineVersus;
 class CSymbolEngineRange;
 class CSymbolEngineICM;
 class CSymbolEngineExploitEV;
+class CSymbolEnginePreflopCharts;
 
 class CEngineContainer : public CSpaceOptimizedGlobalObject {
  public:
@@ -203,6 +204,8 @@ public:
     { return p_symbol_engine_icm; }
   CSymbolEngineExploitEV *symbol_engine_exploit_ev()
     { return p_symbol_engine_exploit_ev; }
+  CSymbolEnginePreflopCharts *symbol_engine_preflop_charts()
+    { return p_symbol_engine_preflop_charts; }
 private:
   CSymbolEngineActiveDealtPlaying *p_symbol_engine_active_dealt_playing;
   CSymbolEngineAutoplayer *p_symbol_engine_autoplayer;
@@ -251,6 +254,7 @@ private:
   CSymbolEngineRange *p_symbol_engine_range;
   CSymbolEngineICM *p_symbol_engine_icm;
   CSymbolEngineExploitEV *p_symbol_engine_exploit_ev;
+  CSymbolEnginePreflopCharts *p_symbol_engine_preflop_charts;
 };
 
 extern CEngineContainer *p_engine_container;

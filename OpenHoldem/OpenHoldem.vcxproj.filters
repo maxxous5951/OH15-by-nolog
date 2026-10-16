@@ -54,6 +54,8 @@
     <ClCompile Include="CSymbolEngineGameType.cpp" />
     <ClCompile Include="CSymbolEngineICM.cpp" />
     <ClCompile Include="CSymbolEngineExploitEV.cpp" />
+    <ClCompile Include="CSymbolEnginePreflopCharts.cpp" />
+    <ClCompile Include="..\ExploitEV\PreflopCharts.cpp" />
     <ClCompile Include="..\ExploitEV\ExploitEV.cpp" />
     <ClCompile Include="CSymbolengineIsRush.cpp" />
     <ClCompile Include="CSymbolEngineMTTInfo.cpp" />
@@ -273,6 +275,10 @@
     <ClInclude Include="CSymbolEngineGameType.h" />
     <ClInclude Include="CSymbolEngineICM.h" />
     <ClInclude Include="CSymbolEngineExploitEV.h" />
+    <ClInclude Include="CSymbolEnginePreflopCharts.h" />
+    <ClInclude Include="..\ExploitEV\PreflopCharts.h" />
+    <ClInclude Include="..\ExploitEV\PreflopChartsData.h" />
+    <ClInclude Include="..\ExploitEV\PushFoldTables.h" />
     <ClInclude Include="..\ExploitEV\ExploitEV.h" />
     <ClInclude Include="CSymbolEngineIsRush.h" />
     <ClInclude Include="CSymbolengineMTTInfo.h" />

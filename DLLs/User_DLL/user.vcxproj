@@ -150,6 +150,9 @@
     </Bscmake>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="ExploitBridge.cpp" />
+    <ClCompile Include="..\..\ExploitEV\ExploitEV.cpp" />
+    <ClCompile Include="..\..\ExploitEV\PreflopCharts.cpp" />
     <ClCompile Include="OpenHoldemFunctions.cpp" />
     <ClCompile Include="user.cpp">
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -157,6 +160,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ExploitBridge.h" />
     <ClInclude Include="OpenHoldemFunctions.h" />
     <ClInclude Include="user.h" />
   </ItemGroup>
