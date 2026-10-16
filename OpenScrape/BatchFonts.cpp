@@ -367,6 +367,24 @@ void CDlgBatchFonts::OnOK() {
 	NextGlyph();
 }
 
+// Space skips the current character, so the whole batch can be done with the
+// keyboard only: type a character + Enter, or Space if it can't be identified.
+// (Space is never a character of a font, it is background.)
+BOOL CDlgBatchFonts::PreTranslateMessage(MSG *msg) {
+	if (msg->message == WM_KEYDOWN && msg->wParam == VK_SPACE) {
+		CWnd *focus = GetFocus();
+		if (focus != NULL && (focus->GetSafeHwnd() == _character.GetSafeHwnd()
+			|| focus->GetSafeHwnd() == _pixels.GetSafeHwnd()
+			|| focus->GetSafeHwnd() == GetSafeHwnd())) {
+			// Ignore the auto-repeat of a held key, it must not skip everything
+			const bool is_repeat = (msg->lParam & 0x40000000) != 0;
+			if (!is_repeat) OnBnClickedSkip();
+			return TRUE;
+		}
+	}
+	return CDialog::PreTranslateMessage(msg);
+}
+
 void CDlgBatchFonts::OnBnClickedSkip() {
 	SBatchGlyph &glyph = glyphs[_current];
 	glyph.assigned = false;

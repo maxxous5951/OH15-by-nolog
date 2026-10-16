@@ -65,6 +65,7 @@ protected:
 	virtual BOOL OnInitDialog();
 	virtual void OnOK();		// accept the character and go to the next glyph
 	virtual void OnCancel();
+	virtual BOOL PreTranslateMessage(MSG *msg);	// Space = skip
 	afx_msg void OnBnClickedSkip();
 	afx_msg void OnBnClickedBack();
 	afx_msg void OnBnClickedFinish();
