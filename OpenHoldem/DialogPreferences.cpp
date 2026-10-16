@@ -119,6 +119,17 @@ PrefsPage& NewPage(std::vector<PrefsPage>* pages, const char* title) {
   return pages->back();
 }
 
+PrefsItem WithDefault(PrefsItem item, int default_value) {
+  item.has_default = true;
+  item.default_value = default_value;
+  return item;
+}
+
+// After any change of a mouse setting, mouse.dll has to be told
+void SendMouseSettingsAfterApply(PrefsItem* item) {
+  item->after_apply = []() { theApp.SendMouseSettings(); };
+}
+
 // Shortcuts for the most common kinds of preferences
 #define PREF_CHECK(label, getter, key) \
   Check(label, []() -> bool { return Preferences()->getter() != 0; }, \
@@ -495,6 +506,96 @@ void CDlgPreferences::BuildPages() {
     p.items.push_back(Heading("Log files"));
     p.items.push_back(PREF_NUMBER("Erase old logs larger than (MB)", 0, 999, 1,
       log_max_logsize, k_prefs_log_max_logsize, "Invalid maximum log size"));
+  }
+
+  // ----- Mouse -----
+  {
+    PrefsPage& p = NewPage(&_pages, "Mouse");
+    p.items.push_back(Heading("Mouse"));
+    p.items.push_back(Button("Reset to defaults",
+      [](CDlgPreferences* dialog) { dialog->ResetPageToDefaults("Mouse"); }, true));
+    PrefsItem mode = WithDefault(Radio({ "Fast (instant jump to the target, reference behaviour)",
+                                         "Human (curved path, variable speed and click timing)" },
+      []() -> int { return Preferences()->mouse_mode() == 1 ? 1 : 0; },
+      [](int index) { SetNumber(k_prefs_mouse_mode, index == 1 ? 1 : 0); }), 0);
+    SendMouseSettingsAfterApply(&mode);
+    p.items.push_back(mode);
+    p.items.push_back(Note("Both mice are in the same mouse.dll. The settings below only apply to the human mouse. "
+      "Changes take effect immediately after OK."));
+
+    p.items.push_back(Heading("Movement"));
+    {
+      PrefsItem item = WithDefault(PREF_NUMBER("Speed (20-500 %, 100 = normal)", 20, 500, 10,
+        mouse_speed_percent, k_prefs_mouse_speed_percent, "Invalid mouse speed (20-500)"), kMouseDefaultSpeedPercent);
+      SendMouseSettingsAfterApply(&item);
+      p.items.push_back(item);
+    }
+    {
+      PrefsItem item = WithDefault(PREF_NUMBER("Curvature of the path (0-300 %)", 0, 300, 10,
+        mouse_curvature_percent, k_prefs_mouse_curvature_percent, "Invalid curvature (0-300)"), kMouseDefaultCurvaturePercent);
+      SendMouseSettingsAfterApply(&item);
+      p.items.push_back(item);
+    }
+    {
+      PrefsItem item = WithDefault(PREF_NUMBER("Hand tremor (0-300 %)", 0, 300, 10,
+        mouse_noise_percent, k_prefs_mouse_noise_percent, "Invalid tremor (0-300)"), kMouseDefaultNoisePercent);
+      SendMouseSettingsAfterApply(&item);
+      p.items.push_back(item);
+    }
+    {
+      PrefsItem item = WithDefault(PREF_NUMBER("Overshoot probability on long moves (0-100 %)", 0, 100, 5,
+        mouse_overshoot_percent, k_prefs_mouse_overshoot_percent, "Invalid overshoot probability (0-100)"), kMouseDefaultOvershootPercent);
+      SendMouseSettingsAfterApply(&item);
+      p.items.push_back(item);
+    }
+
+    p.items.push_back(Heading("Click timing"));
+    {
+      PrefsItem item = WithDefault(PREF_NUMBER("Pause before the click, minimum (0-2000 ms)", 0, 2000, 10,
+        mouse_pause_min_ms, k_prefs_mouse_pause_min_ms, "Invalid pause (0-2000)"), kMouseDefaultPauseMinMs);
+      SendMouseSettingsAfterApply(&item);
+      p.items.push_back(item);
+    }
+    {
+      PrefsItem item = WithDefault(PREF_NUMBER("Pause before the click, maximum (0-2000 ms)", 0, 2000, 10,
+        mouse_pause_max_ms, k_prefs_mouse_pause_max_ms, "Invalid pause (0-2000)"), kMouseDefaultPauseMaxMs);
+      SendMouseSettingsAfterApply(&item);
+      p.items.push_back(item);
+    }
+    {
+      PrefsItem item = WithDefault(PREF_NUMBER("Click duration, minimum (10-500 ms)", 10, 500, 5,
+        mouse_hold_min_ms, k_prefs_mouse_hold_min_ms, "Invalid click duration (10-500)"), kMouseDefaultHoldMinMs);
+      SendMouseSettingsAfterApply(&item);
+      p.items.push_back(item);
+    }
+    {
+      PrefsItem item = WithDefault(PREF_NUMBER("Click duration, maximum (10-500 ms)", 10, 500, 5,
+        mouse_hold_max_ms, k_prefs_mouse_hold_max_ms, "Invalid click duration (10-500)"), kMouseDefaultHoldMaxMs);
+      SendMouseSettingsAfterApply(&item);
+      p.items.push_back(item);
+    }
+
+    p.items.push_back(Heading("If you move the mouse yourself"));
+    {
+      PrefsItem item = WithDefault(PREF_CHECK("Wait until the mouse rests, then continue",
+        mouse_yield_to_user, k_prefs_mouse_yield_to_user), kMouseDefaultYieldToUser);
+      SendMouseSettingsAfterApply(&item);
+      p.items.push_back(item);
+    }
+    {
+      PrefsItem item = WithDefault(PREF_NUMBER("Give up after (1-120 s)", 1, 120, 1,
+        mouse_user_timeout_s, k_prefs_mouse_user_timeout_s, "Invalid timeout (1-120)"), kMouseDefaultUserTimeoutS);
+      SendMouseSettingsAfterApply(&item);
+      p.items.push_back(item);
+    }
+    {
+      PrefsItem item = WithDefault(PREF_NUMBER("Mouse has to rest for (200-5000 ms)", 200, 5000, 100,
+        mouse_user_settle_ms, k_prefs_mouse_user_settle_ms, "Invalid resting time (200-5000)"), kMouseDefaultUserSettleMs);
+      SendMouseSettingsAfterApply(&item);
+      p.items.push_back(item);
+    }
+    p.items.push_back(Note("If the mouse does not rest within the timeout, the action is skipped and "
+      "the autoplayer tries again in the next heartbeat."));
   }
 
   // ----- Poker Tracker v4 -----
@@ -1116,6 +1217,32 @@ CString CDlgPreferences::TextOf(const char* key) {
 bool CDlgPreferences::CheckedOf(const char* key) {
   PrefsItem* item = FindItem(key);
   return (item != NULL && item->ctrl != NULL) ? GetCheck(*item) : false;
+}
+
+void CDlgPreferences::ResetPageToDefaults(const char* title) {
+  for (size_t p = 0; p < _pages.size(); ++p) {
+    if (_pages[p].title != title) continue;
+    for (size_t i = 0; i < _pages[p].items.size(); ++i) {
+      PrefsItem& item = _pages[p].items[i];
+      if (!item.has_default || (item.ctrl == NULL && item.radios.empty())) continue;
+      switch (item.kind) {
+        case PrefsItem::kCheck:
+          static_cast<CButton*>(item.ctrl)->SetCheck(item.default_value ? BST_CHECKED : BST_UNCHECKED);
+          break;
+        case PrefsItem::kNumber: {
+          CString text;
+          text.Format("%d", item.default_value);
+          item.ctrl->SetWindowText(text);
+          break;
+        }
+        case PrefsItem::kRadio:
+          SetRadio(item, item.default_value);
+          break;
+        default:
+          break;
+      }
+    }
+  }
 }
 
 void CDlgPreferences::ToggleChecksOfPage(const char* title) {

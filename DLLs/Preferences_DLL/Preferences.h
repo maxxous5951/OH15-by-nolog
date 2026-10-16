@@ -165,6 +165,19 @@ enum {
   // Advisor mode (suggestions window, no automatic play)
   k_prefs_advisor_enabled,
   k_prefs_advisor_corner,        // 0 = top left, 1 = top right, 2 = bottom left, 3 = bottom right
+  // Mouse (0 = fast reference mouse, 1 = human mouse; see mousedll.h)
+  k_prefs_mouse_mode,
+  k_prefs_mouse_speed_percent,
+  k_prefs_mouse_curvature_percent,
+  k_prefs_mouse_noise_percent,
+  k_prefs_mouse_overshoot_percent,
+  k_prefs_mouse_pause_min_ms,
+  k_prefs_mouse_pause_max_ms,
+  k_prefs_mouse_hold_min_ms,
+  k_prefs_mouse_hold_max_ms,
+  k_prefs_mouse_yield_to_user,
+  k_prefs_mouse_user_timeout_s,
+  k_prefs_mouse_user_settle_ms,
   // Double values
   // Only on double left, just to check for outdated ICM-config
   k_prefs_icm_prize1,
@@ -342,6 +355,19 @@ public:
   // Advisor
   const bool advisor_enabled() { return prefs_numerical_values[k_prefs_advisor_enabled] != 0; }
   const int advisor_corner() { return (int)prefs_numerical_values[k_prefs_advisor_corner]; }
+  // Mouse
+  const int mouse_mode() { return (int)prefs_numerical_values[k_prefs_mouse_mode]; }
+  const int mouse_speed_percent() { return (int)prefs_numerical_values[k_prefs_mouse_speed_percent]; }
+  const int mouse_curvature_percent() { return (int)prefs_numerical_values[k_prefs_mouse_curvature_percent]; }
+  const int mouse_noise_percent() { return (int)prefs_numerical_values[k_prefs_mouse_noise_percent]; }
+  const int mouse_overshoot_percent() { return (int)prefs_numerical_values[k_prefs_mouse_overshoot_percent]; }
+  const int mouse_pause_min_ms() { return (int)prefs_numerical_values[k_prefs_mouse_pause_min_ms]; }
+  const int mouse_pause_max_ms() { return (int)prefs_numerical_values[k_prefs_mouse_pause_max_ms]; }
+  const int mouse_hold_min_ms() { return (int)prefs_numerical_values[k_prefs_mouse_hold_min_ms]; }
+  const int mouse_hold_max_ms() { return (int)prefs_numerical_values[k_prefs_mouse_hold_max_ms]; }
+  const bool mouse_yield_to_user() { return prefs_numerical_values[k_prefs_mouse_yield_to_user] != 0; }
+  const int mouse_user_timeout_s() { return (int)prefs_numerical_values[k_prefs_mouse_user_timeout_s]; }
+  const int mouse_user_settle_ms() { return (int)prefs_numerical_values[k_prefs_mouse_user_settle_ms]; }
   // Obscure
   LPCSTR window_class_name() { return NonEmptyStringValueElseDefault(k_prefs_window_class_name); }
   LPCSTR mutex_name() { return NonEmptyStringValueElseDefault(k_prefs_mutex_name); }

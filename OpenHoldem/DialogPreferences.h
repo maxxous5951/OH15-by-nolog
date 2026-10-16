@@ -62,6 +62,9 @@ struct PrefsItem {
   std::function<void(CDlgPreferences*)> on_click;
   // called once after all values got saved
   std::function<void()>           after_apply;
+  // value for "Reset to defaults" of a page (check box: 0/1, radio: index)
+  bool    has_default;
+  int     default_value;
   // controls (created by the dialog)
   int     first_id;
   CWnd*   label_ctrl;
@@ -70,7 +73,7 @@ struct PrefsItem {
   std::vector<CWnd*> radios;
 
   PrefsItem() : kind(kNote), min_value(0), max_value(0), step(1), disabled_options(0),
-    disabled(false), same_row(false), first_id(0), label_ctrl(NULL), ctrl(NULL), spin(NULL) {}
+    disabled(false), same_row(false), has_default(false), default_value(0), first_id(0), label_ctrl(NULL), ctrl(NULL), spin(NULL) {}
 };
 
 struct PrefsPage {
@@ -159,6 +162,8 @@ class CDlgPreferences : public CDialog {
   bool CheckedOf(const char* key);
   // Flips all (enabled) check boxes of a page
   void ToggleChecksOfPage(const char* title);
+  // Puts the default values into all controls of a page (not yet saved)
+  void ResetPageToDefaults(const char* title);
 
  protected:
   virtual BOOL OnInitDialog();

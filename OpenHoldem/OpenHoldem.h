@@ -41,6 +41,11 @@ class COpenHoldemApp : public CWinApp {
 	virtual int ExitInstance();
  public:
 	void StoreLastRecentlyUsedFileList();
+	// Sends the mouse mode and its parameters (preferences) to mouse.dll.
+	// Called after loading the DLL and whenever the preferences changed.
+	void SendMouseSettings();
+	// true if the human mouse is selected
+	bool HumanMouseSelected() const;
 	// Public read-only access to the protected CWinApp::m_pRecentFileList
 	CRecentFileList* GetRecentFileList() const { return m_pRecentFileList; }
  private:

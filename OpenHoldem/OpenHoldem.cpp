@@ -165,6 +165,8 @@ BOOL COpenHoldemApp::InitInstance() {
 			_mouse_dll = NULL;
 			return false;
 		}
+		// The mouse mode (fast / human) and its parameters
+		SendMouseSettings();
 	write_log(Preferences()->debug_openholdem(), "[OpenHoldem] Going to load keyboard.DLL\n");}
 	// keyboard.dll - failure in load is fatal
 	_keyboard_dll = LoadLibrary("keyboard.dll");
@@ -326,4 +328,30 @@ void COpenHoldemApp::InitializeThreads() {
   // Iterator thread
   p_iterator_thread = new CIteratorThread();
   assert(p_iterator_thread != NULL);
+}
+
+void COpenHoldemApp::SendMouseSettings() {
+  if (_dll_mouse_process_message == NULL) return;
+  MouseSettings settings;
+  ZeroMemory(&settings, sizeof(settings));
+  settings.size = sizeof(MouseSettings);
+  settings.mode = Preferences()->mouse_mode() == 1 ? kMouseModeHuman : kMouseModeFast;
+  settings.speed_percent = Preferences()->mouse_speed_percent();
+  settings.curvature_percent = Preferences()->mouse_curvature_percent();
+  settings.noise_percent = Preferences()->mouse_noise_percent();
+  settings.overshoot_percent = Preferences()->mouse_overshoot_percent();
+  settings.pause_min_ms = Preferences()->mouse_pause_min_ms();
+  settings.pause_max_ms = Preferences()->mouse_pause_max_ms();
+  settings.hold_min_ms = Preferences()->mouse_hold_min_ms();
+  settings.hold_max_ms = Preferences()->mouse_hold_max_ms();
+  settings.yield_to_user = Preferences()->mouse_yield_to_user() ? 1 : 0;
+  settings.user_timeout_s = Preferences()->mouse_user_timeout_s();
+  settings.user_settle_ms = Preferences()->mouse_user_settle_ms();
+  (_dll_mouse_process_message)("mouse_settings", &settings);
+  write_log(Preferences()->debug_openholdem(), "[OpenHoldem] Mouse mode: %s\n",
+    settings.mode == kMouseModeHuman ? "human" : "fast");
+}
+
+bool COpenHoldemApp::HumanMouseSelected() const {
+  return _dll_mouse_process_message != NULL && Preferences()->mouse_mode() == 1;
 }

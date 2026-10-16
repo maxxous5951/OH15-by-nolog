@@ -144,6 +144,18 @@ const char* k_registry_keys_for_numerical_values[k_prefs_last_numerical_value + 
   "capture_method",
   "advisor_enabled",
   "advisor_corner",
+  "mouse_mode",
+  "mouse_speed_percent",
+  "mouse_curvature_percent",
+  "mouse_noise_percent",
+  "mouse_overshoot_percent",
+  "mouse_pause_min_ms",
+  "mouse_pause_max_ms",
+  "mouse_hold_min_ms",
+  "mouse_hold_max_ms",
+  "mouse_yield_to_user",
+  "mouse_user_timeout_s",
+  "mouse_user_settle_ms",
   // doubles
   // Only one double left, just to check for outdated ICM-config
   "icm_prize1",
@@ -241,6 +253,19 @@ void CPreferences::InitDefaults(void) {
   prefs_numerical_values[k_prefs_capture_method] = k_CaptureMethod_Original;
   prefs_numerical_values[k_prefs_advisor_enabled] = false;
   prefs_numerical_values[k_prefs_advisor_corner] = 1;   // top right
+  // Mouse: the fast reference mouse stays the default
+  prefs_numerical_values[k_prefs_mouse_mode] = 0;
+  prefs_numerical_values[k_prefs_mouse_speed_percent] = 100;
+  prefs_numerical_values[k_prefs_mouse_curvature_percent] = 100;
+  prefs_numerical_values[k_prefs_mouse_noise_percent] = 100;
+  prefs_numerical_values[k_prefs_mouse_overshoot_percent] = 15;
+  prefs_numerical_values[k_prefs_mouse_pause_min_ms] = 40;
+  prefs_numerical_values[k_prefs_mouse_pause_max_ms] = 150;
+  prefs_numerical_values[k_prefs_mouse_hold_min_ms] = 50;
+  prefs_numerical_values[k_prefs_mouse_hold_max_ms] = 130;
+  prefs_numerical_values[k_prefs_mouse_yield_to_user] = 1;
+  prefs_numerical_values[k_prefs_mouse_user_timeout_s] = 10;
+  prefs_numerical_values[k_prefs_mouse_user_settle_ms] = 1000;
   // Doubles
   prefs_numerical_values[k_prefs_icm_prize1] = kUndefinedZero;
   // CString
