@@ -43,6 +43,8 @@ namespace OpenReplayShooter
         {
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(frmMain));
             this.btnCapture = new System.Windows.Forms.Button();
+            this.chkPrintWindow = new System.Windows.Forms.CheckBox();
+            this.chkBlockScreenshots = new System.Windows.Forms.CheckBox();
             this.btnExit = new System.Windows.Forms.Button();
             this.label1 = new System.Windows.Forms.Label();
             this.txtOutputFolder = new System.Windows.Forms.TextBox();
@@ -63,7 +65,7 @@ namespace OpenReplayShooter
             // btnCapture
             // 
             this.btnCapture.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-            this.btnCapture.Location = new System.Drawing.Point(12, 99);
+            this.btnCapture.Location = new System.Drawing.Point(12, 125);
             this.btnCapture.Name = "btnCapture";
             this.btnCapture.Size = new System.Drawing.Size(75, 23);
             this.btnCapture.TabIndex = 6;
@@ -75,7 +77,7 @@ namespace OpenReplayShooter
             // 
             this.btnExit.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
             this.btnExit.DialogResult = System.Windows.Forms.DialogResult.Cancel;
-            this.btnExit.Location = new System.Drawing.Point(605, 99);
+            this.btnExit.Location = new System.Drawing.Point(605, 125);
             this.btnExit.Name = "btnExit";
             this.btnExit.Size = new System.Drawing.Size(75, 23);
             this.btnExit.TabIndex = 7;
@@ -215,12 +217,36 @@ namespace OpenReplayShooter
             this.label4.TabIndex = 12;
             this.label4.Text = "Delay between images:";
             // 
+            // chkPrintWindow
+            // 
+            this.chkPrintWindow.AutoSize = true;
+            this.chkPrintWindow.Location = new System.Drawing.Point(15, 94);
+            this.chkPrintWindow.Name = "chkPrintWindow";
+            this.chkPrintWindow.Size = new System.Drawing.Size(290, 17);
+            this.chkPrintWindow.TabIndex = 4;
+            this.chkPrintWindow.Text = "Capture with PrintWindow (covered / DirectX windows)";
+            this.chkPrintWindow.UseVisualStyleBackColor = true;
+            this.chkPrintWindow.CheckedChanged += new System.EventHandler(this.chkPrintWindow_CheckedChanged);
+            // 
+            // chkBlockScreenshots
+            // 
+            this.chkBlockScreenshots.AutoSize = true;
+            this.chkBlockScreenshots.Location = new System.Drawing.Point(350, 94);
+            this.chkBlockScreenshots.Name = "chkBlockScreenshots";
+            this.chkBlockScreenshots.Size = new System.Drawing.Size(250, 17);
+            this.chkBlockScreenshots.TabIndex = 5;
+            this.chkBlockScreenshots.Text = "Block screenshots of this program";
+            this.chkBlockScreenshots.UseVisualStyleBackColor = true;
+            this.chkBlockScreenshots.CheckedChanged += new System.EventHandler(this.chkBlockScreenshots_CheckedChanged);
+            // 
             // frmMain
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.CancelButton = this.btnExit;
-            this.ClientSize = new System.Drawing.Size(692, 134);
+            this.ClientSize = new System.Drawing.Size(692, 160);
+            this.Controls.Add(this.chkBlockScreenshots);
+            this.Controls.Add(this.chkPrintWindow);
             this.Controls.Add(this.nDelay);
             this.Controls.Add(this.label4);
             this.Controls.Add(this.lblStatus);
@@ -250,6 +276,8 @@ namespace OpenReplayShooter
         #endregion
 
         private System.Windows.Forms.Button btnCapture;
+        private System.Windows.Forms.CheckBox chkPrintWindow;
+        private System.Windows.Forms.CheckBox chkBlockScreenshots;
         private System.Windows.Forms.Button btnExit;
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.TextBox txtOutputFolder;

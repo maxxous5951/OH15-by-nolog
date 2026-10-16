@@ -47,6 +47,8 @@ void Registry::read_reg(void)
 	grhash_dy = 330;
 
 	region_grouping = BY_TYPE; // None
+	capture_method = kCaptureMethodOriginal;
+	block_screenshots = 0;
 
 	hkResult = RegOpenKeyEx(HKEY_CURRENT_USER, "Software\\OpenHoldem\\OpenScrape", 0, KEY_READ, &hKey);
 	if (hkResult==ERROR_SUCCESS) {
@@ -76,6 +78,15 @@ void Registry::read_reg(void)
 		cbData = sizeof(str);
 		if ( (hkResult = RegQueryValueEx(hKey, "region_grouping", NULL, &dwType, (LPBYTE) str, &cbData)) == ERROR_SUCCESS)
 			region_grouping = atoi(str);
+
+		// Window capture and screenshot-protection
+		cbData = sizeof(str);
+		if ( (hkResult = RegQueryValueEx(hKey, "capture_method", NULL, &dwType, (LPBYTE) str, &cbData)) == ERROR_SUCCESS)
+			capture_method = atoi(str);
+
+		cbData = sizeof(str);
+		if ( (hkResult = RegQueryValueEx(hKey, "block_screenshots", NULL, &dwType, (LPBYTE) str, &cbData)) == ERROR_SUCCESS)
+			block_screenshots = atoi(str);
 	}
 
 	RegCloseKey(hKey);
@@ -104,6 +115,12 @@ void Registry::write_reg(void)
 	// Region grouping
 	sprintf_s(str, 256, "%d", region_grouping);
 	RegSetValueEx(hKey, "region_grouping", 0, REG_SZ, (LPBYTE) str, (DWORD) strlen(str)+1);
+
+	// Window capture and screenshot-protection
+	sprintf_s(str, 256, "%d", capture_method);
+	RegSetValueEx(hKey, "capture_method", 0, REG_SZ, (LPBYTE) str, (DWORD) strlen(str)+1);
+	sprintf_s(str, 256, "%d", block_screenshots);
+	RegSetValueEx(hKey, "block_screenshots", 0, REG_SZ, (LPBYTE) str, (DWORD) strlen(str)+1);
 
 	RegCloseKey(hKey);
 }

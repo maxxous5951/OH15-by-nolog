@@ -31,6 +31,8 @@
 #include "OpenScrapeDoc.h"
 #include "OpenScrapeView.h"
 #include "registry.h"
+#include "DisplayAffinity.h"
+#include "WindowCapture.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -63,6 +65,12 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_COMMAND(ID_GROUPREGIONS_BYNAME, &CMainFrame::OnGroupregionsByname)
 	ON_UPDATE_COMMAND_UI(ID_GROUPREGIONS_BYTYPE, &CMainFrame::OnUpdateGroupregionsBytype)
 	ON_UPDATE_COMMAND_UI(ID_GROUPREGIONS_BYNAME, &CMainFrame::OnUpdateGroupregionsByname)
+	ON_COMMAND(ID_VIEW_CAPTURE_ORIGINAL, &CMainFrame::OnViewCaptureOriginal)
+	ON_COMMAND(ID_VIEW_CAPTURE_PRINTWINDOW, &CMainFrame::OnViewCapturePrintWindow)
+	ON_UPDATE_COMMAND_UI(ID_VIEW_CAPTURE_ORIGINAL, &CMainFrame::OnUpdateViewCaptureOriginal)
+	ON_UPDATE_COMMAND_UI(ID_VIEW_CAPTURE_PRINTWINDOW, &CMainFrame::OnUpdateViewCapturePrintWindow)
+	ON_COMMAND(ID_VIEW_BLOCKSCREENSHOTS, &CMainFrame::OnViewBlockScreenshots)
+	ON_UPDATE_COMMAND_UI(ID_VIEW_BLOCKSCREENSHOTS, &CMainFrame::OnUpdateViewBlockScreenshots)
 END_MESSAGE_MAP()
 
 static UINT openscrape_indicators[] =
@@ -755,6 +763,46 @@ void CMainFrame::OnUpdateGroupregionsByname(CCmdUI *pCmdUI)
 	pCmdUI->SetCheck(theApp.m_TableMapDlg->region_grouping==BY_NAME);
 }
 
+void CMainFrame::OnViewCaptureOriginal()
+{
+	Registry reg;
+	reg.read_reg();
+	reg.capture_method = kCaptureMethodOriginal;
+	reg.write_reg();
+}
+
+void CMainFrame::OnViewCapturePrintWindow()
+{
+	Registry reg;
+	reg.read_reg();
+	reg.capture_method = kCaptureMethodPrintWindow;
+	reg.write_reg();
+}
+
+void CMainFrame::OnUpdateViewCaptureOriginal(CCmdUI *pCmdUI)
+{
+	Registry reg;
+	reg.read_reg();
+	pCmdUI->SetRadio(reg.capture_method == kCaptureMethodOriginal);
+}
+
+void CMainFrame::OnUpdateViewCapturePrintWindow(CCmdUI *pCmdUI)
+{
+	Registry reg;
+	reg.read_reg();
+	pCmdUI->SetRadio(reg.capture_method == kCaptureMethodPrintWindow);
+}
+
+void CMainFrame::OnViewBlockScreenshots()
+{
+	CDisplayAffinity::SetBlockScreenshots(!CDisplayAffinity::BlockScreenshots());
+}
+
+void CMainFrame::OnUpdateViewBlockScreenshots(CCmdUI *pCmdUI)
+{
+	pCmdUI->SetCheck(CDisplayAffinity::BlockScreenshots());
+}
+
 void CMainFrame::SaveBmpPbits(void)
 {
 	HDC					hdc;
@@ -785,8 +833,9 @@ void CMainFrame::SaveBmpPbits(void)
 	height = pDoc->attached_rect.bottom - pDoc->attached_rect.top;
 	pDoc->attached_bitmap = CreateCompatibleBitmap(hdcScreen, width, height);
 	old_bitmap = (HBITMAP) SelectObject(hdcCompatible, pDoc->attached_bitmap);
-	BitBlt(hdcCompatible, 0, 0, width, height, hdc, 
-		   pDoc->attached_rect.left, pDoc->attached_rect.top, SRCCOPY);
+	// (BitBlt or PrintWindow, see View -> Window Capture)
+	CopyFromWindow(pDoc->attached_hwnd, hdcCompatible, width, height,
+		   pDoc->attached_rect.left, pDoc->attached_rect.top);
 
 	// Get pBits of connected window
 	// Allocate heap space for BITMAPINFO

@@ -30,6 +30,7 @@
 #include "OpenScrapeDoc.h"
 #include "OpenScrapeView.h"
 #include "Registry.h"
+#include "WindowCapture.h"
 #include "MainFrm.h"
 #include "DialogEdit.h"
 #include "DialogEditSizes.h"
@@ -2250,7 +2251,6 @@ void CDlgTableMap::DetectAndShowTemplate(string name) {
 CString CDlgTableMap::GetDetectTemplateResult(CString area_name, CString tpl_name, RECT* rect_result) {
 	//  Detect template
 	COpenScrapeDoc* pDoc = COpenScrapeDoc::GetDocument();
-	HDC					hdc = ::GetDC(pDoc->attached_hwnd);
 	HDC					hdcScreen, hdcCompat, hdc_bitmap_orig, hdc_bitmap_transform_ocr;
 	CString				text, selected_transform, separation;
 	HBITMAP				old_bitmap_orig, old_bitmap_transform, bitmap_transform_ocr;
@@ -2272,7 +2272,7 @@ CString CDlgTableMap::GetDetectTemplateResult(CString area_name, CString tpl_nam
 	::GetClientRect(pDoc->attached_hwnd, &rect);
 	HBITMAP attached_bitmap = CreateCompatibleBitmap(hdcScreen, rect.right, rect.bottom);
 	HBITMAP	old_bitmap = (HBITMAP)SelectObject(hdcCompat, attached_bitmap);
-	BitBlt(hdcCompat, 0, 0, rect.right, rect.bottom, hdc, 0, 0, SRCCOPY);
+	CopyFromWindow(pDoc->attached_hwnd, hdcCompat, rect.right, rect.bottom, 0, 0);
 
 	hdc_bitmap_orig = CreateCompatibleDC(hdcScreen);
 	old_bitmap_orig = (HBITMAP)SelectObject(hdc_bitmap_orig, attached_bitmap);
@@ -2286,10 +2286,8 @@ CString CDlgTableMap::GetDetectTemplateResult(CString area_name, CString tpl_nam
 	bitmap_transform_ocr = CreateCompatibleBitmap(hdcScreen, w, h);
 	old_bitmap_transform = (HBITMAP)SelectObject(hdc_bitmap_transform_ocr, bitmap_transform_ocr);
 
-	BitBlt(hdc_bitmap_transform_ocr, 0, 0, w, h,
-		hdc,
-		r_iter->second.left - 1, r_iter->second.top - 1,
-		SRCCOPY);
+	CopyFromWindow(pDoc->attached_hwnd, hdc_bitmap_transform_ocr, w, h,
+		r_iter->second.left - 1, r_iter->second.top - 1);
 
 	Mat area_mat(h, w, CV_8UC4);
 	BITMAPINFOHEADER bi = { sizeof(bi), w, -h, 1, 32, BI_RGB };

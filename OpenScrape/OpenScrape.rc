@@ -140,6 +140,13 @@ BEGIN
             MENUITEM "By &Name",                    ID_GROUPREGIONS_BYNAME
         END
         MENUITEM SEPARATOR
+        POPUP "Window &Capture"
+        BEGIN
+            MENUITEM "&Original (BitBlt)",          ID_VIEW_CAPTURE_ORIGINAL
+            MENUITEM "&PrintWindow",                ID_VIEW_CAPTURE_PRINTWINDOW
+        END
+        MENUITEM "&Block Screenshots of OpenScrape", ID_VIEW_BLOCKSCREENSHOTS
+        MENUITEM SEPARATOR
         MENUITEM "Current size: 0x0",           ID_VIEW_CURRENTWINDOWSIZE
     END
     POPUP "&Help"

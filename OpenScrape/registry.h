@@ -13,6 +13,10 @@
 
 
 
+// Window capture methods
+const int kCaptureMethodOriginal = 0;     // BitBlt
+const int kCaptureMethodPrintWindow = 1;  // PrintWindow
+
 class Registry 
 {
 public:
@@ -28,6 +32,11 @@ public:
 
 	// Region grouping
 	int region_grouping;
+
+	// How to capture the connected window (kCaptureMethod...)
+	int capture_method;
+	// Hide the windows of OpenScrape from screenshots (0 / 1)
+	int block_screenshots;
 
 };
 

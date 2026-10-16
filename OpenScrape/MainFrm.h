@@ -39,6 +39,12 @@ class CMainFrame : public CFrameWnd {
 	afx_msg void OnUpdateEditDuplicateregion(CCmdUI *pCmdUI);
 	afx_msg void OnUpdateGroupregionsBytype(CCmdUI *pCmdUI);
 	afx_msg void OnUpdateGroupregionsByname(CCmdUI *pCmdUI);
+	afx_msg void OnViewCaptureOriginal();
+	afx_msg void OnViewCapturePrintWindow();
+	afx_msg void OnUpdateViewCaptureOriginal(CCmdUI *pCmdUI);
+	afx_msg void OnUpdateViewCapturePrintWindow(CCmdUI *pCmdUI);
+	afx_msg void OnViewBlockScreenshots();
+	afx_msg void OnUpdateViewBlockScreenshots(CCmdUI *pCmdUI);
 	void SaveBmpPbits(void);
 	DECLARE_MESSAGE_MAP()
 

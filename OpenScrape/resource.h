@@ -141,6 +141,9 @@
 #define ID_EDIT_ENABLETEXTDETECTION     32790
 #define ID_EDIT_TEXTDETECTIONSETTINGS   32791
 #define ID_EDIT_                        32792
+#define ID_VIEW_CAPTURE_ORIGINAL        32793
+#define ID_VIEW_CAPTURE_PRINTWINDOW     32794
+#define ID_VIEW_BLOCKSCREENSHOTS        32795
 #define IDC_LABEL                       65535
 
 // Next default values for new objects
@@ -148,7 +151,7 @@
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        153
-#define _APS_NEXT_COMMAND_VALUE         32793
+#define _APS_NEXT_COMMAND_VALUE         32796
 #define _APS_NEXT_CONTROL_VALUE         1115
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

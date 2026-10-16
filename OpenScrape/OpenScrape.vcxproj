@@ -201,6 +201,8 @@
     <ClCompile Include="OpenScrapeDoc.cpp" />
     <ClCompile Include="OpenScrapeView.cpp" />
     <ClCompile Include="registry.cpp" />
+    <ClCompile Include="DisplayAffinity.cpp" />
+    <ClCompile Include="WindowCapture.cpp" />
     <ClCompile Include="ScrollHelper.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
@@ -240,6 +242,8 @@
     <ClInclude Include="OpenScrapeDoc.h" />
     <ClInclude Include="OpenScrapeView.h" />
     <ClInclude Include="registry.h" />
+    <ClInclude Include="DisplayAffinity.h" />
+    <ClInclude Include="WindowCapture.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="ScrollHelper.h" />
     <ClInclude Include="stdafx.h" />

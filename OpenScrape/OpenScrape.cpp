@@ -18,6 +18,7 @@
 #include <psapi.h>
 
 #include "OpenScrape.h"
+#include "DisplayAffinity.h"
 #include "MainFrm.h"
 #include "OpenScrapeDoc.h"
 #include "OpenScrapeView.h"
@@ -141,6 +142,9 @@ BOOL COpenScrapeApp::InitInstance()
 	//  In an SDI app, this should occur after ProcessShellCommand
 	m_pMainWnd->DragAcceptFiles();
 
+	// Hide OpenScrape from screenshots, if enabled (View menu)
+	CDisplayAffinity::Install();
+
 	// Start tablemap dialog
 	m_TableMapDlg = new CDlgTableMap(NULL);
 	// Create a desktop-based window, no longer a dialog-based one (BillW)
@@ -212,6 +216,7 @@ void COpenScrapeApp::OnAppAbout()
 
 int COpenScrapeApp::ExitInstance()
 {
+	CDisplayAffinity::Uninstall();
 	// classes
 	if (p_tablemap)  
 	{ 

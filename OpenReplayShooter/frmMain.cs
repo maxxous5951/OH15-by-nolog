@@ -30,6 +30,28 @@ namespace OpenReplayShooter
             InitializeComponent();
             txtOutputFolder.Text = Properties.Settings.Default.OutputFolder;
             searchWindows();
+            // Capture method and protection against screenshots
+            bUsePrintWindow = Properties.Settings.Default.UsePrintWindow;
+            chkPrintWindow.Checked = bUsePrintWindow;
+            chkBlockScreenshots.Checked = Properties.Settings.Default.BlockScreenshots;
+            DisplayAffinity.Install(chkBlockScreenshots.Checked);
+        }
+
+        // Read by the capture thread, written by the GUI thread
+        volatile bool bUsePrintWindow = false;
+
+        private void chkPrintWindow_CheckedChanged(object sender, EventArgs e)
+        {
+            bUsePrintWindow = chkPrintWindow.Checked;
+            Properties.Settings.Default.UsePrintWindow = chkPrintWindow.Checked;
+            Properties.Settings.Default.Save();
+        }
+
+        private void chkBlockScreenshots_CheckedChanged(object sender, EventArgs e)
+        {
+            DisplayAffinity.SetBlockScreenshots(chkBlockScreenshots.Checked);
+            Properties.Settings.Default.BlockScreenshots = chkBlockScreenshots.Checked;
+            Properties.Settings.Default.Save();
         }
 
         // Capture thread
@@ -71,6 +93,7 @@ namespace OpenReplayShooter
         {
             btnChooseOutputDir.Enabled = activate;
             btnExit.Enabled = activate;
+            chkPrintWindow.Enabled = activate;
             btnWindowsRefresh.Enabled = activate;
             txtOutputFolder.Enabled = activate;
             cmbWindows.Enabled = activate;
@@ -161,8 +184,39 @@ namespace OpenReplayShooter
             return -1;
         }
 
+        /// <summary>
+        /// PrintWindow: Windows renders the client area into a bitmap.
+        /// Works for covered windows and for DirectX/GPU-rendered windows.
+        /// Returns null if it fails (e.g. minimized window).
+        /// </summary>
+        private Image CaptureWindowWithPrintWindow(IntPtr handle)
+        {
+            User32.RECT clientRect = new User32.RECT();
+            if (!User32.GetClientRect(handle, ref clientRect)) return null;
+            int width = clientRect.right - clientRect.left;
+            int height = clientRect.bottom - clientRect.top;
+            if (width <= 0 || height <= 0) return null;
+            IntPtr hdcSrc = User32.GetWindowDC(handle);
+            IntPtr hdcDest = GDI32.CreateCompatibleDC(hdcSrc);
+            IntPtr hBitmap = GDI32.CreateCompatibleBitmap(hdcSrc, width, height);
+            IntPtr hOld = GDI32.SelectObject(hdcDest, hBitmap);
+            bool success = User32.PrintWindow(handle, hdcDest, User32.PW_CLIENTONLY | User32.PW_RENDERFULLCONTENT);
+            GDI32.SelectObject(hdcDest, hOld);
+            GDI32.DeleteDC(hdcDest);
+            User32.ReleaseDC(handle, hdcSrc);
+            Image img = success ? Image.FromHbitmap(hBitmap) : null;
+            GDI32.DeleteObject(hBitmap);
+            return img;
+        }
+
         private Image CaptureWindow(IntPtr handle)
         {
+            if (bUsePrintWindow)
+            {
+                Image printed = CaptureWindowWithPrintWindow(handle);
+                if (printed != null) return printed;
+                // PrintWindow failed: original method as fallback
+            }
             // get te hDC of the target window
             IntPtr hdcSrc = User32.GetWindowDC(handle);
             // get the size
@@ -208,6 +262,14 @@ namespace OpenReplayShooter
                 public int bottom;
             }
 
+            // Flags of PrintWindow
+            public const uint PW_CLIENTONLY = 0x00000001;
+            public const uint PW_RENDERFULLCONTENT = 0x00000002;
+
+            [DllImport("user32.dll")]
+            public static extern bool GetClientRect(IntPtr hWnd, ref RECT rect);
+            [DllImport("user32.dll")]
+            public static extern bool PrintWindow(IntPtr hwnd, IntPtr hdcBlt, uint nFlags);
             //[DllImport("user32.dll")]
             //public static extern IntPtr GetDesktopWindow();
             [DllImport("user32.dll")]

@@ -34,5 +34,29 @@ namespace OpenReplayShooter.Properties {
                 this["OutputFolder"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool UsePrintWindow {
+            get {
+                return ((bool)(this["UsePrintWindow"]));
+            }
+            set {
+                this["UsePrintWindow"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool BlockScreenshots {
+            get {
+                return ((bool)(this["BlockScreenshots"]));
+            }
+            set {
+                this["BlockScreenshots"] = value;
+            }
+        }
     }
 }
