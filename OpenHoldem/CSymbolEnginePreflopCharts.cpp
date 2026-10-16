@@ -16,6 +16,8 @@
 
 #include <assert.h>
 #include <time.h>
+#include <string>
+#include <vector>
 #include "CBetroundCalculator.h"
 #include "CEngineContainer.h"
 #include "CPokerTrackerThread.h"
@@ -27,6 +29,8 @@
 #include "CSymbolEngineUserchair.h"
 #include "CTableState.h"
 #include "..\CTablemap\CTablemap.h"
+#include "..\ExploitEV\DecisionLog.h"
+#include "..\ExploitEV\PreflopAdjust.h"
 #include "..\ExploitEV\PreflopCharts.h"
 
 namespace {
@@ -78,6 +82,8 @@ CSymbolEnginePreflopCharts::CSymbolEnginePreflopCharts() {
   _stats_reliable = false;
   _roll = 0.5;
   _roll_key = -1;
+  _last_logged_key = -1;
+  _eq_key = -1; _eq_value = -1.0;
   UpdateOnHandreset();
 }
 
@@ -206,6 +212,16 @@ double CSymbolEnginePreflopCharts::ReadPokerTrackerHands(int chair) {
   return (value < 0.0) ? -1.0 : value;
 }
 
+double CSymbolEnginePreflopCharts::ReadStat(const char *name, int chair) {
+  if (!StatsReliableForChair(chair)) return -1.0;
+  CString symbol;
+  symbol.Format("pt_%s%d", name, chair);
+  double value = kUndefined;
+  if (!p_engine_container->EvaluateSymbol(symbol, &value, false)) return -1.0;
+  if (value < 0.0 || value > 100.0) return -1.0;
+  return (value > 1.0) ? value / 100.0 : value;
+}
+
 bool CSymbolEnginePreflopCharts::StatsReliableForChair(int chair) {
   return ReadPokerTrackerHands(chair) >= kMinHandsForStats;
 }
@@ -277,6 +293,7 @@ void CSymbolEnginePreflopCharts::Calculate() {
   const unsigned char* call_table = 0;   // chart of our calling range in this spot
   double standard_bet = 0.0;     // size the chart assumes for the bet we face (chips)
   bool allin = false;
+  bool ev_checked = false;       // the EV check replaced the size heuristic
 
   if (_stack_bb <= ExploitEV::PushFoldMaxStack(players)) {
     // ---------------- push / fold ----------------
@@ -315,8 +332,25 @@ void CSymbolEnginePreflopCharts::Calculate() {
         call = 1.0 - raise;
         raiseto = (ExploitEV::ChartOpenSize(format, sb) + limpers) * bb;
       } else {
-        raise = ExploitEV::ChartFrequency(ExploitEV::ChartRfi(format, pos), hand_class);
+        const unsigned char* rfi = ExploitEV::ChartRfi(format, pos);
+        raise = ExploitEV::ChartFrequency(rfi, hand_class);
         raiseto = (ExploitEV::ChartOpenSize(format, pos) + limpers) * bb;
+        // exploit: how often does the big blind fold to a steal?
+        const int n = ExploitEV::ChartNumPositions(format);
+        if (pos >= n - 4 && limpers == 0) {
+          int bb_chair = kUndefined;
+          for (int ch = 0; ch < p_tablemap->nchairs(); ++ch) {
+            if (ActionIndexOfChair(ch) == players - 1) bb_chair = ch;
+          }
+          const double factor = ExploitEV::StealRangeFactor(
+            bb_chair == kUndefined ? -1.0 : ReadStat("bb_fold_to_steal", bb_chair));
+          if (factor > 1.0 && raise < 0.5 && pos + 1 <= n - 2) {
+            const double wider = ExploitEV::ChartFrequency(ExploitEV::ChartRfi(format, pos + 1), hand_class);
+            if (wider > raise) raise = wider;
+          } else if (factor < 1.0 && raise >= 0.5 && ExploitEV::ChartKeepRank(rfi, hand_class) > factor) {
+            raise = 0.0;
+          }
+        }
       }
     } else if (_raises == 1) {
       _situation = 2;
@@ -325,9 +359,62 @@ void CSymbolEnginePreflopCharts::Calculate() {
         call = 1.0;
       } else if (pos > opener) {
         call_table = ExploitEV::ChartVsOpenCall(format, pos, opener);
+        const unsigned char* table_3bet = ExploitEV::ChartVsOpen3bet(format, pos, opener);
         call = ExploitEV::ChartFrequency(call_table, hand_class);
-        raise = ExploitEV::ChartFrequency(ExploitEV::ChartVsOpen3bet(format, pos, opener), hand_class);
+        raise = ExploitEV::ChartFrequency(table_3bet, hand_class);
         if (callers > 0) call *= 0.7;                           // squeeze spot: flat less
+        const int opener_chair = _raiser_chair[1];
+        const int n = ExploitEV::ChartNumPositions(format);
+        if (raise < 0.5) {
+          // (1) stack depth: shallower stacks, fewer speculative calls
+          if (_stack_bb < 60.0 && call > 0.0
+              && ExploitEV::ChartKeepRank(call_table, hand_class) > ExploitEV::DepthKeepShare(_stack_bb)) {
+            call = 0.0;
+          }
+          // (2) EV check: equity against his real opening range vs the pot odds
+          if (callers == 0 && opener_chair != kUndefined) {
+            const double pfr = ReadStat("pfr", opener_chair);
+            const unsigned char* rfi = ExploitEV::ChartRfi(format, opener);
+            const long long key = (long long)hand_class * 1000003LL + opener_chair * 1009LL
+                                + (long long)((pfr < 0.0 ? -1.0 : pfr) * 1000.0 + 1.0);
+            if (key != _eq_key) {
+              ExploitEV::Range range;
+              if (pfr >= 0.0) {
+                double fraction = ExploitEV::ShrinkStat(pfr, 50, ExploitEV::ChartPercent(rfi) / 100.0);
+                double percent = fraction * 100.0;
+                if (percent < 5.0) percent = 5.0;
+                if (percent > 60.0) percent = 60.0;
+                range = ExploitEV::Range::FromTopPercent(percent);
+              } else {
+                range = ExploitEV::ChartToRange(rfi);
+              }
+              bool dead[ExploitEV::kNumCards] = {false};
+              dead[card_a] = true; dead[card_b] = true;
+              range.RemoveDeadCards(dead);
+              std::vector<const ExploitEV::Range*> opponents(1, &range);
+              const int hero[2] = {card_a, card_b};
+              _eq_value = ExploitEV::Equity(hero, 0, 0, opponents, 3000, 4242);
+              _eq_key = key;
+            }
+            const int hi = hand_class / 13, lo = hand_class % 13;
+            const bool in_position = (n >= 3 && pos > opener && pos < n - 2);
+            const double realization = ExploitEV::PreflopRealization(
+              in_position, pos == n - 1, hi > lo, hi == lo);
+            const ExploitEV::CallVerdict verdict = ExploitEV::EvCallVerdict(
+              _eq_value, realization, p_engine_container->symbol_engine_chip_amounts()->pot(),
+              to_call, call >= 0.5);
+            if (verdict == ExploitEV::kForceFold) call = 0.0;
+            else if (verdict == ExploitEV::kForceCall) call = 1.0;
+            ev_checked = (_eq_value >= 0.0);
+          }
+          // (3) exploit: he folds a lot / never folds to 3bets
+          if (callers == 0 && opener_chair != kUndefined) {
+            const ExploitEV::ThreeBetAdjust adjusted = ExploitEV::AdjustThreeBet(
+              call, raise, ExploitEV::ChartKeepRank(call_table, hand_class),
+              ExploitEV::ChartKeepRank(table_3bet, hand_class), ReadStat("fold_to_3bet", opener_chair));
+            call = adjusted.call; raise = adjusted.raise;
+          }
+        }
         standard_bet = (ExploitEV::ChartOpenSize(format, opener) + limpers) * bb;
         raiseto = (ExploitEV::ChartThreeBetSize(format, pos, opener) + callers * ExploitEV::ChartOpenSize(format, opener)) * bb;
       } else {
@@ -374,7 +461,7 @@ void CSymbolEnginePreflopCharts::Calculate() {
   // --- adapt to the real size of the bet we face (charts assume a standard size) ---
   // bigger than standard: continue less with marginal hands, smaller: continue more.
   // Pure decisions (frequency ~100%) are kept, so premiums never fold to a big bet.
-  if (_regime == 2 && standard_bet > 0.0 && largest > 0.0 && to_call > 0.0) {
+  if (_regime == 2 && !ev_checked && standard_bet > 0.0 && largest > 0.0 && to_call > 0.0) {
     double ratio = largest / standard_bet;
     double factor = (ratio >= 1.0) ? 1.0 / (1.0 + 0.6 * (ratio - 1.0)) : 1.0 + 0.5 * (1.0 - ratio);
     if (factor < 0.35) factor = 0.35;
@@ -396,6 +483,7 @@ void CSymbolEnginePreflopCharts::Calculate() {
   }
   // --- bet size: all-in if the raise commits a large part of the stack or is not affordable ---
   if (raise > 0.0) {
+    if (_regime == 2 && _raises >= 1 && _stack_bb <= ExploitEV::kShoveOverRaiseStack) allin = true;
     if (raiseto > 0.0) {
       // at least a minimum raise
       double minimum = (largest > 0.0) ? 2.0 * largest : 2.0 * bb;
@@ -422,9 +510,24 @@ void CSymbolEnginePreflopCharts::Calculate() {
   else if (_roll < _fold + _call) _action = 1;
   else _action = 2;
   _valid = true;
+  LogDecision(hand_class, to_call, p_engine_container->symbol_engine_chip_amounts()->pot());
   write_log(Preferences()->debug_symbolengine(),
     "[CSymbolEnginePreflopCharts] regime %d situation %d pos %d/%d stack %.1fbb fold %.2f call %.2f raise %.2f to %.2f allin %d action %d\n",
     _regime, _situation, _position, _players, _stack_bb, _fold, _call, _raise, _raiseto, _allin ? 1 : 0, _action);
+}
+
+void CSymbolEnginePreflopCharts::LogDecision(int hand_class, double to_call, double pot) {
+  const long long key = ((long long)_raises * 1000 + _situation * 100 + _regime * 10 + hand_class) * 100003LL
+                      + (long long)(to_call * 100.0);
+  if (key == _last_logged_key) return;                    // log every decision once
+  _last_logged_key = key;
+  CString line;
+  line.Format("pre,%s%s,,%d,%d,%.1f,%.2f,%.2f,%d,%d,%.3f,%.3f,%.3f,%.2f,%d,%d,%d",
+    ExploitEV::CardName(p_table_state->User()->hole_cards(0)->GetValue()).c_str(),
+    ExploitEV::CardName(p_table_state->User()->hole_cards(1)->GetValue()).c_str(),
+    _players, _position, _stack_bb, pot, to_call, _regime, _situation,
+    _fold, _call, _raise, _raiseto, _allin ? 1 : 0, _action, _stats_reliable ? 1 : 0);
+  ExploitEV::AppendDecisionLog(std::string((const char*)line));
 }
 
 // ---------------------------------------------------------------------------

@@ -71,6 +71,8 @@ class CSymbolEnginePreflopCharts: public CVirtualSymbolEngine {
   void TrackPreflopBets();
   void Calculate();
   double ReadPokerTrackerHands(int chair);
+  double ReadStat(const char *name, int chair);          // reliable PokerTracker stat as fraction, -1 if unknown
+  void   LogDecision(int hand_class, double to_call, double pot);
   int  ActionIndexOfChair(int chair);
   bool UpdateStatsReliable();
  private:
@@ -94,6 +96,9 @@ class CSymbolEnginePreflopCharts: public CVirtualSymbolEngine {
   bool   _stats_reliable;
   // stable random draw
   double _roll;
+  long long _last_logged_key;
+  long long _eq_key;          // cache of the preflop equity vs the opener's range
+  double _eq_value;
   int    _roll_key;
   unsigned long long _rng_state;
 };
