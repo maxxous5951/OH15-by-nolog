@@ -274,6 +274,8 @@ void CSymbolEnginePreflopCharts::Calculate() {
   _stats_reliable = UpdateStatsReliable();
 
   double call = 0.0, raise = 0.0, raiseto = 0.0;
+  const unsigned char* call_table = 0;   // chart of our calling range in this spot
+  double standard_bet = 0.0;     // size the chart assumes for the bet we face (chips)
   bool allin = false;
 
   if (_stack_bb <= ExploitEV::PushFoldMaxStack(players)) {
@@ -322,9 +324,11 @@ void CSymbolEnginePreflopCharts::Calculate() {
       if (to_call <= 0.0) {
         call = 1.0;
       } else if (pos > opener) {
-        call = ExploitEV::ChartFrequency(ExploitEV::ChartVsOpenCall(format, pos, opener), hand_class);
+        call_table = ExploitEV::ChartVsOpenCall(format, pos, opener);
+        call = ExploitEV::ChartFrequency(call_table, hand_class);
         raise = ExploitEV::ChartFrequency(ExploitEV::ChartVsOpen3bet(format, pos, opener), hand_class);
         if (callers > 0) call *= 0.7;                           // squeeze spot: flat less
+        standard_bet = (ExploitEV::ChartOpenSize(format, opener) + limpers) * bb;
         raiseto = (ExploitEV::ChartThreeBetSize(format, pos, opener) + callers * ExploitEV::ChartOpenSize(format, opener)) * bb;
       } else {
         PremiumResponse(hand_class, _stack_bb, &call, &raise);  // we limped and face a raise
@@ -336,9 +340,11 @@ void CSymbolEnginePreflopCharts::Calculate() {
       if (to_call <= 0.0) {
         call = 1.0;
       } else {
-        call = ExploitEV::ChartFrequency(ExploitEV::ChartVs3betCall(format, pos, three_bettor), hand_class);
+        call_table = ExploitEV::ChartVs3betCall(format, pos, three_bettor);
+        call = ExploitEV::ChartFrequency(call_table, hand_class);
         raise = ExploitEV::ChartFrequency(ExploitEV::ChartVs3bet4bet(format, pos, three_bettor), hand_class);
         raiseto = ExploitEV::ChartFourBetSize(format, pos, three_bettor) * bb;
+        standard_bet = ExploitEV::ChartThreeBetSize(format, three_bettor, pos) * bb;
       }
     } else if (_raises == 3 && _raiser_chair[2] == hero_chair) {
       _situation = 4;
@@ -346,8 +352,10 @@ void CSymbolEnginePreflopCharts::Calculate() {
       if (to_call <= 0.0) {
         call = 1.0;
       } else if (pos > four_bettor) {
-        call = ExploitEV::ChartFrequency(ExploitEV::ChartVs4betCall(format, pos, four_bettor), hand_class);
+        call_table = ExploitEV::ChartVs4betCall(format, pos, four_bettor);
+        call = ExploitEV::ChartFrequency(call_table, hand_class);
         raise = ExploitEV::ChartFrequency(ExploitEV::ChartVs4bet5bet(format, pos, four_bettor), hand_class);
+        standard_bet = ExploitEV::ChartFourBetSize(format, pos, four_bettor) * bb;
         allin = true;
       } else {
         PremiumResponse(hand_class, _stack_bb, &call, &raise);
@@ -361,6 +369,22 @@ void CSymbolEnginePreflopCharts::Calculate() {
         allin = (raise > 0.0);
       }
     }
+  }
+
+  // --- adapt to the real size of the bet we face (charts assume a standard size) ---
+  // bigger than standard: continue less with marginal hands, smaller: continue more.
+  // Pure decisions (frequency ~100%) are kept, so premiums never fold to a big bet.
+  if (_regime == 2 && standard_bet > 0.0 && largest > 0.0 && to_call > 0.0) {
+    double ratio = largest / standard_bet;
+    double factor = (ratio >= 1.0) ? 1.0 / (1.0 + 0.6 * (ratio - 1.0)) : 1.0 + 0.5 * (1.0 - ratio);
+    if (factor < 0.35) factor = 0.35;
+    if (factor > 1.4) factor = 1.4;
+    if (factor < 1.0 && call_table != 0 && call > 0.0 && raise < 0.5) {
+      // bigger bet: drop the weakest part of the calling range (keep the top 'factor' share)
+      if (ExploitEV::ChartKeepRank(call_table, hand_class) > factor) call = 0.0;
+    }
+    if (call < 0.99) call = (call * factor < 0.99) ? call * factor : 0.99;
+    if (raise < 0.99) raise = (raise * factor < 0.99) ? raise * factor : 0.99;
   }
 
   // --- normalise the frequencies ---
