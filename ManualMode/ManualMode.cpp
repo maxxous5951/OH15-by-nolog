@@ -16,6 +16,7 @@
 //
 
 #include "stdafx.h"
+#include "..\Shared\IniSettings\IniSettings.h"
 #include "ManualMode.h"
 #include "ManualModeDlg.h"
 
@@ -69,7 +70,10 @@ BOOL CManualModeApp::InitInstance()
 	// Change the registry key under which our settings are stored
 	// TODO: You should modify this string to be something appropriate
 	// such as the name of your company or organization
-	SetRegistryKey(_T("Local AppWizard-Generated Applications"));
+	// Settings (MRU list, ...) in an ini-file instead of the registry:
+	// %APPDATA%\OpenHoldem\ManualMode.ini
+	free((void*)m_pszProfileName);
+	m_pszProfileName = _strdup(OpenHoldemIni::IniFilePath("ManualMode").c_str());
 
 	/////
 	// Change class name

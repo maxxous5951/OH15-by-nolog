@@ -22,6 +22,7 @@
 #include "..\CTablemap\CTableMapAccess.h"
 #include "CAutoConnector.h"
 #include "CDisplayAffinity.h"
+#include "ModernUI/ModernTheme.h"
 #include "CFormulaParser.h"
 #include "CHeartbeatThread.h"
 #include "CIteratorThread.h"
@@ -122,6 +123,8 @@ BOOL COpenHoldemApp::InitInstance() {
   // as start_log() needs to know if the old log has to be deleted...
   free((void*)m_pszProfileName);
   m_pszProfileName = _strdup(IniFilePath().GetString());
+  // Theme mode (light / dark / system) in the ini-file, not in the registry
+  modernui::Theme::SetSettingsFile(CT2W(IniFilePath().GetString()));
   Preferences()->LoadPreferences();
 	if (!p_sessioncounter) p_sessioncounter = new CSessionCounter();
 	// Start logging immediatelly after the loading the preferences

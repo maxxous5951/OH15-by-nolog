@@ -56,6 +56,9 @@ class Theme {
   // Persisted user choice
   static ThemeMode Mode();
   static void SetMode(ThemeMode mode);          // saves + notifies
+  // Ini-file for the theme mode (section [ModernUI]). Call once at startup,
+  // before the theme is used. Without it the mode is not persisted.
+  static void SetSettingsFile(const wchar_t* ini_file_path);
   // Effective result (System is resolved to Light or Dark)
   static bool IsDark();
   static const Palette& Colors();

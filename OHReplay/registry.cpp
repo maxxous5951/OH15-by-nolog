@@ -15,8 +15,17 @@
 #include "stdafx.h"
 
 #include "registry.h"
+#include "..\Shared\IniSettings\IniSettings.h"
 #include "stdio.h"
 #include "stdlib.h"
+
+// The settings are stored in an ini-file now (%APPDATA%\OpenHoldem\OHReplay.ini)
+// instead of the registry. The class name stayed to keep the callers unchanged.
+static const char* kSection = "OHReplay";
+
+static std::string SettingsFile() {
+	return OpenHoldemIni::IniFilePath("OHReplay");
+}
 
 Registry::Registry(void) 
 {
@@ -24,46 +33,16 @@ Registry::Registry(void)
 
 void Registry::read_reg(void) 
 {
-	HKEY		hKey;
-	DWORD		dwType, cbData;
-	LONG		hkResult;
-	char		str[256];
-
-	// Defaults
-	main_x = main_y = 0;
-
-	hkResult = RegOpenKeyEx(HKEY_CURRENT_USER, "Software\\OpenHoldem\\OHReplay", 0, KEY_READ, &hKey);
-	if (hkResult==ERROR_SUCCESS) {
-
-		// Main window location
-		cbData = sizeof(str);
-		if ( (hkResult = RegQueryValueEx(hKey, "main_x", NULL, &dwType, (LPBYTE) str, &cbData)) == ERROR_SUCCESS) {
-			main_x = atoi(str);
-		}
-		cbData = sizeof(str);
-		if ( (hkResult = RegQueryValueEx(hKey, "main_y", NULL, &dwType, (LPBYTE) str, &cbData)) == ERROR_SUCCESS) {
-			main_y = atoi(str);
-		}
-	}
-
-	RegCloseKey(hKey);
+	const std::string file = SettingsFile();
+	// Main window location
+	main_x = OpenHoldemIni::ReadInt(file, kSection, "main_x", 0);
+	main_y = OpenHoldemIni::ReadInt(file, kSection, "main_y", 0);
 }
 
 void Registry::write_reg(void) 
 {
-	HKEY		hKey;
-	DWORD		dwDisp;
-	char		str[256];
-
-	//PokerTracker Settings
-	RegCreateKeyEx(HKEY_CURRENT_USER, "Software\\OpenHoldem\\OHReplay", 0, NULL, 
-	REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, &dwDisp);
-
-	// Main window location and size
-	sprintf_s(str, 256, "%d", main_x);
-	RegSetValueEx(hKey, "main_x", 0, REG_SZ, (LPBYTE) str, (DWORD) strlen(str)+1);
-	sprintf_s(str, 256, "%d", main_y);
-	RegSetValueEx(hKey, "main_y", 0, REG_SZ, (LPBYTE) str, (DWORD) strlen(str)+1);
-
-	RegCloseKey(hKey);
+	const std::string file = SettingsFile();
+	// Main window location
+	OpenHoldemIni::WriteInt(file, kSection, "main_x", main_x);
+	OpenHoldemIni::WriteInt(file, kSection, "main_y", main_y);
 }

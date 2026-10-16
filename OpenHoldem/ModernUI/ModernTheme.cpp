@@ -13,6 +13,8 @@
 
 #include "ModernTheme.h"
 #include <algorithm>
+#include <string>
+#include <wchar.h>
 
 namespace modernui {
 
@@ -27,8 +29,10 @@ std::wstring ToWide(const char* s) {
 
 namespace {
 
-const wchar_t* kRegKeyApp   = L"Software\\OpenHoldem\\ModernUI";
-const wchar_t* kRegValMode  = L"ThemeMode";
+// The theme mode is stored in an ini-file, not in the registry
+const wchar_t* kIniSection  = L"ModernUI";
+const wchar_t* kIniKeyMode  = L"ThemeMode";
+std::wstring g_ini_file;
 const wchar_t* kRegKeyWin   = L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
 const wchar_t* kRegValLight = L"AppsUseLightTheme";
 
@@ -50,24 +54,21 @@ bool SystemPrefersDark() {
 void EnsureLoaded() {
   if (g_mode_loaded) return;
   g_mode_loaded = true;
-  DWORD value = 0, size = sizeof(value);
-  if (RegGetValueW(HKEY_CURRENT_USER, kRegKeyApp, kRegValMode,
-                   RRF_RT_REG_DWORD, nullptr, &value, &size) == ERROR_SUCCESS
-      && value <= 2) {
-    g_mode = (ThemeMode)value;
+  if (!g_ini_file.empty()) {
+    const int value = (int)GetPrivateProfileIntW(kIniSection, kIniKeyMode, -1, g_ini_file.c_str());
+    if (value >= 0 && value <= 2) {
+      g_mode = (ThemeMode)value;
+    }
   }
   g_effective_dark = (g_mode == ThemeMode::Dark) ||
                      (g_mode == ThemeMode::System && SystemPrefersDark());
 }
 
 void Save() {
-  HKEY key = nullptr;
-  if (RegCreateKeyExW(HKEY_CURRENT_USER, kRegKeyApp, 0, nullptr, 0, KEY_SET_VALUE,
-                      nullptr, &key, nullptr) == ERROR_SUCCESS) {
-    DWORD value = (DWORD)g_mode;
-    RegSetValueExW(key, kRegValMode, 0, REG_DWORD, (const BYTE*)&value, sizeof(value));
-    RegCloseKey(key);
-  }
+  if (g_ini_file.empty()) return;
+  wchar_t text[16];
+  swprintf_s(text, L"%d", (int)g_mode);
+  WritePrivateProfileStringW(kIniSection, kIniKeyMode, text, g_ini_file.c_str());
 }
 
 void Broadcast() {
@@ -141,6 +142,12 @@ const Palette& Theme::LightPalette() {
 ThemeMode Theme::Mode() {
   EnsureLoaded();
   return g_mode;
+}
+
+void Theme::SetSettingsFile(const wchar_t* ini_file_path) {
+  g_ini_file = (ini_file_path != nullptr) ? ini_file_path : L"";
+  g_mode_loaded = false;      // read the mode again from the new place
+  g_mode = ThemeMode::System;
 }
 
 void Theme::SetMode(ThemeMode mode) {

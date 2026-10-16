@@ -16,9 +16,18 @@
 #include "stdafx.h"
 
 #include "registry.h"
+#include "..\Shared\IniSettings\IniSettings.h"
 #include "stdio.h"
 #include "stdlib.h"
 #include "DialogTableMap.h"
+
+// The settings are stored in an ini-file now (%APPDATA%\OpenHoldem\OpenScrape.ini)
+// instead of the registry. The class name stayed to keep the callers unchanged.
+static const char* kSection = "OpenScrape";
+
+static std::string SettingsFile() {
+	return OpenHoldemIni::IniFilePath("OpenScrape");
+}
 
 Registry::Registry(void) 
 {
@@ -26,10 +35,7 @@ Registry::Registry(void)
 
 void Registry::read_reg(void) 
 {
-	HKEY		hKey;
-	DWORD		dwType, cbData;
-	LONG		hkResult;
-	char		str[256];
+	const std::string file = SettingsFile();
 
 	// Defaults
 	tablemap_x  = 0;
@@ -42,85 +48,39 @@ void Registry::read_reg(void)
 	main_dx = 400;
 	main_dy = 300;
 
-	grhash_x = grhash_y = 0;
-	grhash_dx = 380;
-	grhash_dy = 330;
+	// No longer any need to get...   
+	//   * Main window location and size
+	//   * tablemap window location and size
+	// The defaults are fine.
 
-	region_grouping = BY_TYPE; // None
-	capture_method = kCaptureMethodOriginal;
-	block_screenshots = 0;
+	// graphical hash point window location and size
+	grhash_x  = OpenHoldemIni::ReadInt(file, kSection, "grhash_x", 0);
+	grhash_y  = OpenHoldemIni::ReadInt(file, kSection, "grhash_y", 0);
+	grhash_dx = OpenHoldemIni::ReadInt(file, kSection, "grhash_dx", 380);
+	grhash_dy = OpenHoldemIni::ReadInt(file, kSection, "grhash_dy", 330);
 
-	hkResult = RegOpenKeyEx(HKEY_CURRENT_USER, "Software\\OpenHoldem\\OpenScrape", 0, KEY_READ, &hKey);
-	if (hkResult==ERROR_SUCCESS) {
-		// No longer any need to get...   
-		//   * Main window location and size
-		//   * tablemap window location and size
-		// The defaults are fine.
-		//
-		// graphical hash point window location and size
-		cbData = sizeof(str);
-		if ( (hkResult = RegQueryValueEx(hKey, "grhash_x", NULL, &dwType, (LPBYTE) str, &cbData)) == ERROR_SUCCESS)
-			grhash_x = atoi(str);
+	// Region grouping
+	region_grouping = OpenHoldemIni::ReadInt(file, kSection, "region_grouping", BY_TYPE);
 
-		cbData = sizeof(str);
-		if ( (hkResult = RegQueryValueEx(hKey, "grhash_y", NULL, &dwType, (LPBYTE) str, &cbData)) == ERROR_SUCCESS)
-			grhash_y = atoi(str);
-
-		cbData = sizeof(str);
-		if ( (hkResult = RegQueryValueEx(hKey, "grhash_dx", NULL, &dwType, (LPBYTE) str, &cbData)) == ERROR_SUCCESS)
-			grhash_dx = atoi(str);
-
-		cbData = sizeof(str);
-		if ( (hkResult = RegQueryValueEx(hKey, "grhash_dy", NULL, &dwType, (LPBYTE) str, &cbData)) == ERROR_SUCCESS)
-			grhash_dy = atoi(str);
-
-		// Region grouping
-		cbData = sizeof(str);
-		if ( (hkResult = RegQueryValueEx(hKey, "region_grouping", NULL, &dwType, (LPBYTE) str, &cbData)) == ERROR_SUCCESS)
-			region_grouping = atoi(str);
-
-		// Window capture and screenshot-protection
-		cbData = sizeof(str);
-		if ( (hkResult = RegQueryValueEx(hKey, "capture_method", NULL, &dwType, (LPBYTE) str, &cbData)) == ERROR_SUCCESS)
-			capture_method = atoi(str);
-
-		cbData = sizeof(str);
-		if ( (hkResult = RegQueryValueEx(hKey, "block_screenshots", NULL, &dwType, (LPBYTE) str, &cbData)) == ERROR_SUCCESS)
-			block_screenshots = atoi(str);
-	}
-
-	RegCloseKey(hKey);
+	// Window capture and screenshot-protection
+	capture_method    = OpenHoldemIni::ReadInt(file, kSection, "capture_method", kCaptureMethodOriginal);
+	block_screenshots = OpenHoldemIni::ReadInt(file, kSection, "block_screenshots", 0);
 }
 
 void Registry::write_reg(void) 
 {
-	HKEY		hKey;
-	DWORD		dwDisp;
-	char		str[256];
-
-	//PokerTracker Settings
-	RegCreateKeyEx(HKEY_CURRENT_USER, "Software\\OpenHoldem\\OpenScrape", 0, NULL, 
-	REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, &dwDisp);
+	const std::string file = SettingsFile();
 
 	// graphical hash point window location and size
-	sprintf_s(str, 256, "%d", grhash_x);
-	RegSetValueEx(hKey, "grhash_x", 0, REG_SZ, (LPBYTE) str, (DWORD) strlen(str)+1);
-	sprintf_s(str, 256, "%d", grhash_y);
-	RegSetValueEx(hKey, "grhash_y", 0, REG_SZ, (LPBYTE) str, (DWORD) strlen(str)+1);
-	sprintf_s(str, 256, "%d", grhash_dx);
-	RegSetValueEx(hKey, "grhash_dx", 0, REG_SZ, (LPBYTE) str, (DWORD) strlen(str)+1);
-	sprintf_s(str, 256, "%d", grhash_dy);
-	RegSetValueEx(hKey, "grhash_dy", 0, REG_SZ, (LPBYTE) str, (DWORD) strlen(str)+1);
+	OpenHoldemIni::WriteInt(file, kSection, "grhash_x", grhash_x);
+	OpenHoldemIni::WriteInt(file, kSection, "grhash_y", grhash_y);
+	OpenHoldemIni::WriteInt(file, kSection, "grhash_dx", grhash_dx);
+	OpenHoldemIni::WriteInt(file, kSection, "grhash_dy", grhash_dy);
 
 	// Region grouping
-	sprintf_s(str, 256, "%d", region_grouping);
-	RegSetValueEx(hKey, "region_grouping", 0, REG_SZ, (LPBYTE) str, (DWORD) strlen(str)+1);
+	OpenHoldemIni::WriteInt(file, kSection, "region_grouping", region_grouping);
 
 	// Window capture and screenshot-protection
-	sprintf_s(str, 256, "%d", capture_method);
-	RegSetValueEx(hKey, "capture_method", 0, REG_SZ, (LPBYTE) str, (DWORD) strlen(str)+1);
-	sprintf_s(str, 256, "%d", block_screenshots);
-	RegSetValueEx(hKey, "block_screenshots", 0, REG_SZ, (LPBYTE) str, (DWORD) strlen(str)+1);
-
-	RegCloseKey(hKey);
+	OpenHoldemIni::WriteInt(file, kSection, "capture_method", capture_method);
+	OpenHoldemIni::WriteInt(file, kSection, "block_screenshots", block_screenshots);
 }

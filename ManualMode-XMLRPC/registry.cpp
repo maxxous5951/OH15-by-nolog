@@ -2,11 +2,19 @@
 #include "stdafx.h"
 
 #include "registry.h"
+#include "..\Shared\IniSettings\IniSettings.h"
 #include "stdio.h"
 #include "stdlib.h"
 #include "debug.h"
 
-#define MM_SUBKEY  "Software\\OpenHoldem\\ManualMode"
+
+// The settings are stored in an ini-file now (%APPDATA%\OpenHoldem\ManualMode.ini)
+// instead of the registry. The class name stayed to keep the callers unchanged.
+static const char* kSection = "ManualMode";
+
+static std::string SettingsFile() {
+	return OpenHoldemIni::IniFilePath("ManualMode");
+}
 
 Registry::Registry(void) 
 {
@@ -14,71 +22,21 @@ Registry::Registry(void)
 
 void Registry::read_reg(void) 
 {
-	HKEY		hKey;
-	DWORD		dwType, cbData;
-	LONG		hkResult;
-	char		str[256];
-
-	// Defaults
-	manual_x = manual_y = 0;
-	macro = "RPPPPPPPPPPbB";
-	unobstructivePopup = true;
-
-	// Manual Mode Settings
-	hkResult = RegOpenKeyEx(HKEY_CURRENT_USER, MM_SUBKEY, 0, KEY_READ, &hKey);
-	if (hkResult==ERROR_SUCCESS) {
-
-		// Window location
-		cbData = sizeof(str);
-		if ( (hkResult = RegQueryValueEx(hKey, "manual_x", NULL, &dwType, (LPBYTE) str, &cbData)) == ERROR_SUCCESS) {
-			manual_x = atoi(str);
-		}
-
-		cbData = sizeof(str);
-		if ( (hkResult = RegQueryValueEx(hKey, "manual_y", NULL, &dwType, (LPBYTE) str, &cbData)) == ERROR_SUCCESS) {
-			manual_y = atoi(str);
-		}
-
-		// Macro
-		cbData = sizeof(str);
-		if ( (hkResult = RegQueryValueEx(hKey, "macro", NULL, &dwType, (LPBYTE) str, &cbData)) == ERROR_SUCCESS) {
-			macro = str;
-		}
-
-		// Popup location
-		cbData = sizeof(str);
-		if ( (hkResult = RegQueryValueEx(hKey, "unobstructivePopup", NULL, &dwType, (LPBYTE) str, &cbData)) == ERROR_SUCCESS) {
-			unobstructivePopup = atoi(str) != 0;
-		}
-	}
-
-	RegCloseKey(hKey);
+	const std::string file = SettingsFile();
+	// Window location
+	manual_x = OpenHoldemIni::ReadInt(file, kSection, "manual_x", 0);
+	manual_y = OpenHoldemIni::ReadInt(file, kSection, "manual_y", 0);
+	// Last used macro
+	macro = OpenHoldemIni::ReadString(file, kSection, "macro", "RPPPPPPPPPPbB").c_str();
+	// Popup location
+	unobstructivePopup = (OpenHoldemIni::ReadInt(file, kSection, "unobstructivePopup", 1) != 0);
 }
 
 void Registry::write_reg(void) 
 {
-	HKEY		hKey;
-	DWORD		dwDisp;
-	char		str[256];
-
-	// Settings
-	RegCreateKeyEx(HKEY_CURRENT_USER, MM_SUBKEY, 0, NULL, 
-	REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, &dwDisp);
-
-	// Window location and size
-	sprintf_s(str, 256, "%d", manual_x);
-	RegSetValueEx(hKey, "manual_x", 0, REG_SZ, (LPBYTE) str, (DWORD) strlen(str)+1);
-
-	sprintf_s(str, 256, "%d", manual_y);
-	RegSetValueEx(hKey, "manual_y", 0, REG_SZ, (LPBYTE) str, (DWORD) strlen(str)+1);
-
-	// Macro
-	sprintf_s(str, 256, "%s", macro.GetString());
-	RegSetValueEx(hKey, "macro", 0, REG_SZ, (LPBYTE) str, (DWORD) strlen(str)+1);
-
-	// Popup location
-	sprintf_s(str, 256, "%d", unobstructivePopup);
-	RegSetValueEx(hKey, "unobstructivePopup", 0, REG_SZ, (LPBYTE) str, (DWORD) strlen(str)+1);
-
-	RegCloseKey(hKey);
+	const std::string file = SettingsFile();
+	OpenHoldemIni::WriteInt(file, kSection, "manual_x", manual_x);
+	OpenHoldemIni::WriteInt(file, kSection, "manual_y", manual_y);
+	OpenHoldemIni::WriteString(file, kSection, "macro", macro.GetString());
+	OpenHoldemIni::WriteInt(file, kSection, "unobstructivePopup", unobstructivePopup ? 1 : 0);
 }

@@ -14,10 +14,18 @@
 #include "stdafx.h"
 
 #include "registry.h"
+#include "..\Shared\IniSettings\IniSettings.h"
 #include "stdio.h"
 #include "stdlib.h"
 
-#define MM_SUBKEY  "Software\\OpenHoldem\\ManualMode"
+
+// The settings are stored in an ini-file now (%APPDATA%\OpenHoldem\ManualMode.ini)
+// instead of the registry. The class name stayed to keep the callers unchanged.
+static const char* kSection = "ManualMode";
+
+static std::string SettingsFile() {
+	return OpenHoldemIni::IniFilePath("ManualMode");
+}
 
 Registry::Registry(void) 
 {
@@ -25,38 +33,11 @@ Registry::Registry(void)
 
 void Registry::read_reg(void) 
 {
-	HKEY		hKey;
-	DWORD		dwType, cbData;
-	LONG		hkResult;
-	char		str[256];
-
-	// Defaults
-	macro = "RNbBPpPAdKsP";
-
-	// Manual Mode Settings
-	hkResult = RegOpenKeyEx(HKEY_CURRENT_USER, MM_SUBKEY, 0, KEY_READ, &hKey);
-	if (hkResult==ERROR_SUCCESS) {
-    // Macro
-		cbData = sizeof(str);
-		if ( (hkResult = RegQueryValueEx(hKey, "macro", NULL, &dwType, (LPBYTE) str, &cbData)) == ERROR_SUCCESS) {
-			macro = str;
-		}
-	}
-
-	RegCloseKey(hKey);
+	// Last used macro
+	macro = OpenHoldemIni::ReadString(SettingsFile(), kSection, "macro", "RNbBPpPAdKsP").c_str();
 }
 
 void Registry::write_reg(void) 
 {
-	HKEY		hKey;
-	DWORD		dwDisp;
-	char		str[256];
-
-	// Settings
-	RegCreateKeyEx(HKEY_CURRENT_USER, MM_SUBKEY, 0, NULL, 
-	REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &hKey, &dwDisp);
-	// Macro
-	sprintf_s(str, 256, "%s", macro.GetString());
-	RegSetValueEx(hKey, "macro", 0, REG_SZ, (LPBYTE) str, (DWORD) strlen(str)+1);
-	RegCloseKey(hKey);
+	OpenHoldemIni::WriteString(SettingsFile(), kSection, "macro", macro.GetString());
 }

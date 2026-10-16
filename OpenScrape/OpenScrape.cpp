@@ -15,6 +15,7 @@
 //
 
 #include "stdafx.h"
+#include "..\Shared\IniSettings\IniSettings.h"
 #include <psapi.h>
 
 #include "OpenScrape.h"
@@ -109,7 +110,10 @@ BOOL COpenScrapeApp::InitInstance()
 	// of your final executable, you should remove from the following
 	// the specific initialization routines you do not need
 	// Change the registry key under which our settings are stored
-	SetRegistryKey(_T("OpenScrape"));
+	// Settings (MRU list, ...) in an ini-file instead of the registry:
+	// %APPDATA%\OpenHoldem\OpenScrape.ini
+	free((void*)m_pszProfileName);
+	m_pszProfileName = _strdup(OpenHoldemIni::IniFilePath("OpenScrape").c_str());
 	LoadStdProfileSettings(4);  // Load standard INI file options (including MRU)
 	// Register the application's document templates.  Document templates
 	//  serve as the connection between documents, frame windows and views
