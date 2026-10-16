@@ -338,8 +338,7 @@ void CDlgBatchFonts::ShowGlyph(bool only_redraw) {
 	const int columns = std::min(glyph.font.x_count, (int)MAX_SINGLE_CHAR_WIDTH);
 
 	CString text;
-	text.Format("Character %d of %d  -  font group t%d  -  seen %d time(s)
-Example: %s, region %s",
+	text.Format("Character %d of %d  -  font group t%d  -  seen %d time(s)\r\nExample: %s, region %s",
 		_current + 1, (int)glyphs.size(), glyph.group, glyph.occurrences,
 		glyph.example_file.GetString(), glyph.example_region.GetString());
 	_info.SetWindowText(text);
@@ -366,8 +365,7 @@ Example: %s, region %s",
 			if (_cut > 0 && x == _cut) grid.Append("|");
 			grid.Append(pixel[x][bit] ? "X" : " ");
 		}
-		grid.Append("
-");
+		grid.Append("\r\n");
 	}
 	_pixels.SetWindowText(grid);
 
