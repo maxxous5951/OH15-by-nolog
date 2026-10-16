@@ -22,6 +22,7 @@
 #include "stdafx.h"
 #include "MainFrm.h"
 
+#include "BatchFonts.h"
 #include "CRegionCloner.h"
 #include "DialogCopyRegion.h"
 #include "DialogSelectTable.h"
@@ -57,6 +58,7 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_COMMAND(ID_TOOLS_CLONEREGIONS, &CMainFrame::OnToolsCloneRegions)
 
 	ON_COMMAND(ID_EDIT_UPDATEHASHES, &CMainFrame::OnEditUpdatehashes)
+	ON_COMMAND(ID_EDIT_BATCHFONTS, &CMainFrame::OnEditBatchFonts)
 	ON_WM_TIMER()
 	ON_UPDATE_COMMAND_UI(ID_VIEW_CURRENTWINDOWSIZE, &CMainFrame::OnUpdateViewCurrentwindowsize)
 	ON_COMMAND(ID_EDIT_DUPLICATEREGION, &CMainFrame::OnEditDuplicateregion)
@@ -285,6 +287,12 @@ void CMainFrame::OnViewConnecttowindow()
 		}
 	}
 	ForceRedraw();
+}
+
+// Batch: scan a folder of bmp files and name all unknown characters at once
+void CMainFrame::OnEditBatchFonts()
+{
+	CBatchFonts::Run(this);
 }
 
 void CMainFrame::OnEditUpdatehashes()

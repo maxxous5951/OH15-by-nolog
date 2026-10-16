@@ -146,13 +146,23 @@
 #define ID_VIEW_BLOCKSCREENSHOTS        32795
 #define IDC_LABEL                       65535
 
+#define IDD_BATCH_FONTS                 153
+#define IDC_BATCH_INFO                  1115
+#define IDC_BATCH_PIXELS                1116
+#define IDC_BATCH_CHAR                  1117
+#define IDC_BATCH_SKIP                  1118
+#define IDC_BATCH_BACK                  1119
+#define IDC_BATCH_FINISH                1120
+#define IDC_BATCH_PROGRESS              1121
+#define ID_EDIT_BATCHFONTS              32796
+
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        153
-#define _APS_NEXT_COMMAND_VALUE         32796
-#define _APS_NEXT_CONTROL_VALUE         1115
+#define _APS_NEXT_RESOURCE_VALUE        154
+#define _APS_NEXT_COMMAND_VALUE         32797
+#define _APS_NEXT_CONTROL_VALUE         1122
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

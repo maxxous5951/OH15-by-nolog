@@ -175,6 +175,7 @@
     </ClCompile>
     <ClCompile Include="DialogCopyRegion.cpp" />
     <ClCompile Include="DialogEdit.cpp" />
+    <ClCompile Include="BatchFonts.cpp" />
     <ClCompile Include="DialogEditFont.cpp" />
     <ClCompile Include="DialogEditGrHashPoints.cpp" />
     <ClCompile Include="DialogEditHashPoint.cpp" />
@@ -225,6 +226,7 @@
     <ClInclude Include="CRegionCloner.h" />
     <ClInclude Include="DialogCopyRegion.h" />
     <ClInclude Include="DialogEdit.h" />
+    <ClInclude Include="BatchFonts.h" />
     <ClInclude Include="DialogEditFont.h" />
     <ClInclude Include="DialogEditGrHashPoints.h" />
     <ClInclude Include="DialogEditHashPoint.h" />

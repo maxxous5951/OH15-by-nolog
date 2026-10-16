@@ -45,6 +45,9 @@
     <ClCompile Include="DialogEdit.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="BatchFonts.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="DialogEditFont.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -156,6 +159,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="DialogEdit.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="BatchFonts.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="DialogEditFont.h">
