@@ -264,6 +264,9 @@
     <ClCompile Include="CSymbolEngineICM.cpp" />
     <ClCompile Include="CSymbolEngineExploitEV.cpp" />
     <ClCompile Include="CSymbolEnginePreflopCharts.cpp" />
+    <ClCompile Include="..\ExploitEV\AutoTune.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="..\ExploitEV\BoardTexture.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
@@ -569,6 +572,7 @@
     <ClInclude Include="CSymbolEngineICM.h" />
     <ClInclude Include="CSymbolEngineExploitEV.h" />
     <ClInclude Include="CSymbolEnginePreflopCharts.h" />
+    <ClInclude Include="..\ExploitEV\AutoTune.h" />
     <ClInclude Include="..\ExploitEV\BoardTexture.h" />
     <ClInclude Include="..\ExploitEV\DecisionLog.h" />
     <ClInclude Include="..\ExploitEV\PreflopAdjust.h" />

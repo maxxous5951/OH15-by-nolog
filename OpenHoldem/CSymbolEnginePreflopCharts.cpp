@@ -29,6 +29,7 @@
 #include "CSymbolEngineUserchair.h"
 #include "CTableState.h"
 #include "..\CTablemap\CTablemap.h"
+#include "..\ExploitEV\AutoTune.h"
 #include "..\ExploitEV\DecisionLog.h"
 #include "..\ExploitEV\PreflopAdjust.h"
 #include "..\ExploitEV\PreflopCharts.h"
@@ -112,7 +113,19 @@ void CSymbolEnginePreflopCharts::FinishHandLog() {
 
 void CSymbolEnginePreflopCharts::UpdateOnHandreset() {
   FinishHandLog();
-  ExploitEV::LoadTuning("ExploitEV.cfg");   // picks up changes (e.g. from tools/tune.py) every hand
+  // automatic tuning every N hands (the result of the previous hand is already in the log)
+  {
+    static int hands_since_tuning = 0;
+    const ExploitEV::Tuning& tuning = ExploitEV::GlobalTuning();
+    if (tuning.tune_every_hands > 0.0 && ++hands_since_tuning >= (int)tuning.tune_every_hands) {
+      hands_since_tuning = 0;
+      std::string report;
+      ExploitEV::AutoTune("ExploitEV_decisions.csv", "ExploitEV.cfg", "ExploitEV_tuning_state.txt",
+                          (int)tuning.tune_min_hands, &report);
+      write_log(Preferences()->debug_symbolengine(), "[CSymbolEnginePreflopCharts] auto-tuning: %s\n", report.c_str());
+    }
+  }
+  ExploitEV::LoadTuning("ExploitEV.cfg");   // picks up changes (auto-tuning or manual edits) every hand
   {
     static long long counter = 0;
     _hand_id = (long long)time(NULL) * 100 + (counter++ % 100);
