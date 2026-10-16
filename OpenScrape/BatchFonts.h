@@ -69,15 +69,19 @@ protected:
 	afx_msg void OnBnClickedSkip();
 	afx_msg void OnBnClickedBack();
 	afx_msg void OnBnClickedFinish();
+	afx_msg void OnBnClickedSplit();
 	afx_msg void OnDrawItem(int control_id, LPDRAWITEMSTRUCT draw_item);
 	DECLARE_MESSAGE_MAP()
 
 private:
-	void ShowGlyph();
+	void ShowGlyph(bool only_redraw = false);
+	void MoveCut(int delta);
+	void SplitAtCut();
 	void NextGlyph();
 	bool ConfirmFinish();
 
 	int			_current;
+	int			_cut;		// 0 = none, otherwise the number of columns left of the cut
 	CEdit		_character;
 	CEdit		_pixels;
 	CStatic		_info;

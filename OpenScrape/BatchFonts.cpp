@@ -161,6 +161,45 @@ bool MoreFrequent(const SBatchGlyph &a, const SBatchGlyph &b) {
 	return a.font.hexmash < b.font.hexmash;
 }
 
+// One part of a glyph that consists of several touching characters:
+// the columns first..last (inclusive) of "whole", with the same rules as the
+// text recognition uses (no empty columns at the edges, lowest pixel row = bit 0).
+bool MakeGlyphPart(const SBatchGlyph &whole, int first, int last, SBatchGlyph *part) {
+	const int count = std::min(whole.font.x_count, (int)MAX_SINGLE_CHAR_WIDTH);
+	first = std::max(first, 0);
+	last = std::min(last, count - 1);
+	while (first <= last && whole.font.x[first] == 0) first++;
+	while (last >= first && whole.font.x[last] == 0) last--;
+	if (first > last) return false;
+
+	unsigned int all_pixels = 0;
+	for (int i = first; i <= last; ++i) all_pixels |= whole.font.x[i];
+	if (all_pixels == 0) return false;
+	int lowest = 0, highest = 31;
+	while (((all_pixels >> lowest) & 1u) == 0) lowest++;
+	while (((all_pixels >> highest) & 1u) == 0) highest--;
+
+	*part = whole;
+	part->font.x_count = last - first + 1;
+	part->font.hexmash = "";
+	for (int i = first; i <= last; ++i) {
+		const unsigned int value = whole.font.x[i] >> lowest;	// bottom of this part = bit 0
+		part->font.x[i - first] = value;
+		CString hex;
+		hex.Format("%x", value);
+		part->font.hexmash += hex;
+	}
+	part->font.ch = '?';
+	part->assigned = false;
+	part->skipped = false;
+	// Position inside the region (bit b is the row box.bottom - b)
+	part->box.left = whole.box.left + first;
+	part->box.right = whole.box.left + last;
+	part->box.top = whole.box.bottom - highest;
+	part->box.bottom = whole.box.bottom - lowest;
+	return true;
+}
+
 }  // namespace
 
 int CBatchFonts::ScanFolder(const CString &folder, std::vector<SBatchGlyph> *glyphs,
@@ -248,7 +287,7 @@ void CBatchFonts::Run(CWnd *parent) {
 IMPLEMENT_DYNAMIC(CDlgBatchFonts, CDialog)
 
 CDlgBatchFonts::CDlgBatchFonts(CWnd *parent)
-	: CDialog(CDlgBatchFonts::IDD, parent), image_count(0), _current(0) {
+	: CDialog(CDlgBatchFonts::IDD, parent), image_count(0), _current(0), _cut(0) {
 }
 
 CDlgBatchFonts::~CDlgBatchFonts() {
@@ -267,6 +306,7 @@ BEGIN_MESSAGE_MAP(CDlgBatchFonts, CDialog)
 	ON_BN_CLICKED(IDC_BATCH_SKIP, &CDlgBatchFonts::OnBnClickedSkip)
 	ON_BN_CLICKED(IDC_BATCH_BACK, &CDlgBatchFonts::OnBnClickedBack)
 	ON_BN_CLICKED(IDC_BATCH_FINISH, &CDlgBatchFonts::OnBnClickedFinish)
+	ON_BN_CLICKED(IDC_BATCH_SPLIT, &CDlgBatchFonts::OnBnClickedSplit)
 END_MESSAGE_MAP()
 
 int CDlgBatchFonts::AssignedCount() const {
@@ -285,17 +325,21 @@ BOOL CDlgBatchFonts::OnInitDialog() {
 	_fixed_font.CreateFontIndirect(&lf);
 	_pixels.SetFont(&_fixed_font);
 	_character.SetLimitText(1);
+	SetDlgItemText(IDC_BATCH_HINT, "Characters glued together?\r\nLeft/Right = cut, Down = split");
 	_current = 0;
 	ShowGlyph();
 	return FALSE;	// we set the focus ourselves
 }
 
-void CDlgBatchFonts::ShowGlyph() {
+void CDlgBatchFonts::ShowGlyph(bool only_redraw) {
 	if (_current < 0 || _current >= (int)glyphs.size()) return;
 	const SBatchGlyph &glyph = glyphs[_current];
+	if (!only_redraw) _cut = 0;
+	const int columns = std::min(glyph.font.x_count, (int)MAX_SINGLE_CHAR_WIDTH);
 
 	CString text;
-	text.Format("Character %d of %d  -  font group t%d  -  seen %d time(s)\r\nExample: %s, region %s",
+	text.Format("Character %d of %d  -  font group t%d  -  seen %d time(s)
+Example: %s, region %s",
 		_current + 1, (int)glyphs.size(), glyph.group, glyph.occurrences,
 		glyph.example_file.GetString(), glyph.example_region.GetString());
 	_info.SetWindowText(text);
@@ -306,10 +350,11 @@ void CDlgBatchFonts::ShowGlyph() {
 		AssignedCount(), skipped, (int)glyphs.size() - AssignedCount() - skipped, image_count);
 	_progress.SetWindowText(text);
 
-	// The pixels, same style as in the font editor: highest set pixel first
+	// The pixels, same style as in the font editor: highest set pixel first.
+	// A "|" shows where the glyph would be cut in two.
 	bool pixel[MAX_SINGLE_CHAR_WIDTH][32] = { false };
 	int top = -1;
-	for (int x = 0; x < glyph.font.x_count && x < MAX_SINGLE_CHAR_WIDTH; ++x) {
+	for (int x = 0; x < columns; ++x) {
 		for (int bit = 0; bit < 32; ++bit) {
 			pixel[x][bit] = (glyph.font.x[x] & (1u << bit)) != 0;
 			if (pixel[x][bit] && bit > top) top = bit;
@@ -317,21 +362,88 @@ void CDlgBatchFonts::ShowGlyph() {
 	}
 	CString grid;
 	for (int bit = top; bit >= 0; --bit) {
-		for (int x = 0; x < glyph.font.x_count && x < MAX_SINGLE_CHAR_WIDTH; ++x) {
+		for (int x = 0; x < columns; ++x) {
+			if (_cut > 0 && x == _cut) grid.Append("|");
 			grid.Append(pixel[x][bit] ? "X" : " ");
 		}
-		grid.Append("\r\n");
+		grid.Append("
+");
 	}
 	_pixels.SetWindowText(grid);
+
+	GetDlgItem(IDC_BATCH_BACK)->EnableWindow(_current > 0);
+	GetDlgItem(IDC_BATCH_SPLIT)->EnableWindow(columns >= 2);
+	GetDlgItem(IDC_BATCH_IMAGE)->Invalidate();
+	_character.SetFocus();		// so that the arrow keys and Space keep working
+	if (only_redraw) return;
 
 	// Prefill when coming back to an already typed character
 	CString typed = "";
 	if (glyph.assigned) typed.Format("%c", glyph.font.ch);
 	_character.SetWindowText(typed);
-	_character.SetFocus();
 	_character.SetSel(0, -1);
-	GetDlgItem(IDC_BATCH_BACK)->EnableWindow(_current > 0);
-	GetDlgItem(IDC_BATCH_IMAGE)->Invalidate();
+}
+
+// Touching characters come as one single glyph. Left/Right move the cut,
+// Down (or the Split button) cuts it into two glyphs.
+void CDlgBatchFonts::MoveCut(int delta) {
+	if (_current < 0 || _current >= (int)glyphs.size()) return;
+	const int columns = std::min(glyphs[_current].font.x_count, (int)MAX_SINGLE_CHAR_WIDTH);
+	if (columns < 2) return;
+	if (_cut == 0) _cut = columns / 2;		// first press: start in the middle
+	else _cut += delta;
+	_cut = std::max(1, std::min(columns - 1, _cut));
+	ShowGlyph(true);
+}
+
+void CDlgBatchFonts::SplitAtCut() {
+	if (_current < 0 || _current >= (int)glyphs.size()) return;
+	const SBatchGlyph whole = glyphs[_current];
+	const int columns = std::min(whole.font.x_count, (int)MAX_SINGLE_CHAR_WIDTH);
+	if (columns < 2) return;
+	if (_cut == 0) {		// show where it would be cut first
+		MoveCut(0);
+		return;
+	}
+	SBatchGlyph parts[2];
+	bool have_part[2];
+	have_part[0] = MakeGlyphPart(whole, 0, _cut - 1, &parts[0]);
+	have_part[1] = MakeGlyphPart(whole, _cut, columns - 1, &parts[1]);
+	if (!have_part[0] && !have_part[1]) {
+		MessageBox("Nothing to split here.", "Batch fonts", MB_OK | MB_ICONINFORMATION);
+		return;
+	}
+
+	// The glyph is replaced by its parts. A part that is already in the font
+	// is dropped, a part that is already in the list only adds its occurrences.
+	glyphs.erase(glyphs.begin() + _current);
+	int insert_at = _current;
+	for (int i = 0; i < 2; ++i) {
+		if (!have_part[i]) continue;
+		SBatchGlyph &part = parts[i];
+		if (p_tablemap->t$(part.group)->find(part.font.hexmash) != p_tablemap->t$(part.group)->end()) continue;
+		bool merged = false;
+		for (size_t j = 0; j < glyphs.size(); ++j) {
+			if (glyphs[j].group == part.group && glyphs[j].font.hexmash == part.font.hexmash) {
+				glyphs[j].occurrences += part.occurrences;
+				merged = true;
+				break;
+			}
+		}
+		if (!merged) glyphs.insert(glyphs.begin() + insert_at++, part);
+	}
+
+	if (glyphs.empty()) {
+		MessageBox("No unknown characters left.", "Batch fonts", MB_OK | MB_ICONINFORMATION);
+		EndDialog(IDCANCEL);
+		return;
+	}
+	_current = std::min(_current, (int)glyphs.size() - 1);
+	ShowGlyph();
+}
+
+void CDlgBatchFonts::OnBnClickedSplit() {
+	SplitAtCut();
 }
 
 bool CDlgBatchFonts::ConfirmFinish() {
@@ -371,6 +483,18 @@ void CDlgBatchFonts::OnOK() {
 // keyboard only: type a character + Enter, or Space if it can't be identified.
 // (Space is never a character of a font, it is background.)
 BOOL CDlgBatchFonts::PreTranslateMessage(MSG *msg) {
+	if (msg->message == WM_KEYDOWN
+		&& (msg->wParam == VK_LEFT || msg->wParam == VK_RIGHT || msg->wParam == VK_DOWN)) {
+		CWnd *focus = GetFocus();
+		if (focus != NULL && (focus->GetSafeHwnd() == _character.GetSafeHwnd()
+			|| focus->GetSafeHwnd() == _pixels.GetSafeHwnd()
+			|| focus->GetSafeHwnd() == GetSafeHwnd())) {
+			if (msg->wParam == VK_LEFT) MoveCut(-1);
+			else if (msg->wParam == VK_RIGHT) MoveCut(+1);
+			else if ((msg->lParam & 0x40000000) == 0) SplitAtCut();	// no auto-repeat
+			return TRUE;
+		}
+	}
 	if (msg->message == WM_KEYDOWN && msg->wParam == VK_SPACE) {
 		CWnd *focus = GetFocus();
 		if (focus != NULL && (focus->GetSafeHwnd() == _character.GetSafeHwnd()
@@ -447,6 +571,16 @@ void CDlgBatchFonts::OnDrawItem(int control_id, LPDRAWITEMSTRUCT draw_item) {
 		y0 + (int)((glyph.box.bottom + 1) * scale) + 2);
 	dc->SelectObject(old_brush);
 	dc->SelectObject(old_pen);
+
+	// Yellow line: where the glyph would be cut
+	if (_cut > 0) {
+		CPen cut_pen(PS_SOLID, 2, RGB(255, 220, 0));
+		old_pen = dc->SelectObject(&cut_pen);
+		const int x = x0 + (int)((glyph.box.left + _cut) * scale);
+		dc->MoveTo(x, y0 + (int)(glyph.box.top * scale) - 4);
+		dc->LineTo(x, y0 + (int)((glyph.box.bottom + 1) * scale) + 4);
+		dc->SelectObject(old_pen);
+	}
 }
 
 void CDlgBatchFonts::OnCancel() {
