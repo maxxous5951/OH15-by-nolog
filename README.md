@@ -57,33 +57,12 @@ site you play on.
 - Analysis tools: profit/loss per formula line (scripts) and a Qt6 GUI for the statistics.
 - Hand-history replay tests in `RegressionTests`.
 
-### OpenPPL and profiles
-- Direct loading of **Shanky PPL** profiles, converted to OpenPPL on the fly.
-- Weighted prwin (`f$prwin_willplay`, `f$prwin_wontplay`, `f$prwin_mustplay`, `f$prwin_topclip`).
-- OpenPPL memory is updated after every action, `vs$multiplex` support, and fixes for profiles with custom
-  functions (Gecko, DefaultBot).
 
-### Simulation
-- **SpinGoSimulator** for testing profiles in Spin & Go: simulation of the PokerTracker `pt_*` symbols,
-  persistent statistics database and a `diagnostics.log`.
-- Cash-game mode for 2 to 9 players with fixed blinds and 2.5 to 10 % rake including No Flop No Drop.
 
 ### OCR
 - Bundled OCR libraries (Tesseract, Leptonica, OpenCV) and `tessdata`, as a base for OCR-based table reading.
 
----
 
-## Repository layout
-
-| Folder | Content |
-| --- | --- |
-| `OpenHoldem/` | The main application, including `ModernUI/` and the preferences dialog |
-| `Reference Mouse DLL/` | `mouse.dll` (fast and human mouse) |
-| `DLLs/Preferences_DLL/` | Preferences keys, names and defaults |
-| `OpenPPL/` | OpenPPL library, manual and converters |
-| `SpinGoSimulator/` | Spin & Go / cash-game simulator |
-| `RegressionTests/` | Regression tests and tools (e.g. hand-history replay) |
-| `##_OpenHoldem_Release_Directory_##/` | Files that ship with a release (documents, tablemaps, ...) |
 
 ## Building
 
@@ -104,7 +83,3 @@ site you play on.
 | If you move the mouse | Wait until it rests, give up after a timeout |
 | After an action | Leave the mouse, go back to the neighbourhood, or go back exactly. Needs *Restore mouse position and window focus* on the Autoplayer page |
 
-## Credits
-
-OpenHoldem was created by Matthew Bullock and Michael Kinton and is maintained by the OpenHoldem community.
-This fork adds the features listed above. Thanks to everyone who contributed to the original project.
