@@ -51,6 +51,7 @@ void CSymbolEngineUserDLL::UpdateOnConnection() {
 void CSymbolEngineUserDLL::UpdateOnHandreset() {
   DLLUpdateOnHandreset();
   previous_sum_betround_action = -1;
+  _results_this_orbit.clear();
   write_log(Preferences()->debug_symbolengine(),
       "[CSymbolEngineUserDLL] Mandatory symbols reset on Hand Reset : %i \n", previous_sum_betround_action);
 }
@@ -58,6 +59,7 @@ void CSymbolEngineUserDLL::UpdateOnHandreset() {
 void CSymbolEngineUserDLL::UpdateOnNewRound() {
   DLLUpdateOnNewRound();
   previous_sum_betround_action = -1;
+  _results_this_orbit.clear();
   write_log(Preferences()->debug_symbolengine(),
       "[CSymbolEngineUserDLL] Mandatory symbols reset on New Round : %i \n", previous_sum_betround_action);
 }
@@ -89,25 +91,25 @@ bool CSymbolEngineUserDLL::EvaluateSymbol(const CString name, double* result, bo
         // Symbol of a different symbol-engine
         return false;
     }
-    if (previous_sum_betround_action >= 0 && previous_sum_betround_action == sum_betround_action()) {
-        // Return previously calculated result
-        *result = previous_result;
-        write_log(Preferences()->debug_symbolengine(),
-            "[CSymbolEngineUserDLL] Detected multiple call to ProcessQuery for user.dll evaluation in the same orbit - Number of Autoplayer Actions - actual: %i -- previous: %i \n", sum_betround_action(), previous_sum_betround_action);
-        write_log(Preferences()->debug_symbolengine(),
-            "[CSymbolEngineUserDLL] Returning stored usr.dll results : %lf \n", previous_result);
+    const int actions = sum_betround_action();
+    if (previous_sum_betround_action != actions) {
+        // new orbit (the autoplayer acted): forget old results
+        _results_this_orbit.clear();
+        previous_sum_betround_action = actions;
+    }
+    std::string key((const char*)name);
+    std::map<std::string, double>::const_iterator found = _results_this_orbit.find(key);
+    if (found != _results_this_orbit.end()) {
+        // Return previously calculated result of this very symbol
+        *result = found->second;
         return true;
     }
-    else {
-        // Calculate new result and update previous_sum_betround_action and previous_result
-        previous_sum_betround_action = sum_betround_action();
-        previous_result = ProcessQuery(name);
-        *result = previous_result;
-        write_log(Preferences()->debug_symbolengine(),
-            "[CSymbolEngineUserDLL] User.dll evaluation symbol returned true -- Calculated user.dll value : %lf -- Number of Autoplayer Actions - actual: %i -- previous: %i \n", *result, sum_betround_action(), previous_sum_betround_action);
-
-        return true;
-    }
+    previous_result = ProcessQuery(name);
+    _results_this_orbit[key] = previous_result;
+    *result = previous_result;
+    write_log(Preferences()->debug_symbolengine(),
+        "[CSymbolEngineUserDLL] User.dll evaluation of %s returned %lf -- Number of Autoplayer Actions: %i \n", name.GetString(), *result, actions);
+    return true;
 }
 
 CString CSymbolEngineUserDLL::SymbolsProvided() {

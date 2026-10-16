@@ -12,6 +12,8 @@
 //
 //*******************************************************************************
 
+#include <map>
+#include <string>
 #include "CVirtualSymbolEngine.h"
 
 class CSymbolEngineUserDLL : public CVirtualSymbolEngine {
@@ -33,5 +35,7 @@ class CSymbolEngineUserDLL : public CVirtualSymbolEngine {
 	CString SymbolsProvided();;
 private:
 	double previous_result = 0.0;
+	// results per dll$-symbol: several different dll$-queries per orbit must not share one value
+	std::map<std::string, double> _results_this_orbit;
 	int previous_sum_betround_action = -1;
 };
