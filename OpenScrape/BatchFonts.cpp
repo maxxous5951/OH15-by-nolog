@@ -14,6 +14,8 @@
 #include "stdafx.h"
 #include <afxdlgs.h>
 #include <algorithm>
+#include <math.h>
+#include <memory>
 #include <map>
 #include <string>
 #include <utility>
@@ -43,6 +45,7 @@ bool IsTextRegion(const CString &transform, int *group) {
 // Same separation of the characters as "Create Font" does for a single region,
 // but the unknown characters are only collected, not asked for.
 void CollectUnknownGlyphs(RMapCI region, const CString &file_name, int group, int width, int height,
+	const std::shared_ptr<HBITMAP__> &region_image,
 	const bool background[], const bool (*character)[MAX_CHAR_HEIGHT], CTransform *trans, TGlyphMap *found) {
 	int scan_pos = 0;
 	// skip initial background bands
@@ -86,6 +89,13 @@ void CollectUnknownGlyphs(RMapCI region, const CString &file_name, int group, in
 			entry.example_region = region->first;
 			entry.assigned = false;
 			entry.skipped = false;
+			entry.image = region_image;
+			entry.image_width = width;
+			entry.image_height = height;
+			entry.box.left = x_begin;
+			entry.box.top = y_begin;
+			entry.box.right = x_end;
+			entry.box.bottom = y_end;
 			found->insert(std::make_pair(key, entry));
 		}
 	}
@@ -118,8 +128,11 @@ bool ScanImage(const CString &path, const CString &file_name, TGlyphMap *found, 
 			(*skipped_regions)++;
 			continue;
 		}
-		HBITMAP bitmap_region = CreateCompatibleBitmap(hdc_screen, width, height);
-		HGDIOBJ old_region_bitmap = SelectObject(hdc_region, bitmap_region);
+		// The bitmap lives as long as one of the glyphs found in it needs it
+		std::shared_ptr<HBITMAP__> bitmap_region(CreateCompatibleBitmap(hdc_screen, width, height),
+			[](HBITMAP__ *handle) { if (handle != NULL) DeleteObject(handle); });
+		if (!bitmap_region) continue;
+		HGDIOBJ old_region_bitmap = SelectObject(hdc_region, bitmap_region.get());
 		BitBlt(hdc_region, 0, 0, width, height, hdc, region->second.left, region->second.top, SRCCOPY);
 
 		bool background[MAX_CHAR_WIDTH];
@@ -128,10 +141,10 @@ bool ScanImage(const CString &path, const CString &file_name, TGlyphMap *found, 
 		CString text = "", separation = "";
 		trans.TTypeTransform(region, hdc_region, &text, &separation, background, character);
 
-		SelectObject(hdc_region, old_region_bitmap);
-		DeleteObject(bitmap_region);
+		SelectObject(hdc_region, old_region_bitmap);	// deselect, the bitmap stays alive
 
-		CollectUnknownGlyphs(region, file_name, group, width, height, background, character, &trans, found);
+		CollectUnknownGlyphs(region, file_name, group, width, height, bitmap_region,
+			background, character, &trans, found);
 	}
 
 	SelectObject(hdc, old_bitmap);
@@ -250,6 +263,7 @@ void CDlgBatchFonts::DoDataExchange(CDataExchange *pDX) {
 }
 
 BEGIN_MESSAGE_MAP(CDlgBatchFonts, CDialog)
+	ON_WM_DRAWITEM()
 	ON_BN_CLICKED(IDC_BATCH_SKIP, &CDlgBatchFonts::OnBnClickedSkip)
 	ON_BN_CLICKED(IDC_BATCH_BACK, &CDlgBatchFonts::OnBnClickedBack)
 	ON_BN_CLICKED(IDC_BATCH_FINISH, &CDlgBatchFonts::OnBnClickedFinish)
@@ -317,6 +331,7 @@ void CDlgBatchFonts::ShowGlyph() {
 	_character.SetFocus();
 	_character.SetSel(0, -1);
 	GetDlgItem(IDC_BATCH_BACK)->EnableWindow(_current > 0);
+	GetDlgItem(IDC_BATCH_IMAGE)->Invalidate();
 }
 
 bool CDlgBatchFonts::ConfirmFinish() {
@@ -372,6 +387,48 @@ void CDlgBatchFonts::OnBnClickedFinish() {
 		return;
 	}
 	if (ConfirmFinish()) EndDialog(IDOK);
+}
+
+// Shows the text region where the character was found, magnified, with a red
+// frame around the unknown character: that is what helps to recognise it.
+void CDlgBatchFonts::OnDrawItem(int control_id, LPDRAWITEMSTRUCT draw_item) {
+	if (control_id != IDC_BATCH_IMAGE) {
+		CDialog::OnDrawItem(control_id, draw_item);
+		return;
+	}
+	CDC *dc = CDC::FromHandle(draw_item->hDC);
+	const CRect area(draw_item->rcItem);
+	dc->FillSolidRect(area, RGB(48, 48, 48));
+	if (_current < 0 || _current >= (int)glyphs.size()) return;
+	const SBatchGlyph &glyph = glyphs[_current];
+	if (!glyph.image || glyph.image_width <= 0 || glyph.image_height <= 0) return;
+
+	// Integer zoom when it gets bigger (sharp pixels), smaller if it doesn't fit
+	double scale = std::min((double)area.Width() / glyph.image_width,
+		(double)area.Height() / glyph.image_height);
+	if (scale >= 1.0) scale = std::min(12.0, floor(scale));
+	const int width = std::max(1, (int)(glyph.image_width * scale + 0.5));
+	const int height = std::max(1, (int)(glyph.image_height * scale + 0.5));
+	const int x0 = area.left + (area.Width() - width) / 2;
+	const int y0 = area.top + (area.Height() - height) / 2;
+
+	CDC memory_dc;
+	memory_dc.CreateCompatibleDC(dc);
+	HGDIOBJ old_bitmap = ::SelectObject(memory_dc.GetSafeHdc(), glyph.image.get());
+	dc->SetStretchBltMode(COLORONCOLOR);	// nearest neighbour: no blur
+	dc->StretchBlt(x0, y0, width, height, &memory_dc, 0, 0, glyph.image_width, glyph.image_height, SRCCOPY);
+	::SelectObject(memory_dc.GetSafeHdc(), old_bitmap);
+
+	// Red frame around the unknown character
+	CPen pen(PS_SOLID, 2, RGB(255, 0, 0));
+	CPen *old_pen = dc->SelectObject(&pen);
+	CBrush *old_brush = (CBrush *)dc->SelectStockObject(NULL_BRUSH);
+	dc->Rectangle(x0 + (int)(glyph.box.left * scale) - 2,
+		y0 + (int)(glyph.box.top * scale) - 2,
+		x0 + (int)((glyph.box.right + 1) * scale) + 2,
+		y0 + (int)((glyph.box.bottom + 1) * scale) + 2);
+	dc->SelectObject(old_brush);
+	dc->SelectObject(old_pen);
 }
 
 void CDlgBatchFonts::OnCancel() {

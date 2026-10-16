@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <memory>
 #include <vector>
 #include "afxwin.h"
 #include "resource.h"
@@ -31,6 +32,11 @@ struct SBatchGlyph {
 	CString			example_region;		// first region where it was found
 	bool			assigned;			// the user typed a character for it
 	bool			skipped;			// the user skipped it
+	// The text region where it was found (shared between all glyphs of that region)
+	std::shared_ptr<HBITMAP__>	image;
+	int				image_width;
+	int				image_height;
+	RECT			box;				// the glyph inside that region (inclusive pixel coordinates)
 };
 
 class CBatchFonts {
@@ -62,6 +68,7 @@ protected:
 	afx_msg void OnBnClickedSkip();
 	afx_msg void OnBnClickedBack();
 	afx_msg void OnBnClickedFinish();
+	afx_msg void OnDrawItem(int control_id, LPDRAWITEMSTRUCT draw_item);
 	DECLARE_MESSAGE_MAP()
 
 private:

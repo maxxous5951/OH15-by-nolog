@@ -154,6 +154,7 @@
 #define IDC_BATCH_BACK                  1119
 #define IDC_BATCH_FINISH                1120
 #define IDC_BATCH_PROGRESS              1121
+#define IDC_BATCH_IMAGE                 1122
 #define ID_EDIT_BATCHFONTS              32796
 
 // Next default values for new objects
@@ -162,7 +163,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        154
 #define _APS_NEXT_COMMAND_VALUE         32797
-#define _APS_NEXT_CONTROL_VALUE         1122
+#define _APS_NEXT_CONTROL_VALUE         1123
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
