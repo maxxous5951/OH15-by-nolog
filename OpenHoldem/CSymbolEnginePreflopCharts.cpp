@@ -36,7 +36,6 @@
 namespace {
 
 // PokerTracker stats are only trusted with at least that many hands per opponent.
-const double kMinHandsForStats = 40.0;
 // An all-in is made instead of a raise when the raise would commit this share of our stack.
 const double kCommitShare = 0.40;
 
@@ -84,6 +83,8 @@ CSymbolEnginePreflopCharts::CSymbolEnginePreflopCharts() {
   _roll_key = -1;
   _last_logged_key = -1;
   _eq_key = -1; _eq_value = -1.0;
+  _hand_id = 0; _hand_start_total = -1.0; _hand_bb = 0.0;
+  ExploitEV::LoadTuning("ExploitEV.cfg");
   UpdateOnHandreset();
 }
 
@@ -91,14 +92,31 @@ CSymbolEnginePreflopCharts::~CSymbolEnginePreflopCharts() {
 }
 
 void CSymbolEnginePreflopCharts::InitOnStartup() {
+  _hand_start_total = -1.0;
   UpdateOnHandreset();
 }
 
 void CSymbolEnginePreflopCharts::UpdateOnConnection() {
+  _hand_start_total = -1.0;                 // do not book a result across a reconnect
   UpdateOnHandreset();
 }
 
+void CSymbolEnginePreflopCharts::FinishHandLog() {
+  if (_hand_start_total >= 0.0 && _hand_bb > 0.0
+      && p_engine_container->symbol_engine_userchair()->userchair_confirmed()) {
+    const double delta_bb = (p_table_state->User()->stack() - _hand_start_total) / _hand_bb;
+    ExploitEV::AppendDecisionLog(ExploitEV::ResultRow(_hand_id, delta_bb));
+  }
+  _hand_start_total = -1.0;
+}
+
 void CSymbolEnginePreflopCharts::UpdateOnHandreset() {
+  FinishHandLog();
+  ExploitEV::LoadTuning("ExploitEV.cfg");   // picks up changes (e.g. from tools/tune.py) every hand
+  {
+    static long long counter = 0;
+    _hand_id = (long long)time(NULL) * 100 + (counter++ % 100);
+  }
   _raises = 0;
   for (int i = 0; i <= kMaxTrackedRaises; ++i) _raiser_chair[i] = kUndefined;
   _previous_largest_bet = -1.0;
@@ -223,7 +241,7 @@ double CSymbolEnginePreflopCharts::ReadStat(const char *name, int chair) {
 }
 
 bool CSymbolEnginePreflopCharts::StatsReliableForChair(int chair) {
-  return ReadPokerTrackerHands(chair) >= kMinHandsForStats;
+  return ReadPokerTrackerHands(chair) >= ExploitEV::GlobalTuning().min_hands;
 }
 
 bool CSymbolEnginePreflopCharts::UpdateStatsReliable() {
@@ -256,6 +274,12 @@ void CSymbolEnginePreflopCharts::Calculate() {
   if (hero_idx == kUndefined) return;
   const double bb = BigBlind();
   if (bb <= 0.0) return;
+
+  if (_hand_start_total < 0.0) {
+    _hand_start_total = p_table_state->User()->stack();
+    _hand_bb = bb;
+  }
+  std::string tag;
 
   const int card_a = p_table_state->User()->hole_cards(0)->GetValue();
   const int card_b = p_table_state->User()->hole_cards(1)->GetValue();
@@ -346,9 +370,10 @@ void CSymbolEnginePreflopCharts::Calculate() {
             bb_chair == kUndefined ? -1.0 : ReadStat("bb_fold_to_steal", bb_chair));
           if (factor > 1.0 && raise < 0.5 && pos + 1 <= n - 2) {
             const double wider = ExploitEV::ChartFrequency(ExploitEV::ChartRfi(format, pos + 1), hand_class);
-            if (wider > raise) raise = wider;
+            if (wider > raise) { raise = wider; tag += "steal_wide|"; }
           } else if (factor < 1.0 && raise >= 0.5 && ExploitEV::ChartKeepRank(rfi, hand_class) > factor) {
             raise = 0.0;
+            tag += "steal_tight|";
           }
         }
       }
@@ -370,6 +395,7 @@ void CSymbolEnginePreflopCharts::Calculate() {
           if (_stack_bb < 60.0 && call > 0.0
               && ExploitEV::ChartKeepRank(call_table, hand_class) > ExploitEV::DepthKeepShare(_stack_bb)) {
             call = 0.0;
+            tag += "depth|";
           }
           // (2) EV check: equity against his real opening range vs the pot odds
           if (callers == 0 && opener_chair != kUndefined) {
@@ -403,8 +429,8 @@ void CSymbolEnginePreflopCharts::Calculate() {
             const ExploitEV::CallVerdict verdict = ExploitEV::EvCallVerdict(
               _eq_value, realization, p_engine_container->symbol_engine_chip_amounts()->pot(),
               to_call, call >= 0.5);
-            if (verdict == ExploitEV::kForceFold) call = 0.0;
-            else if (verdict == ExploitEV::kForceCall) call = 1.0;
+            if (verdict == ExploitEV::kForceFold) { call = 0.0; tag += "ev_fold|"; }
+            else if (verdict == ExploitEV::kForceCall) { call = 1.0; tag += "ev_call|"; }
             ev_checked = (_eq_value >= 0.0);
           }
           // (3) exploit: he folds a lot / never folds to 3bets
@@ -412,6 +438,8 @@ void CSymbolEnginePreflopCharts::Calculate() {
             const ExploitEV::ThreeBetAdjust adjusted = ExploitEV::AdjustThreeBet(
               call, raise, ExploitEV::ChartKeepRank(call_table, hand_class),
               ExploitEV::ChartKeepRank(table_3bet, hand_class), ReadStat("fold_to_3bet", opener_chair));
+            if (adjusted.raise > raise + 0.01) tag += "bluff3bet|";
+            else if (adjusted.raise + 0.01 < raise) tag += "nobluff3bet|";
             call = adjusted.call; raise = adjusted.raise;
           }
         }
@@ -510,6 +538,7 @@ void CSymbolEnginePreflopCharts::Calculate() {
   else if (_roll < _fold + _call) _action = 1;
   else _action = 2;
   _valid = true;
+  _tag = tag;
   LogDecision(hand_class, to_call, p_engine_container->symbol_engine_chip_amounts()->pot());
   write_log(Preferences()->debug_symbolengine(),
     "[CSymbolEnginePreflopCharts] regime %d situation %d pos %d/%d stack %.1fbb fold %.2f call %.2f raise %.2f to %.2f allin %d action %d\n",
@@ -522,11 +551,11 @@ void CSymbolEnginePreflopCharts::LogDecision(int hand_class, double to_call, dou
   if (key == _last_logged_key) return;                    // log every decision once
   _last_logged_key = key;
   CString line;
-  line.Format("pre,%s%s,,%d,%d,%.1f,%.2f,%.2f,%d,%d,%.3f,%.3f,%.3f,%.2f,%d,%d,%d",
-    ExploitEV::CardName(p_table_state->User()->hole_cards(0)->GetValue()).c_str(),
+  line.Format("%lld,pre,%s%s,,%d,%d,%.1f,%.2f,%.2f,%d,%d,%.3f,%.3f,%.3f,%.2f,%d,%d,%d,%s,",
+    _hand_id, ExploitEV::CardName(p_table_state->User()->hole_cards(0)->GetValue()).c_str(),
     ExploitEV::CardName(p_table_state->User()->hole_cards(1)->GetValue()).c_str(),
     _players, _position, _stack_bb, pot, to_call, _regime, _situation,
-    _fold, _call, _raise, _raiseto, _allin ? 1 : 0, _action, _stats_reliable ? 1 : 0);
+    _fold, _call, _raise, _raiseto, _allin ? 1 : 0, _action, _stats_reliable ? 1 : 0, _tag.c_str());
   ExploitEV::AppendDecisionLog(std::string((const char*)line));
 }
 
@@ -595,7 +624,7 @@ bool CSymbolEnginePreflopCharts::EvaluateSymbol(const CString name, double *resu
   else if (name == "pf_players")        *result = _players;
   else if (name == "pf_raises")         *result = _raises;
   else if (name == "pf_statsreliable")  *result = _stats_reliable ? 1.0 : 0.0;
-  else if (name == "pf_minhands")       *result = kMinHandsForStats;
+  else if (name == "pf_minhands")       *result = ExploitEV::GlobalTuning().min_hands;
   else return false;
   return true;
 }

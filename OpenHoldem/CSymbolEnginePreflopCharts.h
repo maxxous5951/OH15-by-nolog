@@ -40,6 +40,7 @@
 #ifndef INC_CSYMBOLENGINEPREFLOPCHARTS_H
 #define INC_CSYMBOLENGINEPREFLOPCHARTS_H
 
+#include <string>
 #include "CVirtualSymbolEngine.h"
 
 namespace ExploitEV { class Range; }
@@ -66,6 +67,8 @@ class CSymbolEnginePreflopCharts: public CVirtualSymbolEngine {
   bool OpponentRange(int chair, ExploitEV::Range *range, double *percent_of_hands);
   // PokerTracker has enough hands on that player to trust his stats?
   bool StatsReliableForChair(int chair);
+  // Identifier of the current hand (used to join decisions and the result in the log)
+  long long HandId() { return _hand_id; }
  private:
   void ResetDecision();
   void TrackPreflopBets();
@@ -73,6 +76,7 @@ class CSymbolEnginePreflopCharts: public CVirtualSymbolEngine {
   double ReadPokerTrackerHands(int chair);
   double ReadStat(const char *name, int chair);          // reliable PokerTracker stat as fraction, -1 if unknown
   void   LogDecision(int hand_class, double to_call, double pot);
+  void   FinishHandLog();                                // writes the result of the previous hand
   int  ActionIndexOfChair(int chair);
   bool UpdateStatsReliable();
  private:
@@ -97,6 +101,10 @@ class CSymbolEnginePreflopCharts: public CVirtualSymbolEngine {
   // stable random draw
   double _roll;
   long long _last_logged_key;
+  long long _hand_id;
+  double _hand_start_total;   // our stack before the first decision of the hand (-1 = none yet)
+  double _hand_bb;
+  std::string _tag;           // which adjustments changed the decision (for the log / tuner)
   long long _eq_key;          // cache of the preflop equity vs the opener's range
   double _eq_value;
   int    _roll_key;
