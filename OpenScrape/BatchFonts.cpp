@@ -403,6 +403,9 @@ void CDlgBatchFonts::SplitAtCut() {
 		MoveCut(0);
 		return;
 	}
+	// A character typed before the cut is meant for the left part: keep it
+	CString typed;
+	_character.GetWindowText(typed);
 	SBatchGlyph parts[2];
 	bool have_part[2];
 	have_part[0] = MakeGlyphPart(whole, 0, _cut - 1, &parts[0]);
@@ -438,6 +441,10 @@ void CDlgBatchFonts::SplitAtCut() {
 	}
 	_current = std::min(_current, (int)glyphs.size() - 1);
 	ShowGlyph();
+	if (typed.GetLength() == 1 && have_part[0]) {
+		_character.SetWindowText(typed);
+		_character.SetSel(0, -1);
+	}
 }
 
 void CDlgBatchFonts::OnBnClickedSplit() {
