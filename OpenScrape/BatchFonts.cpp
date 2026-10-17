@@ -89,6 +89,7 @@ void CollectUnknownGlyphs(RMapCI region, const CString &file_name, int group, in
 			entry.example_region = region->first;
 			entry.assigned = false;
 			entry.skipped = false;
+			entry.previous_ch = 0;
 			entry.image = region_image;
 			entry.image_width = width;
 			entry.image_height = height;
@@ -385,6 +386,7 @@ bool MakeGlyphPart(const SBatchGlyph &whole, int first, int last, SBatchGlyph *p
 	part->font.ch = '?';
 	part->assigned = false;
 	part->skipped = false;
+	part->previous_ch = 0;
 	// Position inside the region (bit b is the row box.bottom - b)
 	part->box.left = whole.box.left + first;
 	part->box.right = whole.box.left + last;
@@ -585,8 +587,16 @@ void CDlgBatchFonts::ShowGlyph(bool only_redraw) {
 	// Prefill when coming back to an already typed character
 	CString typed = "";
 	if (glyph.assigned) typed.Format("%c", glyph.font.ch);
+	else if (glyph.previous_ch != 0) typed.Format("%c", glyph.previous_ch);
 	_character.SetWindowText(typed);
 	_character.SetSel(0, -1);
+	if (!glyph.assigned && glyph.previous_ch != 0) {
+		// Coming back after a mistake: the old character is erased, the user redoes it
+		CString erased;
+		erased.Format("Erased '%c' - press Enter to keep it, or type the right character", glyph.previous_ch);
+		SetDlgItemText(IDC_BATCH_OCR_RESULT, erased);
+		return;
+	}
 	if (SuggestFromOcr()) ShowGlyph(true);		// a cut was suggested: show it
 }
 
@@ -764,6 +774,7 @@ void CDlgBatchFonts::OnOK() {
 	glyph.font.ch = typed.GetAt(0);
 	glyph.assigned = true;
 	glyph.skipped = false;
+	glyph.previous_ch = 0;
 	NextGlyph();
 }
 
@@ -772,14 +783,17 @@ void CDlgBatchFonts::OnOK() {
 // (Space is never a character of a font, it is background.)
 BOOL CDlgBatchFonts::PreTranslateMessage(MSG *msg) {
 	if (msg->message == WM_KEYDOWN
-		&& (msg->wParam == VK_LEFT || msg->wParam == VK_RIGHT || msg->wParam == VK_DOWN)) {
+		&& (msg->wParam == VK_LEFT || msg->wParam == VK_RIGHT || msg->wParam == VK_DOWN || msg->wParam == VK_PRIOR)) {
 		CWnd *focus = GetFocus();
 		if (focus != NULL && (focus->GetSafeHwnd() == _character.GetSafeHwnd()
 			|| focus->GetSafeHwnd() == _pixels.GetSafeHwnd()
 			|| focus->GetSafeHwnd() == GetSafeHwnd())) {
 			if (msg->wParam == VK_LEFT) MoveCut(-1);
 			else if (msg->wParam == VK_RIGHT) MoveCut(+1);
-			else if ((msg->lParam & 0x40000000) == 0) SplitAtCut();	// no auto-repeat
+			else if ((msg->lParam & 0x40000000) == 0) {		// no auto-repeat
+				if (msg->wParam == VK_PRIOR) OnBnClickedBack();	// Page Up = Back
+				else SplitAtCut();
+			}
 			return TRUE;
 		}
 	}
@@ -801,12 +815,21 @@ void CDlgBatchFonts::OnBnClickedSkip() {
 	SBatchGlyph &glyph = glyphs[_current];
 	glyph.assigned = false;
 	glyph.skipped = true;
+	glyph.previous_ch = 0;
 	NextGlyph();
 }
 
+// Back: the font that was recorded for the previous glyph is erased (it is not
+// added to the tablemap) and proposed again, so a typing mistake can be redone.
 void CDlgBatchFonts::OnBnClickedBack() {
 	if (_current > 0) {
 		_current--;
+		SBatchGlyph &glyph = glyphs[_current];
+		if (glyph.assigned) {
+			glyph.previous_ch = glyph.font.ch;
+			glyph.assigned = false;
+		}
+		glyph.skipped = false;
 		ShowGlyph();
 	}
 }

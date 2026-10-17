@@ -34,6 +34,7 @@ struct SBatchGlyph {
 	CString			example_region;		// first region where it was found
 	bool			assigned;			// the user typed a character for it
 	bool			skipped;			// the user skipped it
+	char			previous_ch;		// character erased by "Back" (0 = none), proposed again
 	// The text region where it was found (shared between all glyphs of that region)
 	std::shared_ptr<HBITMAP__>	image;
 	int				image_width;
