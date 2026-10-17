@@ -17,7 +17,9 @@
 
 #pragma once
 
+#include <map>
 #include <memory>
+#include <string>
 #include <vector>
 #include "afxwin.h"
 #include "resource.h"
@@ -37,6 +39,19 @@ struct SBatchGlyph {
 	int				image_width;
 	int				image_height;
 	RECT			box;				// the glyph inside that region (inclusive pixel coordinates)
+};
+
+// OCR suggestion (Tesseract). The whole text region is read once, the characters
+// are then matched to the glyphs by their position.
+struct SBatchOcrSymbol {
+	std::string	text;			// UTF-8
+	float		confidence;		// 0..100
+	double		left;			// edges in pixels of the region (right = exclusive)
+	double		right;
+};
+struct SBatchOcrResult {
+	bool						ok;
+	std::vector<SBatchOcrSymbol>	symbols;
 };
 
 class CBatchFonts {
@@ -70,6 +85,9 @@ protected:
 	afx_msg void OnBnClickedBack();
 	afx_msg void OnBnClickedFinish();
 	afx_msg void OnBnClickedSplit();
+	afx_msg void OnBnClickedOcrEnable();
+	afx_msg void OnCbnSelchangeOcrPreset();
+	afx_msg void OnEnKillfocusOcrOption();
 	afx_msg void OnDrawItem(int control_id, LPDRAWITEMSTRUCT draw_item);
 	DECLARE_MESSAGE_MAP()
 
@@ -77,11 +95,19 @@ private:
 	void ShowGlyph(bool only_redraw = false);
 	void MoveCut(int delta);
 	void SplitAtCut();
+	void ReadOcrOptions();
+	bool SuggestFromOcr();		// true if it suggests a cut
+	void OcrOptionsChanged();
 	void NextGlyph();
 	bool ConfirmFinish();
 
 	int			_current;
 	int			_cut;		// 0 = none, otherwise the number of columns left of the cut
+	bool		_ocr_enabled;
+	int			_ocr_preset;			// 0 = AutoOcr0, 1 = AutoOcr1
+	int			_ocr_threshold;
+	int			_ocr_min_confidence;
+	std::map<HBITMAP__*, SBatchOcrResult>	_ocr_cache;	// one reading per region image
 	CEdit		_character;
 	CEdit		_pixels;
 	CStatic		_info;

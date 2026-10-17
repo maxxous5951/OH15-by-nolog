@@ -155,6 +155,199 @@ bool ScanImage(const CString &path, const CString &file_name, TGlyphMap *found, 
 	return true;
 }
 
+// ---------------------------------------------------------------------------
+// OCR suggestion
+// ---------------------------------------------------------------------------
+
+// Remembered while OpenScrape is running
+bool g_ocr_enabled = false;
+int g_ocr_preset = 0;
+int g_ocr_threshold = 100;
+int g_ocr_min_confidence = 70;
+
+tesseract::TessBaseAPI *g_ocr_api = NULL;
+bool g_ocr_init_failed = false;
+
+bool InitOcr() {
+	if (g_ocr_api != NULL) return true;
+	if (g_ocr_init_failed) return false;
+	tesseract::TessBaseAPI *api_new = new tesseract::TessBaseAPI();
+	if (api_new->Init("tessdata", "eng") == -1) {		// same as the AutoOcr transforms
+		delete api_new;
+		g_ocr_init_failed = true;
+		AfxMessageBox("OCR: failed to load the tessdata files.\nMake sure the tessdata folder is present.", MB_ICONWARNING);
+		return false;
+	}
+	api_new->SetPageSegMode(tesseract::PSM_SINGLE_LINE);
+	g_ocr_api = api_new;
+	return true;
+}
+
+// Numbers only for balance, bet and pot regions: far fewer confusions (0/O, 1/l, 5/S)
+std::string WhitelistForRegion(const CString &region_name) {
+	CString name = region_name;
+	name.MakeLower();
+	if (name.Find("balance") >= 0 || name.Find("bet") >= 0 || name.Find("pot") >= 0) {
+		return "0123456789.,$\xE2\x82\xAC\xC2\xA3";		// digits . , $ euro pound (UTF-8)
+	}
+	return "";
+}
+
+bool BitmapToGray(HBITMAP bitmap, int width, int height, cv::Mat *gray) {
+	BITMAPINFO info;
+	ZeroMemory(&info, sizeof(info));
+	info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+	info.bmiHeader.biWidth = width;
+	info.bmiHeader.biHeight = -height;			// top-down
+	info.bmiHeader.biPlanes = 1;
+	info.bmiHeader.biBitCount = 32;
+	info.bmiHeader.biCompression = BI_RGB;
+	cv::Mat bgra(height, width, CV_8UC4);
+	HDC hdc = GetDC(NULL);
+	const int lines = GetDIBits(hdc, bitmap, 0, height, bgra.data, &info, DIB_RGB_COLORS);
+	ReleaseDC(NULL, hdc);
+	if (lines != height) return false;
+	cv::cvtColor(bgra, *gray, cv::COLOR_BGRA2GRAY);
+	return true;
+}
+
+// One pass: enlarge, binarize (like the AutoOcr transforms), read with Tesseract
+bool OcrPass(const cv::Mat &gray, int binary_threshold, const std::string &whitelist,
+	SBatchOcrResult *result, double *mean_confidence) {
+	const int kBorder = 12;
+	const double scale = std::max(1.0, std::min(8.0, 56.0 / gray.rows));
+	cv::Mat big, bin, framed;
+	cv::resize(gray, big, cv::Size(), scale, scale, cv::INTER_CUBIC);
+	cv::threshold(big, bin, binary_threshold, 255, cv::THRESH_BINARY_INV);	// bright text -> black
+	if (cv::mean(bin)[0] < 127.0) cv::bitwise_not(bin, bin);					// dark text on light: keep black on white
+	cv::copyMakeBorder(bin, framed, kBorder, kBorder, kBorder, kBorder, cv::BORDER_CONSTANT, cv::Scalar(255));
+
+	g_ocr_api->SetVariable("tessedit_char_whitelist", whitelist.c_str());
+	g_ocr_api->SetImage(framed.data, framed.cols, framed.rows, 1, (int)framed.step);
+	g_ocr_api->Recognize(0);
+
+	result->symbols.clear();
+	double sum = 0;
+	tesseract::ResultIterator *iterator = g_ocr_api->GetIterator();
+	if (iterator != NULL) {
+		const tesseract::PageIteratorLevel level = tesseract::RIL_SYMBOL;
+		do {
+			char *text = iterator->GetUTF8Text(level);
+			if (text != NULL) {
+				int x1 = 0, y1 = 0, x2 = 0, y2 = 0;
+				iterator->BoundingBox(level, &x1, &y1, &x2, &y2);
+				SBatchOcrSymbol symbol;
+				symbol.text = text;
+				symbol.confidence = iterator->Confidence(level);
+				symbol.left = (x1 - kBorder) / scale;
+				symbol.right = (x2 - kBorder) / scale;
+				if (!symbol.text.empty() && symbol.text != " " && symbol.text != "\n") {
+					result->symbols.push_back(symbol);
+					sum += symbol.confidence;
+				}
+				delete[] text;
+			}
+		} while (iterator->Next(level));
+		delete iterator;
+	}
+	g_ocr_api->Clear();
+	result->ok = !result->symbols.empty();
+	*mean_confidence = result->ok ? sum / result->symbols.size() : 0.0;
+	return result->ok;
+}
+
+// The two presets are the ones of the AutoOcr0 / AutoOcr1 transforms:
+// AutoOcr0 = thresholds 100 and T, AutoOcr1 = T and 76 (T = threshold of the user).
+// The pass with the better confidence wins.
+SBatchOcrResult ReadRegionWithOcr(HBITMAP bitmap, int width, int height, int preset, int user_threshold,
+	const std::string &whitelist) {
+	SBatchOcrResult best;
+	best.ok = false;
+	if (!InitOcr()) return best;
+	cv::Mat gray;
+	if (!BitmapToGray(bitmap, width, height, &gray)) return best;
+	int thresholds[2] = { preset == 0 ? 100 : user_threshold, preset == 0 ? user_threshold : 76 };
+	double best_confidence = -1.0;
+	for (int pass = 0; pass < 2; ++pass) {
+		if (pass == 1 && thresholds[1] == thresholds[0]) break;
+		SBatchOcrResult current;
+		double confidence = 0.0;
+		if (OcrPass(gray, thresholds[pass], whitelist, &current, &confidence) && confidence > best_confidence) {
+			best = current;
+			best_confidence = confidence;
+		}
+	}
+	return best;
+}
+
+// UTF-8 -> ANSI, only if it is one single character that exists in the code page
+bool Utf8ToAnsiChar(const std::string &utf8, char *ch) {
+	if (utf8.empty()) return false;
+	wchar_t wide[8];
+	const int wide_length = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), (int)utf8.size(), wide, 8);
+	if (wide_length != 1) return false;
+	char ansi[4];
+	BOOL used_default = FALSE;
+	const int length = WideCharToMultiByte(CP_ACP, 0, wide, 1, ansi, 4, "?", &used_default);
+	if (length != 1 || used_default) return false;
+	*ch = ansi[0];
+	return true;
+}
+
+struct SOcrSuggestion {
+	bool	has_char;		// one character for this glyph
+	char	ch;
+	float	confidence;
+	int		cut;			// 0 = none, otherwise suggested number of columns left of the cut
+	CString	info;
+};
+
+// Which of the characters read by the OCR sit at the place of this glyph?
+SOcrSuggestion MakeSuggestion(const SBatchOcrResult &result, const SBatchGlyph &glyph) {
+	SOcrSuggestion suggestion;
+	suggestion.has_char = false;
+	suggestion.ch = 0;
+	suggestion.confidence = 0;
+	suggestion.cut = 0;
+	if (!result.ok) {
+		suggestion.info = "OCR: nothing read in this region";
+		return suggestion;
+	}
+	const double glyph_left = glyph.box.left;
+	const double glyph_right = glyph.box.right + 1.0;		// exclusive
+	const double glyph_width = std::max(1.0, glyph_right - glyph_left);
+	std::vector<const SBatchOcrSymbol *> hits;
+	for (size_t i = 0; i < result.symbols.size(); ++i) {
+		const SBatchOcrSymbol &symbol = result.symbols[i];
+		const double overlap = std::min(glyph_right, symbol.right) - std::max(glyph_left, symbol.left);
+		const double symbol_width = std::max(1.0, symbol.right - symbol.left);
+		if (overlap >= 0.35 * glyph_width || overlap >= 0.6 * symbol_width) hits.push_back(&symbol);
+	}
+	if (hits.empty()) {
+		suggestion.info = "OCR: nothing read at this place";
+		return suggestion;
+	}
+	const SBatchOcrSymbol &first = *hits[0];
+	suggestion.has_char = Utf8ToAnsiChar(first.text, &suggestion.ch);
+	suggestion.confidence = first.confidence;
+	if (hits.size() >= 2) {
+		// Several characters in one glyph: they are glued together. Cut between the first two.
+		const SBatchOcrSymbol &second = *hits[1];
+		const double boundary = (std::min(first.right, second.right) + std::max(first.left, second.left)) / 2.0;
+		const int columns = std::min(glyph.font.x_count, (int)MAX_SINGLE_CHAR_WIDTH);
+		suggestion.cut = std::max(1, std::min(columns - 1, (int)floor(boundary - glyph_left + 0.5)));
+		CString all;
+		for (size_t i = 0; i < hits.size(); ++i) {
+			all.AppendFormat("%s'%s'", i > 0 ? " + " : "", hits[i]->text.c_str());
+		}
+		suggestion.info.Format("OCR: %s - glued? Cut suggested, press Down", all.GetString());
+		suggestion.has_char = false;	// the character is for the left part, after the split
+	} else {
+		suggestion.info.Format("OCR: '%s'  (%d %%)", first.text.c_str(), (int)(first.confidence + 0.5f));
+	}
+	return suggestion;
+}
+
 bool MoreFrequent(const SBatchGlyph &a, const SBatchGlyph &b) {
 	if (a.occurrences != b.occurrences) return a.occurrences > b.occurrences;
 	if (a.group != b.group) return a.group < b.group;
@@ -287,7 +480,8 @@ void CBatchFonts::Run(CWnd *parent) {
 IMPLEMENT_DYNAMIC(CDlgBatchFonts, CDialog)
 
 CDlgBatchFonts::CDlgBatchFonts(CWnd *parent)
-	: CDialog(CDlgBatchFonts::IDD, parent), image_count(0), _current(0), _cut(0) {
+	: CDialog(CDlgBatchFonts::IDD, parent), image_count(0), _current(0), _cut(0),
+	_ocr_enabled(false), _ocr_preset(0), _ocr_threshold(100), _ocr_min_confidence(70) {
 }
 
 CDlgBatchFonts::~CDlgBatchFonts() {
@@ -307,6 +501,10 @@ BEGIN_MESSAGE_MAP(CDlgBatchFonts, CDialog)
 	ON_BN_CLICKED(IDC_BATCH_BACK, &CDlgBatchFonts::OnBnClickedBack)
 	ON_BN_CLICKED(IDC_BATCH_FINISH, &CDlgBatchFonts::OnBnClickedFinish)
 	ON_BN_CLICKED(IDC_BATCH_SPLIT, &CDlgBatchFonts::OnBnClickedSplit)
+	ON_BN_CLICKED(IDC_BATCH_OCR_ENABLE, &CDlgBatchFonts::OnBnClickedOcrEnable)
+	ON_CBN_SELCHANGE(IDC_BATCH_OCR_PRESET, &CDlgBatchFonts::OnCbnSelchangeOcrPreset)
+	ON_EN_KILLFOCUS(IDC_BATCH_OCR_THRESHOLD, &CDlgBatchFonts::OnEnKillfocusOcrOption)
+	ON_EN_KILLFOCUS(IDC_BATCH_OCR_MINCONF, &CDlgBatchFonts::OnEnKillfocusOcrOption)
 END_MESSAGE_MAP()
 
 int CDlgBatchFonts::AssignedCount() const {
@@ -326,6 +524,15 @@ BOOL CDlgBatchFonts::OnInitDialog() {
 	_pixels.SetFont(&_fixed_font);
 	_character.SetLimitText(1);
 	SetDlgItemText(IDC_BATCH_HINT, "Characters glued together?\r\nLeft/Right = cut, Down = split");
+	// OCR options (remembered between two runs)
+	CComboBox *preset = (CComboBox *)GetDlgItem(IDC_BATCH_OCR_PRESET);
+	preset->AddString("AutoOcr0");
+	preset->AddString("AutoOcr1");
+	preset->SetCurSel(g_ocr_preset);
+	CheckDlgButton(IDC_BATCH_OCR_ENABLE, g_ocr_enabled ? BST_CHECKED : BST_UNCHECKED);
+	SetDlgItemInt(IDC_BATCH_OCR_THRESHOLD, g_ocr_threshold, FALSE);
+	SetDlgItemInt(IDC_BATCH_OCR_MINCONF, g_ocr_min_confidence, FALSE);
+	ReadOcrOptions();
 	_current = 0;
 	ShowGlyph();
 	return FALSE;	// we set the focus ourselves
@@ -380,6 +587,7 @@ void CDlgBatchFonts::ShowGlyph(bool only_redraw) {
 	if (glyph.assigned) typed.Format("%c", glyph.font.ch);
 	_character.SetWindowText(typed);
 	_character.SetSel(0, -1);
+	if (SuggestFromOcr()) ShowGlyph(true);		// a cut was suggested: show it
 }
 
 // Touching characters come as one single glyph. Left/Right move the cut,
@@ -447,6 +655,74 @@ void CDlgBatchFonts::SplitAtCut() {
 	}
 }
 
+void CDlgBatchFonts::ReadOcrOptions() {
+	_ocr_enabled = IsDlgButtonChecked(IDC_BATCH_OCR_ENABLE) == BST_CHECKED;
+	_ocr_preset = std::max(0, ((CComboBox *)GetDlgItem(IDC_BATCH_OCR_PRESET))->GetCurSel());
+	_ocr_threshold = std::max(1, std::min(254, (int)GetDlgItemInt(IDC_BATCH_OCR_THRESHOLD, NULL, FALSE)));
+	_ocr_min_confidence = std::max(0, std::min(100, (int)GetDlgItemInt(IDC_BATCH_OCR_MINCONF, NULL, FALSE)));
+	g_ocr_enabled = _ocr_enabled;
+	g_ocr_preset = _ocr_preset;
+	g_ocr_threshold = _ocr_threshold;
+	g_ocr_min_confidence = _ocr_min_confidence;
+}
+
+// Reads the region of the current glyph (once per region image) and, if the OCR
+// is on, prefills the character. It never accepts anything by itself.
+bool CDlgBatchFonts::SuggestFromOcr() {
+	SetDlgItemText(IDC_BATCH_OCR_RESULT, "");
+	if (!_ocr_enabled || _current < 0 || _current >= (int)glyphs.size()) return false;
+	const SBatchGlyph &glyph = glyphs[_current];
+	if (glyph.assigned || !glyph.image) return false;
+
+	HBITMAP__ *key = glyph.image.get();
+	std::map<HBITMAP__ *, SBatchOcrResult>::iterator found = _ocr_cache.find(key);
+	if (found == _ocr_cache.end()) {
+		CWaitCursor wait;
+		SBatchOcrResult result = ReadRegionWithOcr(key, glyph.image_width, glyph.image_height,
+			_ocr_preset, _ocr_threshold, WhitelistForRegion(glyph.example_region));
+		found = _ocr_cache.insert(std::make_pair(key, result)).first;
+	}
+	const SOcrSuggestion suggestion = MakeSuggestion(found->second, glyph);
+	CString info = suggestion.info;
+	bool prefill = suggestion.has_char;
+	if (prefill && suggestion.confidence < _ocr_min_confidence) {
+		info += " - below minimum, not used";
+		prefill = false;
+	}
+	SetDlgItemText(IDC_BATCH_OCR_RESULT, info);
+	if (prefill) {
+		const char text[2] = { suggestion.ch, 0 };
+		_character.SetWindowText(text);
+		_character.SetSel(0, -1);
+	}
+	_character.SetFocus();
+	if (suggestion.cut > 0) {
+		_cut = suggestion.cut;
+		return true;
+	}
+	return false;
+}
+
+void CDlgBatchFonts::OcrOptionsChanged() {
+	ReadOcrOptions();
+	_ocr_cache.clear();
+	if (SuggestFromOcr()) ShowGlyph(true);
+	_character.SetFocus();
+}
+
+void CDlgBatchFonts::OnBnClickedOcrEnable() { OcrOptionsChanged(); }
+void CDlgBatchFonts::OnCbnSelchangeOcrPreset() { OcrOptionsChanged(); }
+void CDlgBatchFonts::OnEnKillfocusOcrOption() {
+	const int old_threshold = _ocr_threshold, old_confidence = _ocr_min_confidence;
+	ReadOcrOptions();
+	if (old_threshold != _ocr_threshold) {
+		_ocr_cache.clear();
+		if (SuggestFromOcr()) ShowGlyph(true);
+	} else if (old_confidence != _ocr_min_confidence) {
+		if (SuggestFromOcr()) ShowGlyph(true);
+	}
+}
+
 void CDlgBatchFonts::OnBnClickedSplit() {
 	SplitAtCut();
 }
@@ -470,6 +746,13 @@ void CDlgBatchFonts::NextGlyph() {
 
 // Enter: accept the typed character and go to the next one
 void CDlgBatchFonts::OnOK() {
+	// Enter in one of the OCR option fields only applies the option
+	CWnd *focus = GetFocus();
+	if (focus != NULL && (focus->GetSafeHwnd() == GetDlgItem(IDC_BATCH_OCR_THRESHOLD)->GetSafeHwnd()
+		|| focus->GetSafeHwnd() == GetDlgItem(IDC_BATCH_OCR_MINCONF)->GetSafeHwnd())) {
+		OcrOptionsChanged();
+		return;
+	}
 	CString typed;
 	_character.GetWindowText(typed);
 	if (typed.GetLength() != 1) {
