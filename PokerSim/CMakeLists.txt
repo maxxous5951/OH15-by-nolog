@@ -12,7 +12,7 @@ find_package(Threads REQUIRED)
 
 add_library(pokersim_core STATIC
   src/cards.cpp src/equity.cpp src/config.cpp src/engine.cpp src/brains.cpp src/runner.cpp
-  src/ohlang.cpp src/shanky.cpp src/pokerval.cpp)
+  src/ohlang.cpp src/shanky.cpp src/pokerval.cpp src/handrank.cpp src/handrank_data.cpp src/prwin.cpp)
 target_include_directories(pokersim_core PUBLIC include PRIVATE third_party)
 target_link_libraries(pokersim_core PUBLIC Threads::Threads)
 if(MSVC)
@@ -74,3 +74,7 @@ if(POKERSIM_OH_ROOT AND EXISTS "${POKERSIM_OH_ROOT}/pokereval/lib/rules_std.c")
   endif()
   add_test(NAME oracle_pokerval COMMAND oracle_tests 1000000)
 endif()
+
+add_executable(prwin_tests tests/test_prwin.cpp)
+target_link_libraries(prwin_tests PRIVATE pokersim_core)
+add_test(NAME prwin COMMAND prwin_tests)
