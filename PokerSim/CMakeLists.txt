@@ -12,7 +12,7 @@ find_package(Threads REQUIRED)
 
 add_library(pokersim_core STATIC
   src/cards.cpp src/equity.cpp src/config.cpp src/engine.cpp src/brains.cpp src/runner.cpp
-  src/ohlang.cpp src/shanky.cpp)
+  src/ohlang.cpp src/shanky.cpp src/pokerval.cpp)
 target_include_directories(pokersim_core PUBLIC include PRIVATE third_party)
 target_link_libraries(pokersim_core PUBLIC Threads::Threads)
 if(MSVC)
@@ -36,3 +36,41 @@ target_link_libraries(ohdump PRIVATE pokersim_core)
 add_executable(ohlang_tests tests/test_ohlang.cpp)
 target_link_libraries(ohlang_tests PRIVATE pokersim_core)
 add_test(NAME ohlang COMMAND ohlang_tests)
+
+# ---------------------------------------------------------------------------
+# Oracle (optionnel) : exécute le code ORIGINAL d'OpenHoldem (extrait de CSymbolEnginePokerval.cpp) + poker-eval
+# et le compare au port C++ sur des millions de tirages.
+#   cmake -S . -B build -DPOKERSIM_OH_ROOT=/chemin/vers/OH15-by-nolog
+# ---------------------------------------------------------------------------
+set(POKERSIM_OH_ROOT "" CACHE PATH "Racine du dépôt OH15 (active les tests différentiels contre le code original)")
+if(POKERSIM_OH_ROOT AND EXISTS "${POKERSIM_OH_ROOT}/pokereval/lib/rules_std.c")
+  enable_language(C)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  set(PE "${POKERSIM_OH_ROOT}/pokereval")
+  set(ORC "${CMAKE_BINARY_DIR}/oracle")
+  file(MAKE_DIRECTORY "${ORC}")
+  file(GLOB PE_TABLES "${PE}/lib/t_*.c")
+  set(PE_SRC "")
+  foreach(f ${PE_TABLES} "${PE}/lib/deck_std.c" "${PE}/lib/rules_std.c" "${PE}/lib/deck.c")
+    get_filename_component(n "${f}" NAME)
+    file(READ "${f}" txt)
+    string(REGEX REPLACE "([0-9a-fA-F])i64" "\\1ULL" txt "${txt}")   # suffixe MSVC non portable
+    file(WRITE "${ORC}/${n}" "${txt}")
+    list(APPEND PE_SRC "${ORC}/${n}")
+  endforeach()
+  add_library(pokereval_oracle STATIC ${PE_SRC})
+  target_include_directories(pokereval_oracle PUBLIC "${PE}/include")
+  if(NOT MSVC)
+    target_compile_options(pokereval_oracle PRIVATE -w)
+  endif()
+  add_custom_command(OUTPUT "${ORC}/oracle_gen.inc"
+    COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/oracle/gen_oracle.py" "${POKERSIM_OH_ROOT}" "${ORC}/oracle_gen.inc"
+    DEPENDS "${POKERSIM_OH_ROOT}/OpenHoldem/CSymbolEnginePokerval.cpp" "${CMAKE_SOURCE_DIR}/tests/oracle/gen_oracle.py")
+  add_executable(oracle_tests tests/oracle/oracle.cpp tests/oracle/test_oracle.cpp "${ORC}/oracle_gen.inc")
+  target_include_directories(oracle_tests PRIVATE "${ORC}")
+  target_link_libraries(oracle_tests PRIVATE pokersim_core pokereval_oracle)
+  if(NOT MSVC)
+    set_source_files_properties(tests/oracle/oracle.cpp PROPERTIES COMPILE_OPTIONS "-w")
+  endif()
+  add_test(NAME oracle_pokerval COMMAND oracle_tests 1000000)
+endif()
