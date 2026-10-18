@@ -11,7 +11,8 @@ endif()
 find_package(Threads REQUIRED)
 
 add_library(pokersim_core STATIC
-  src/cards.cpp src/equity.cpp src/config.cpp src/engine.cpp src/brains.cpp src/runner.cpp)
+  src/cards.cpp src/equity.cpp src/config.cpp src/engine.cpp src/brains.cpp src/runner.cpp
+  src/ohlang.cpp src/shanky.cpp)
 target_include_directories(pokersim_core PUBLIC include PRIVATE third_party)
 target_link_libraries(pokersim_core PUBLIC Threads::Threads)
 if(MSVC)
@@ -28,3 +29,10 @@ enable_testing()
 add_executable(pokersim_tests tests/test_core.cpp)
 target_link_libraries(pokersim_tests PRIVATE pokersim_core)
 add_test(NAME core COMMAND pokersim_tests)
+
+add_executable(ohdump apps/ohdump/main.cpp)
+target_link_libraries(ohdump PRIVATE pokersim_core)
+
+add_executable(ohlang_tests tests/test_ohlang.cpp)
+target_link_libraries(ohlang_tests PRIVATE pokersim_core)
+add_test(NAME ohlang COMMAND ohlang_tests)

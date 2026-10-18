@@ -37,11 +37,29 @@ Bots intégrés : `builtin:tag` (équité Monte-Carlo), `builtin:call`, `builtin
 | `config.*` | formats Cash / SNG / Spin & Go, structures de blinds, gains |
 | `brains.*` | interface `IBrain` (un profil OpenHoldem = un `IBrain`) + bots de test |
 | `runner.*` | exécution multithread reproductible (graine par partie), statistiques |
+| `ohlang.*` | langage de formules OpenHoldem : OH-script + OpenPPL (tokenizer, parseur, évaluation, listes de mains) |
+| `shanky.cpp` | profils Shanky `.txt` / `.oPPL` ancien format -> `.ohf`, y compris les blocs `NEW LIST ... END LIST` |
 
 ## Feuille de route
 
 1. **[fait]** moteur, trois formats, CLI, tests de conservation des jetons
-2. Parseur de formules : `.ohf` (OpenPPL + OH-script), `.oppl`, `.txt` (port de `ohlang.py`)
+2. **[fait]** Parseur de formules : `.ohf` (OpenPPL + OH-script), `.oppl`, `.txt` Shanky
 3. Symboles OpenHoldem natifs (≈ 370 dans la version Python) et bibliothèque OpenPPL
 4. `prwin` fidèle à OpenHoldem (adversaires pondérés, itérations demandées par le profil)
 5. Historique PokerTracker simulé, exports, interface graphique
+
+## Formules OpenHoldem (phase 2)
+
+`ohdump` sérialise les fonctions d'un profil (diagnostic) :
+
+    ohdump --summary profil.ohf       # fonctions, listes, erreurs de syntaxe
+    ohdump --convert vieux_profil.txt # texte .ohf produit pour un profil Shanky
+
+Validation : `tools/diff_test.sh build/ohdump <fichiers>` compare l'arbre de chaque fonction à `ohlang.py`.
+Sur tous les profils et bibliothèques du dépôt : 6 418 fonctions, 6 414 identiques ; les 4 écarts sont les fonctions de `Rev023.oPPL` (Shanky) que le Python rejette et que `shanky.cpp` accepte (variables utilisateur `When ... User_X`, `In Cutoff`).
+
+Choix assumés (fidèles à la source OpenHoldem, pas au Python) :
+- opérateurs : division/modulo par zéro -> -1 (`kUndefined`), `unsigned long` 32 bits, `ln` brut ;
+- listes de mains : poids 0-100 pris en compte (tirage `poids >= rand()%101`), plages `QQ-99`, `T7s-T3s`, `A2s+` ;
+  `AK` sans `s`/`o` est une **erreur** (comme OpenHoldem) dans un `.ohf` ;
+- profils Shanky : `AK` = `AKs AKo` (le format Shanky l'autorise), `KA` = `AK`.
