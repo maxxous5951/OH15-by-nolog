@@ -12,7 +12,8 @@ find_package(Threads REQUIRED)
 
 add_library(pokersim_core STATIC
   src/cards.cpp src/equity.cpp src/config.cpp src/engine.cpp src/brains.cpp src/runner.cpp
-  src/ohlang.cpp src/shanky.cpp src/pokerval.cpp src/handrank.cpp src/handrank_data.cpp src/prwin.cpp)
+  src/ohlang.cpp src/shanky.cpp src/pokerval.cpp src/handrank.cpp src/handrank_data.cpp src/prwin.cpp
+  src/ohsymbols_core.cpp src/ohsymbols_table.cpp src/ohbrain.cpp)
 target_include_directories(pokersim_core PUBLIC include PRIVATE third_party)
 target_link_libraries(pokersim_core PUBLIC Threads::Threads)
 if(MSVC)
@@ -73,8 +74,13 @@ if(POKERSIM_OH_ROOT AND EXISTS "${POKERSIM_OH_ROOT}/pokereval/lib/rules_std.c")
     set_source_files_properties(tests/oracle/oracle.cpp PROPERTIES COMPILE_OPTIONS "-w")
   endif()
   add_test(NAME oracle_pokerval COMMAND oracle_tests 1000000)
+  add_test(NAME symbols_vs_python COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/symdiff.py $<TARGET_FILE:symdump> 400 1)
 endif()
 
 add_executable(prwin_tests tests/test_prwin.cpp)
 target_link_libraries(prwin_tests PRIVATE pokersim_core)
 add_test(NAME prwin COMMAND prwin_tests)
+
+add_executable(symdump apps/symdump/main.cpp)
+target_include_directories(symdump PRIVATE third_party)
+target_link_libraries(symdump PRIVATE pokersim_core)

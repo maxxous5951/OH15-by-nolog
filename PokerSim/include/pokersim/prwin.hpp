@@ -38,6 +38,10 @@ struct NhandsResult {
 // Énumération exacte des mains adverses possibles (CalculateNhands)
 NhandsResult computeNhands(uint64_t plCards, uint64_t comCards, int nPl, int nCom, int nOppForPrwin);
 
+// Pour les tests : pokerval non signé (référence) et clé de comparaison rapide équivalente
+uint32_t pokervalUnsigned(uint64_t mask, int n);
+uint32_t fastCompareKey(uint64_t mask, int n);
+
 // Filtrage pondéré des mains adverses (PrWinHandranges.cpp), r = rand() de 0 à 32767
 bool isHandInWeightedRange(int card1, int card2, int willplay, int wontplay, int topclip, int mustplay, Rng& rng);
 

@@ -56,7 +56,7 @@ struct SimConfig {
 
     // Calcul de prwin : itérations par défaut (le profil peut en demander plus, plafonné)
     int prwinIterations = 1000;
-    int prwinMaxIterations = 20000;
+    int prwinMaxIterations = 0;   // 0 = aucune limite (comme OpenHoldem) ; > 0 plafonne f$prwin_number_of_iterations pour la vitesse
 
     std::vector<PlayerSpec> players;
     int workers = 0;              // 0 = auto

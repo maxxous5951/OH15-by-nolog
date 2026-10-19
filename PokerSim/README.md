@@ -44,9 +44,9 @@ Bots intégrés : `builtin:tag` (équité Monte-Carlo), `builtin:call`, `builtin
 
 1. **[fait]** moteur, trois formats, CLI, tests de conservation des jetons
 2. **[fait]** Parseur de formules : `.ohf` (OpenPPL + OH-script), `.oppl`, `.txt` Shanky
-3. Symboles OpenHoldem natifs (≈ 370 dans la version Python) et bibliothèque OpenPPL
-4. `prwin` fidèle à OpenHoldem (adversaires pondérés, itérations demandées par le profil)
-5. Historique PokerTracker simulé, exports, interface graphique
+3. **[fait]** Symboles natifs (698 noms testés) + bibliothèque OpenPPL + cerveau OpenHoldem : les profils jouent
+4. **[fait]** `prwin` / `nhands` / `handrank` / `pokerval` portés depuis l'original (validés par oracle)
+5. À faire : PokerTracker simulé (`pt_*`, actuellement -1), listes `vs$`, exports, interface graphique, performances
 
 ## Formules OpenHoldem (phase 2)
 
@@ -63,3 +63,40 @@ Choix assumés (fidèles à la source OpenHoldem, pas au Python) :
 - listes de mains : poids 0-100 pris en compte (tirage `poids >= rand()%101`), plages `QQ-99`, `T7s-T3s`, `A2s+` ;
   `AK` sans `s`/`o` est une **erreur** (comme OpenHoldem) dans un `.ohf` ;
 - profils Shanky : `AK` = `AKs AKo` (le format Shanky l'autorise), `KA` = `AK`.
+
+## Jouer avec des profils OpenHoldem (phase 3)
+
+    pokersim --format spin --players 3 --games 500 --oh-root /chemin/vers/OH15-by-nolog \
+      --player "Moi=DemoBots/OpenPPL_old_style_translated/No Limit/BSS/NL_6max_BSS_by_Subiendolo.txt" \
+      --player "Gecko=DemoBots/OH-Script/No Limit/Gecko_NL_6Max.ohf" --player Call=builtin:call
+
+`--oh-root` = dossier contenant `OpenPPL/OpenPPL_Library` (cherché automatiquement vers le haut sinon).
+Bibliothèques chargées dans l'ordre d'OpenHoldem : OpenPPL_Library, DefaultBot, Gecko, Termita, Winngy, custom_function_library.
+La CLI liste à la fin les **symboles inconnus** (évalués à 0) pour chaque profil.
+
+`prwin` suit OpenHoldem : `f$prwin_number_of_iterations` du profil (50 000 par défaut via la bibliothèque Gecko !).
+`--prwin-max N` plafonne ce nombre pour aller plus vite (0 = fidèle).
+
+### Validation
+
+| Test | Contre quoi | Résultat |
+|---|---|---|
+| `oracle_pokerval` | code **original** d'OpenHoldem (`CalculatePokerval` extrait + poker-eval) | 3 M tirages, 0 écart |
+| `symbols_vs_python` | `symbols.py`, 698 symboles x états aléatoires | 1,47 M comparaisons, 0 désaccord inattendu |
+| `prwin` | énumération exacte, Monte-Carlo indépendant, mutations | OK |
+
+    cmake -S . -B build -DPOKERSIM_OH_ROOT=/chemin/vers/OH15-by-nolog && cmake --build build && ctest --test-dir build
+
+### Écarts assumés par rapport à `symbols.py` (le C++ suit les sources d'OpenHoldem)
+
+- `prwin`, `prtie`, `prlos` : algorithme de `CIteratorThread` (itérations demandées par le profil, adversaires = `f$prwin_number_of_opponents`
+  borné à 1..22, pondération `willplay/wontplay/topclip/mustplay`, biais `(N-1)/N`). Le Python plafonnait à 20 000 itérations et à 9 adversaires.
+- `prwinnow`, `prlosnow`, `nhands*` : énumération exacte des mains adverses (`CalculateNhands`). `handrank*` : tables d'OpenHoldem.
+- `pokerval` d'une quinte flush vaut `INT_MIN` (conversion double -> int) : toutes les quintes flush sont **à égalité** dans `prwin`,
+  et ne comptent pas dans `nouts` / `ncardsbetter`.
+- `ante` : ante réelle de la table (le Python renvoyait 0).
+
+### Limites connues
+
+`pt_*` / `ptt_*` (PokerTracker) renvoient -1, `vs$*` renvoie 0, pas de DLL utilisateur ni de `prw1326` alimenté par DLL,
+No Limit Hold'em uniquement.

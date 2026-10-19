@@ -159,6 +159,8 @@ public:
     std::vector<std::pair<std::string, std::string>> errors(bool includeReadOnly) const;
 
     std::unordered_map<std::string, std::shared_ptr<OHFunction>> functions;
+    std::unordered_map<std::string, std::string> lowerIndex;   // nom en minuscules -> nom exact (1er rencontré, ordre alphabétique)
+    void buildLowerIndex();
     std::string profilePath, profileName;
 };
 

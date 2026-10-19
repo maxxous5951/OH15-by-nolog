@@ -1,9 +1,11 @@
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <iostream>
 #include <mutex>
+#include "pokersim/ohsymbols.hpp"
 #include "pokersim/runner.hpp"
 
 using namespace ps;
@@ -18,13 +20,15 @@ static void usage() {
         "  --hands N                  (cash : mains par session)\n"
         "  --sb N --bb N              (cash : blinds)    --rake PCT   --rake-cap N\n"
         "  --player Nom=profil        (répétable ; profil = builtin:tag|call|random)\n"
+        "  --prwin-max N              plafonne f$prwin_number_of_iterations (0 = fidèle à OpenHoldem, sans plafond)\n"
+        "  --oh-root DIR              racine d'OpenHoldem (OpenPPL/OpenPPL_Library) pour les profils .ohf/.oppl/.txt\n"
         "  --workers N                --hh fichier.txt   (historique des mains, 1ère partie)\n");
 }
 
 int main(int argc, char** argv) {
     try {
         SimConfig cfg;
-        std::string cfgPath, hhPath;
+        std::string cfgPath, hhPath, ohRoot;
         for (int i = 1; i < argc; ++i) if (!std::strcmp(argv[i], "--config") && i + 1 < argc) cfgPath = argv[i + 1];
         if (!cfgPath.empty()) cfg = SimConfig::fromJsonFile(cfgPath);
         std::vector<PlayerSpec> cliPlayers;
@@ -52,6 +56,8 @@ int main(int argc, char** argv) {
             else if (a == "--rake-cap") cfg.rakeCap = std::atoi(val());
             else if (a == "--workers") cfg.workers = std::atoi(val());
             else if (a == "--hh") hhPath = val();
+            else if (a == "--oh-root") ohRoot = val();
+            else if (a == "--prwin-max") cfg.prwinMaxIterations = std::atoi(val());
             else if (a == "--player") {
                 std::string v = val();
                 auto eq = v.find('=');
@@ -71,8 +77,18 @@ int main(int argc, char** argv) {
         auto progress = [&](int d, int n) {
             if (n >= 20 && (d % std::max(1, n / 20) == 0 || d == n)) { std::lock_guard<std::mutex> lk(mu); std::fprintf(stderr, "\r%d/%d", d, n); if (d == n) std::fputc('\n', stderr); }
         };
-        SimSummary s = runSimulation(cfg, defaultBrainFactory(), !hhPath.empty(), progress);
+        SimSummary s = runSimulation(cfg, oh::profileBrainFactory(ohRoot), !hhPath.empty(), progress);
         std::fputs(formatSummary(cfg, s).c_str(), stdout);
+        {
+            auto unk = oh::collectUnknownSymbols();
+            if (!unk.empty()) {
+                std::vector<std::pair<long, std::string>> v;
+                for (auto& kv : unk) v.push_back({kv.second, kv.first});
+                std::sort(v.rbegin(), v.rend());
+                std::printf("\nSymboles inconnus (évalués à 0) : %zu distincts\n", v.size());
+                for (size_t i = 0; i < v.size() && i < 25; ++i) std::printf("  %-40s %ld\n", v[i].second.c_str(), v[i].first);
+            }
+        }
         if (!hhPath.empty() && !s.games.empty()) {
             std::ofstream f(hhPath);
             std::vector<std::string> names;

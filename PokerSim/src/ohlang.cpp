@@ -743,6 +743,14 @@ std::shared_ptr<OHFunction> FormulaCollection::get(const std::string& name) cons
     return it == functions.end() ? nullptr : it->second;
 }
 
+void FormulaCollection::buildLowerIndex() {
+    lowerIndex.clear();
+    std::vector<std::string> keys;
+    for (auto& kv : functions) keys.push_back(kv.first);
+    std::sort(keys.begin(), keys.end());
+    for (auto& k : keys) lowerIndex.emplace(lower(k), k);
+}
+
 void FormulaCollection::parseAll() { for (auto& kv : functions) parseOne(*kv.second); }
 
 void FormulaCollection::parseOne(OHFunction& f) {

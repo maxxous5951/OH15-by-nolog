@@ -162,20 +162,24 @@ std::string shankyToOhf(const std::string& text) {
     static const Re secRe("^\\s*(preflop|flop|turn|river)\\s*$", kIc);
     static const Re newListRe("^new\\s+list\\s+(\\S+)$", kIc);
     static const Re endListRe("^end\\s+list$", kIc);
-    std::vector<std::string> out;
+    static const Re newSymRe("^new\\s+symbol\\s+(\\S+)$", kIc);
+    static const Re endSymRe("^end\\s+symbol$", kIc);
+    // sections (preflop...) et éléments annexes (listes, symboles utilisateur) sont émis séparément : un symbole ou une liste
+    // peut apparaître au milieu d'une section sans en couper la suite
+    std::vector<std::string> sections, extras;
+    std::vector<std::string>* sink = nullptr;
     std::string cur;
-    bool inSections = false, inList = false;
-    auto flush = [&]() { if (!cur.empty()) { out.push_back("\t" + convertLine(cur)); cur.clear(); } };
+    bool inSections = false, inList = false, inSymbol = false;
+    auto flush = [&]() { if (!cur.empty() && sink) sink->push_back("\t" + convertLine(cur)); cur.clear(); };
     std::istringstream is(text);
     for (std::string raw; std::getline(is, raw);) {
         std::string s = trim(raw);
         std::replace(s.begin(), s.end(), '\t', ' ');
         if (s.empty()) continue;
         std::smatch m;
-        // blocs de listes
-        if (!inList && std::regex_match(s, m, newListRe)) { flush(); inList = true; out.push_back("\n##list" + low(m[1].str()) + "##"); continue; }
+        if (!inList && !inSymbol && std::regex_match(s, m, newListRe)) { flush(); inList = true; extras.push_back("\n##list" + low(m[1].str()) + "##"); continue; }
         if (inList) {
-            if (std::regex_match(s, endListRe)) { inList = false; continue; }
+            if (std::regex_match(s, endListRe)) { inList = false; sink = inSections ? &sections : nullptr; continue; }
             size_t c = s.find("//");
             if (c != std::string::npos) s = trim(s.substr(0, c));
             if (s.empty()) continue;
@@ -186,22 +190,26 @@ std::string shankyToOhf(const std::string& text) {
                 std::istringstream ts(t);
                 for (std::string u; ts >> u;) line += (line.empty() ? "" : " ") + convertListMember(u);
             }
-            out.push_back(line);
+            extras.push_back(line);
             continue;
         }
-        if (s.rfind("//", 0) == 0) { flush(); if (inSections) out.push_back(s); continue; }
+        if (!inSymbol && std::regex_match(s, m, newSymRe)) { flush(); inSymbol = true; sink = &extras; extras.push_back("\n##" + m[1].str() + "##"); continue; }
+        if (inSymbol && std::regex_match(s, endSymRe)) { flush(); inSymbol = false; sink = inSections ? &sections : nullptr; continue; }
+        if (s.rfind("//", 0) == 0) { flush(); if (sink && (inSections || inSymbol)) sink->push_back(s); continue; }
         size_t c = s.find("//");
         if (c != std::string::npos) { s = trim(s.substr(0, c)); if (s.empty()) continue; }
-        if (std::regex_match(s, m, secRe)) { flush(); inSections = true; out.push_back("\n##f$" + low(m[1].str()) + "##"); continue; }
-        if (!inSections) continue;     // options du bot, mot-clé « custom », ...
+        if (!inSymbol && std::regex_match(s, m, secRe)) { flush(); inSections = true; sink = &sections; sections.push_back("\n##f$" + low(m[1].str()) + "##"); continue; }
+        if (!inSections && !inSymbol) continue;     // options du bot, mot-clé « custom », ...
         std::istringstream ws(s); std::string first; ws >> first;
         if (low(first) == "when") { flush(); cur = s; }
         else cur = cur.empty() ? s : cur + " " + s;
     }
     flush();
     std::string res;
-    for (size_t i = 0; i < out.size(); ++i) { if (i) res += "\n"; res += out[i]; }
-    return res + "\n";
+    auto emit = [&](const std::vector<std::string>& v) { for (auto& l : v) { res += l; res += "\n"; } };
+    emit(extras);
+    emit(sections);
+    return res;
 }
 
 }  // namespace ps::oh

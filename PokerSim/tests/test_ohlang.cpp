@@ -162,6 +162,19 @@ static void testShanky() {
     CHECK(fc.errors(true).empty());
     CHECK(fc.get("list001")->hands->nHands() == 4);   // AA KK + AKs AKo
     CHECK(fc.isOpenPPLProfile());
+    // symboles utilisateur Shanky : « NEW SYMBOL x ... END SYMBOL » devient une fonction, même au milieu d'une section
+    const std::string sym =
+        "NEW SYMBOL IP\n  WHEN (Position = Last) RETURN 1 FORCE\n\tWHEN Others RETURN 0 FORCE\nEND SYMBOL\n"
+        "preflop\nWhen islist001 Raise force\nNEW SYMBOL Mid\n  WHEN Others RETURN 7 FORCE\nEND SYMBOL\nWhen IP Call force\n"
+        "flop\nWhen Mid = 7 Fold force\n";
+    std::string ohf2 = shankyToOhf(sym);
+    FormulaCollection f2;
+    f2.addText(ohf2, "x", false);
+    f2.parseAll();
+    CHECK(f2.has("IP") && f2.has("Mid") && f2.has("f$preflop") && f2.has("f$flop"));
+    CHECK(f2.errors(true).empty());
+    CHECK(f2.get("f$preflop")->text.find("Call") != std::string::npos);     // la suite de la section n'est pas happée par le symbole
+    CHECK(f2.get("f$preflop")->text.find("RETURN 7") == std::string::npos);
 }
 
 int main() {

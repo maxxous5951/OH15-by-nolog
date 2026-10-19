@@ -140,7 +140,51 @@ static void testEnhanced() {
     CHECK(computePrwin(bad, rng).win > 0);
 }
 
+// La clé rapide doit trier exactement comme pokerval non signé (y compris l'égalité des quintes flush), pour tout n de 2 à 7
+static void testFastKeyEquivalence() {
+    Rng rng(777);
+    long diff = 0, sfPairs = 0, total = 0;
+    for (long it = 0; it < 3000000; ++it) {
+        int n = 2 + static_cast<int>(rng.below(6));
+        int deck[52]; for (int i = 0; i < 52; ++i) deck[i] = i;
+        // deux mains de n cartes partageant éventuellement des cartes communes (comme dans prwin)
+        int shared = static_cast<int>(rng.below(n + 1));
+        uint64_t a = 0, b = 0;
+        for (int i = 0; i < n + (n - shared); ++i) std::swap(deck[i], deck[i + static_cast<int>(rng.below(52 - i))]);
+        for (int i = 0; i < shared; ++i) { a |= peBit(deck[i]); b |= peBit(deck[i]); }
+        for (int i = 0; i < n - shared; ++i) { a |= peBit(deck[shared + i]); b |= peBit(deck[shared + (n - shared) + i]); }
+        uint32_t pa = pokervalUnsigned(a, n), pb = pokervalUnsigned(b, n), ka = fastCompareKey(a, n), kb = fastCompareKey(b, n);
+        int s1 = (pa > pb) - (pa < pb), s2 = (ka > kb) - (ka < kb);
+        if (s1 != s2) ++diff;
+        if (hvType(handValN(a, n)) == 8 && hvType(handValN(b, n)) == 8) ++sfPairs;
+        ++total;
+    }
+    // tirage ciblé : jeu réduit à deux couleurs -> beaucoup de couleurs et de quintes flush (cas des égalités d'OpenHoldem)
+    long sf2 = 0, diff2 = 0;
+    for (long it = 0; it < 1500000; ++it) {
+        int n = 5 + static_cast<int>(rng.below(3));
+        int pool[26];
+        int s1 = static_cast<int>(rng.below(4)), s2 = (it % 2) ? s1 : static_cast<int>((s1 + 1 + rng.below(3)) % 4);   // une fois sur deux : une seule couleur
+        for (int i = 0; i < 13; ++i) { pool[i] = s1 * 13 + i; pool[13 + i] = (s2 == s1) ? s1 * 13 + i : s2 * 13 + i; }
+        int shared = static_cast<int>(rng.below(n + 1));
+        const int poolSize = (s2 == s1) ? 13 : 26;
+        if (n + (n - shared) > poolSize) continue;
+        for (int i = 0; i < n + (n - shared); ++i) std::swap(pool[i], pool[i + static_cast<int>(rng.below(poolSize - i))]);
+        uint64_t a = 0, b = 0;
+        for (int i = 0; i < shared; ++i) { a |= peBit(pool[i]); b |= peBit(pool[i]); }
+        for (int i = 0; i < n - shared; ++i) { a |= peBit(pool[shared + i]); b |= peBit(pool[shared + (n - shared) + i]); }
+        uint32_t pa = pokervalUnsigned(a, n), pb = pokervalUnsigned(b, n), ka = fastCompareKey(a, n), kb = fastCompareKey(b, n);
+        if (((pa > pb) - (pa < pb)) != ((ka > kb) - (ka < kb))) ++diff2;
+        if (hvType(handValN(a, n)) == 8 && hvType(handValN(b, n)) == 8) ++sf2;
+    }
+    std::printf("  tirage ciblé : %ld écart(s), %ld paires de quintes flush\n", diff2, sf2);
+    CHECK(diff2 == 0 && sf2 > 10000);
+    std::printf("  clé rapide : %ld comparaisons, %ld écart(s), %ld paires de quintes flush\n", total, diff, sfPairs);
+    CHECK(diff == 0);
+}
+
 int main() {
+    testFastKeyEquivalence();
     testNhands();
     testHandrank();
     testStandardPrwin();

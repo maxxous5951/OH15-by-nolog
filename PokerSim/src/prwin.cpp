@@ -8,10 +8,17 @@ namespace {
 
 inline int msvcRand(Rng& rng) { return static_cast<int>(rng.below(32768)); }   // RAND_MAX = 32767
 
-inline uint32_t pokervalU(uint64_t mask, int n) {
+uint32_t pokervalU(uint64_t mask, int n) {
     uint32_t hv = handValN(mask, n);
     int dummy = 0;
     return static_cast<uint32_t>(calcPokerval(hv, n, &dummy, kNoCardOH, kNoCardOH, mask));   // « unsigned int pokval = int » comme l'original
+}
+
+// Clé de comparaison équivalente à pokerval (non signé) : l'ordre de HandVal est celui de pokerval, sauf que toutes les
+// quintes flush sont À ÉGALITÉ chez OpenHoldem (pokerval = INT_MIN). Vérifié par test sur des millions de comparaisons.
+inline uint32_t fastKey(uint64_t mask, int n) {
+    uint32_t hv = handValN(mask, n);
+    return (hv >> 24) == 8 ? 0xFFFFFFFFu : hv;
 }
 
 struct Dealer {
@@ -103,6 +110,9 @@ struct Dealer {
 
 }  // namespace
 
+uint32_t pokervalUnsigned(uint64_t mask, int n) { return pokervalU(mask, n); }
+uint32_t fastCompareKey(uint64_t mask, int n) { return fastKey(mask, n); }
+
 bool isHandInWeightedRange(int card1, int card2, int willplay, int wontplay, int topclip, int mustplay, Rng& rng) {
     int suit1 = card1 / 13, suit2 = card2 / 13, r1 = card1 % 13, r2 = card2 % 13;
     if (r2 > r1) { int t = r1; r1 = r2; r2 = t; }
@@ -148,12 +158,12 @@ PrwinResult computePrwin(const PrwinInput& in, Rng& rng) {
         } else if (nopp <= 13) dd.standardUpTo13(nopp);
         else dd.swapMoreThan13(nopp);
         uint64_t evalCards = in.plCards | in.comCards | dd.addl;
-        uint32_t plVal = pokervalU(evalCards, 7);
+        uint32_t plVal = fastKey(evalCards, 7);
         uint32_t oppMax = 0;
         bool lost = false;
         for (int i = 0; i < nopp; ++i) {
             uint64_t oc = in.comCards | dd.addl | peBit(dd.ocard[i * 2]) | peBit(dd.ocard[i * 2 + 1]);
-            uint32_t ov = pokervalU(oc, 7);
+            uint32_t ov = fastKey(oc, 7);
             if (ov > plVal) { ++los; lost = true; break; }
             if (ov > oppMax) oppMax = ov;
         }
@@ -167,11 +177,11 @@ PrwinResult computePrwin(const PrwinInput& in, Rng& rng) {
 
 NhandsResult computeNhands(uint64_t pl, uint64_t com, int nPl, int nCom, int nOpp) {
     NhandsResult out;
-    const uint32_t plVal = pokervalU(pl | com, nPl + nCom);
+    const uint32_t plVal = fastKey(pl | com, nPl + nCom);
     for (int i = 0; i < 51; ++i) {
         for (int j = i + 1; j < 52; ++j) {
             if ((pl >> i & 1) || (pl >> j & 1) || (com >> i & 1) || (com >> j & 1)) continue;
-            uint32_t ov = pokervalU(com | peBit(i) | peBit(j), 2 + nCom);
+            uint32_t ov = fastKey(com | peBit(i) | peBit(j), 2 + nCom);
             if (plVal > ov) ++out.lo; else if (plVal < ov) ++out.hi; else ++out.ti;
         }
     }
