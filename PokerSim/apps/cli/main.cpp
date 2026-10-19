@@ -85,7 +85,7 @@ int main(int argc, char** argv) {
                 std::vector<std::pair<long, std::string>> v;
                 for (auto& kv : unk) v.push_back({kv.second, kv.first});
                 std::sort(v.rbegin(), v.rend());
-                std::printf("\nSymboles inconnus (évalués à 0) : %zu distincts\n", v.size());
+                std::printf("\nSymboles inconnus (évalués à 0) : %zu distincts\n(absents d'OpenHoldem et de sa bibliothèque : symbole Shanky non converti, ancien symbole WinHoldem ou faute de frappe du profil)\n", v.size());
                 for (size_t i = 0; i < v.size() && i < 25; ++i) std::printf("  %-40s %ld\n", v[i].second.c_str(), v[i].first);
             }
         }

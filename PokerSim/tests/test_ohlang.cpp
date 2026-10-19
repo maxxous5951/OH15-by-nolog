@@ -154,6 +154,7 @@ static void testShanky() {
     CHECK(ohf.find("##list001##") != std::string::npos);
     CHECK(ohf.find("hand$AKSuited") != std::string::npos);
     CHECK(ohf.find("RaiseBy 90% FORCE") != std::string::npos);
+    CHECK(shankyToOhf("preflop\nWhen board = AKQ Call force\n").find("board$AKQ") != std::string::npos);   // plus de 2 rangs
     CHECK(ohf.find("Set User_Aggr") != std::string::npos);
     FormulaCollection fc;
     fc.addText(ohf, "x", false);

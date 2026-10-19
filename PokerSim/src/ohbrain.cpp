@@ -67,7 +67,7 @@ private:
             decision = d.empty() ? 0.0 : ctx_.evaluateNamed(d);
         } else decision = ctx_.evaluateNamed(name);
         if (decision > 0) f[F_BETSIZE] = decision * ctx_.unit();
-        else if (decision > -1000 && decision < 0) {
+        else if (decision >= -1000 && decision < 0) {   // IsPercentagePotsizeBet : inclusif sur -1000, comme OpenHoldem
             double call = ctx_.callAmount();
             f[F_BETSIZE] = ctx_.me->bet + call + (-decision) * (t.pot() + call);
         } else if (decision < -1000) {

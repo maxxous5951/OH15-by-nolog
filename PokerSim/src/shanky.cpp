@@ -85,7 +85,7 @@ std::string convertLine(const std::string& line) {
     }
     static const Re inRe("\\bin\\s+(?=(?:s|b|cutoff|middle|early|late))", kIc);
     s = std::regex_replace(s, inRe, "In");
-    static const Re handRe("\\b(hand|board)\\s*=\\s*([2-9TJQKA]{1,2})(?:(s)(?![A-Za-z0-9$])|(?![A-Za-z0-9$])(?:\\s+(suited))?)", kIc);
+    static const Re handRe("\\b(hand|board)\\s*=\\s*([2-9TJQKA]{1,5})(?:(s)(?![A-Za-z0-9$])|(?![A-Za-z0-9$])(?:\\s+(suited))?)", kIc);
     s = replaceWith(s, handRe, [](const std::smatch& m) {
         return low(m[1].str()) + "$" + up(m[2].str()) + ((m[3].matched || m[4].matched) ? "Suited" : "");
     });
