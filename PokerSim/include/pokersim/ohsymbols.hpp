@@ -25,6 +25,15 @@ std::shared_ptr<FormulaCollection> loadLibrary(const std::string& libraryDir, co
 std::shared_ptr<FormulaCollection> buildProfile(const std::string& path, const FormulaCollection& lib);
 bool isOHScript(const FormulaCollection& fc);
 
+// Diagnostic d'un profil (pour l'interface) : format, nombre de fonctions/listes, erreurs de syntaxe
+struct ProfileReport {
+    std::string path, format, error;       // error : échec de lecture
+    int functions = 0, lists = 0;
+    std::vector<std::pair<std::string, std::string>> problems;   // (fonction, message)
+    bool ok() const { return error.empty() && problems.empty(); }
+};
+ProfileReport inspectProfile(const std::string& path, const std::string& ohRoot);
+
 // ----------------------------------------------------------------- contexte de symboles
 class SymbolContext : public IEval {
 public:
@@ -44,7 +53,7 @@ public:
     bool hasFunction(int id) override;
 
     // diagnostics : symboles inconnus rencontrés (nom -> nombre d'évaluations)
-    const std::map<std::string, long>& unknownSymbols() const { return unknown_; }
+    const std::map<std::string, long long>& unknownSymbols() const { return unknown_; }
 
     // ---- état lié (public : utilisé par la table de symboles)
     std::shared_ptr<const FormulaCollection> fc;
@@ -126,7 +135,7 @@ private:
     std::unordered_map<int, double> fnCache_;
     std::set<int> active_;
     int depth_ = 0;
-    std::map<std::string, long> unknown_;
+    std::map<std::string, long long> unknown_;
     // caches par état lié
     bool pvOk_ = false, csOk_ = false, noutsOk_ = false, prwOk_ = false, nhOk_ = false, hrOk_ = false, hiPrwinKnown_ = false, hiPrwin_ = false;
     PokerVal pv_; CardStats cs_; std::pair<int, int> nouts_; PrwinResult prw_; NhandsResult nh_; HandrankValues hr_;
@@ -135,7 +144,7 @@ private:
 // ----------------------------------------------------------------- cerveau
 std::unique_ptr<IBrain> makeOhBrain(std::shared_ptr<const FormulaCollection> fc, const SimConfig& cfg, uint64_t seed, const std::string& name);
 // Symboles inconnus rencontrés pendant la simulation, cumulés sur tous les cerveaux (nom -> évaluations)
-std::map<std::string, long> collectUnknownSymbols(bool reset = true);
+std::map<std::string, long long> collectUnknownSymbols(bool reset = true);
 // Racine d'un dépôt OpenHoldem (contient OpenPPL/OpenPPL_Library) en remontant depuis `start`, "" si introuvable
 std::string findOhRoot(const std::string& start);
 // Usine complète : "builtin:*", sinon fichier de profil ; library/defaultBot résolus depuis `repoRoot`

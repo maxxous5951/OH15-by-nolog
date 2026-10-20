@@ -109,8 +109,8 @@ double headsupChair(Ctx& c) { std::vector<int> o; for (int x : c.playing()) if (
 double firstRaiser(Ctx& c) { auto a = c.aggr(); return a.empty() ? -1.0 : a.front()->chair; }
 double firstCaller(Ctx& c) { for (auto* a : c.roundActions()) if (a->kind == ActKind::Call && a->chair != c.chair) return a->chair; return -1.0; }
 double lastCaller(Ctx& c) { double r = -1; for (auto* a : c.roundActions()) if (a->kind == ActKind::Call && a->chair != c.chair) r = a->chair; return r; }
-double smallstackChair(Ctx& c) { long best = 1000000000000L; double res = -1; for (auto& s : c.t->seats) { if (s.chair == c.chair || !s.inHand) continue; if (s.stack < best) { best = s.stack; res = s.chair; } } return res; }
-double bigstackChair(Ctx& c) { long best = -1; double res = -1; for (auto& s : c.t->seats) { if (s.chair == c.chair || !s.inHand) continue; if (s.stack > best) { best = s.stack; res = s.chair; } } return res; }
+double smallstackChair(Ctx& c) { long long best = 1000000000000LL; double res = -1; for (auto& s : c.t->seats) { if (s.chair == c.chair || !s.inHand) continue; if (s.stack < best) { best = s.stack; res = s.chair; } } return res; }
+double bigstackChair(Ctx& c) { long long best = -1; double res = -1; for (auto& s : c.t->seats) { if (s.chair == c.chair || !s.inHand) continue; if (s.stack > best) { best = s.stack; res = s.chair; } } return res; }
 double myturnbits(Ctx& c) {
     double call = c.largestBet() - c.me->bet;
     int b = 0;

@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64"><Configuration>Debug</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{3B8CE78B-A900-5DA8-B096-9442C432FD30}</ProjectGuid>
+    <RootNamespace>PokerSimCore</RootNamespace>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <PS_ROOT>$(MSBuildThisFileDirectory)..\</PS_ROOT>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <OutDir>$(PS_ROOT)bin\$(Configuration)\</OutDir>
+    <IntDir>$(PS_ROOT)obj\$(ProjectName)\$(Configuration)\</IntDir>
+    <TargetName>PokerSimCore</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <PreprocessorDefinitions>NOMINMAX;_CRT_SECURE_NO_WARNINGS;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(PS_ROOT)include;$(PS_ROOT)third_party;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <Optimization>Disabled</Optimization>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <PreprocessorDefinitions>NOMINMAX;_CRT_SECURE_NO_WARNINGS;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(PS_ROOT)include;$(PS_ROOT)third_party;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <Optimization>MaxSpeed</Optimization>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\src\brains.cpp" />
+    <ClCompile Include="..\src\cards.cpp" />
+    <ClCompile Include="..\src\config.cpp" />
+    <ClCompile Include="..\src\engine.cpp" />
+    <ClCompile Include="..\src\equity.cpp" />
+    <ClCompile Include="..\src\handrank.cpp" />
+    <ClCompile Include="..\src\handrank_data.cpp" />
+    <ClCompile Include="..\src\ohbrain.cpp" />
+    <ClCompile Include="..\src\ohlang.cpp" />
+    <ClCompile Include="..\src\ohsymbols_core.cpp" />
+    <ClCompile Include="..\src\ohsymbols_table.cpp" />
+    <ClCompile Include="..\src\pokerval.cpp" />
+    <ClCompile Include="..\src\prwin.cpp" />
+    <ClCompile Include="..\src\runner.cpp" />
+    <ClCompile Include="..\src\shanky.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\include\pokersim\brains.hpp" />
+    <ClInclude Include="..\include\pokersim\cards.hpp" />
+    <ClInclude Include="..\include\pokersim\config.hpp" />
+    <ClInclude Include="..\include\pokersim\engine.hpp" />
+    <ClInclude Include="..\include\pokersim\equity.hpp" />
+    <ClInclude Include="..\include\pokersim\evaluator.hpp" />
+    <ClInclude Include="..\include\pokersim\handrank.hpp" />
+    <ClInclude Include="..\include\pokersim\ohlang.hpp" />
+    <ClInclude Include="..\include\pokersim\ohsymbols.hpp" />
+    <ClInclude Include="..\include\pokersim\pathutil.hpp" />
+    <ClInclude Include="..\include\pokersim\pokerval.hpp" />
+    <ClInclude Include="..\include\pokersim\prwin.hpp" />
+    <ClInclude Include="..\include\pokersim\rng.hpp" />
+    <ClInclude Include="..\include\pokersim\runner.hpp" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

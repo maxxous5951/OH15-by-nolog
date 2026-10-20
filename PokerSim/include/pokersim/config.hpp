@@ -62,12 +62,14 @@ struct SimConfig {
     int workers = 0;              // 0 = auto
     std::string outputDir = "output";
     bool writeHandHistory = false;
+    int recordGames = 0;          // nombre de premières parties dont on conserve l'historique des mains (0 = aucune)
 
     bool isCash() const { return format == GameFormat::Cash; }
     // Valeurs par défaut (niveaux, multiplicateurs...) et validation ; lève std::runtime_error
     void finalize();
     static SimConfig fromJsonFile(const std::string& path);
     static SimConfig fromJsonText(const std::string& text);
+    std::string toJsonText() const;
 };
 
 std::vector<BlindLevel> defaultSpinLevels();

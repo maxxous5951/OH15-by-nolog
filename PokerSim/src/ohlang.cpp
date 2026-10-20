@@ -1,4 +1,5 @@
 #include "pokersim/ohlang.hpp"
+#include "pokersim/pathutil.hpp"
 #include <algorithm>
 #include <bit>
 #include <cctype>
@@ -674,7 +675,7 @@ std::string defaultFunctionFor(const std::string& name) {
 }
 
 std::string readFileLatin1(const std::string& path) {
-    std::ifstream f(path, std::ios::binary);
+    std::ifstream f(pathFromUtf8(path), std::ios::binary);
     if (!f) throw std::runtime_error("Impossible d'ouvrir " + path);
     std::stringstream ss; ss << f.rdbuf();
     std::string s = ss.str();

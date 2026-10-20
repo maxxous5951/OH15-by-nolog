@@ -11,19 +11,20 @@
 namespace ps {
 
 SimSummary runSimulation(const SimConfig& cfg, const BrainFactory& factory, bool collectRecords,
-                         const std::function<void(int, int)>& progress) {
+                         const std::function<void(int, int)>& progress, std::atomic<bool>* cancel) {
     const int np = static_cast<int>(cfg.players.size());
     if (np != cfg.numPlayers) throw std::runtime_error("Le nombre de profils déclarés ne correspond pas à numPlayers");
     SimSummary out;
     out.games.resize(cfg.numGames);
     std::atomic<int> next{0}, done{0};
+    std::atomic<bool> failed{false};
     std::mutex errMu;
     std::string error;
     auto t0 = std::chrono::steady_clock::now();
     auto worker = [&]() {
         for (;;) {
             int g = next.fetch_add(1);
-            if (g >= cfg.numGames || !error.empty()) return;
+            if (g >= cfg.numGames || failed.load() || (cancel && cancel->load())) return;
             try {
                 uint64_t x = cfg.seed ^ (0x9E3779B97F4A7C15ULL * (static_cast<uint64_t>(g) + 1));
                 uint64_t gameSeed = splitmix64(x);
@@ -41,11 +42,12 @@ SimSummary runSimulation(const SimConfig& cfg, const BrainFactory& factory, bool
                     brains.push_back(owned.back().get());
                     names.push_back(cfg.players[pid].name);
                 }
-                Game game(cfg, brains, names, perm, g, gameSeed, collectRecords);
+                Game game(cfg, brains, names, perm, g, gameSeed, collectRecords || g < cfg.recordGames);
                 out.games[g] = game.play();
             } catch (const std::exception& e) {
                 std::lock_guard<std::mutex> lk(errMu);
                 if (error.empty()) error = e.what();
+                failed = true;
                 return;
             }
             int d = ++done;
@@ -58,8 +60,11 @@ SimSummary runSimulation(const SimConfig& cfg, const BrainFactory& factory, bool
     for (int i = 1; i < nt; ++i) th.emplace_back(worker);
     worker();
     for (auto& t : th) t.join();
-    if (!error.empty()) throw std::runtime_error(error);
+    if (failed.load()) throw std::runtime_error(error);
 
+    // parties non jouées (annulation) : retirées pour que les statistiques ne portent que sur les parties terminées
+    out.cancelled = cancel && cancel->load();
+    out.games.erase(std::remove_if(out.games.begin(), out.games.end(), [](const GameResult& g) { return g.players.empty(); }), out.games.end());
     out.profiles.resize(np);
     for (int i = 0; i < np; ++i) out.profiles[i].name = cfg.players[i].name;
     for (auto& gr : out.games) {

@@ -6,6 +6,7 @@
 #include <iostream>
 #include <mutex>
 #include "pokersim/ohsymbols.hpp"
+#include "pokersim/pathutil.hpp"
 #include "pokersim/runner.hpp"
 
 using namespace ps;
@@ -77,20 +78,21 @@ int main(int argc, char** argv) {
         auto progress = [&](int d, int n) {
             if (n >= 20 && (d % std::max(1, n / 20) == 0 || d == n)) { std::lock_guard<std::mutex> lk(mu); std::fprintf(stderr, "\r%d/%d", d, n); if (d == n) std::fputc('\n', stderr); }
         };
-        SimSummary s = runSimulation(cfg, oh::profileBrainFactory(ohRoot), !hhPath.empty(), progress);
+        if (!hhPath.empty()) cfg.recordGames = 1;
+        SimSummary s = runSimulation(cfg, oh::profileBrainFactory(ohRoot), false, progress);
         std::fputs(formatSummary(cfg, s).c_str(), stdout);
         {
             auto unk = oh::collectUnknownSymbols();
             if (!unk.empty()) {
-                std::vector<std::pair<long, std::string>> v;
+                std::vector<std::pair<long long, std::string>> v;
                 for (auto& kv : unk) v.push_back({kv.second, kv.first});
                 std::sort(v.rbegin(), v.rend());
                 std::printf("\nSymboles inconnus (évalués à 0) : %zu distincts\n(absents d'OpenHoldem et de sa bibliothèque : symbole Shanky non converti, ancien symbole WinHoldem ou faute de frappe du profil)\n", v.size());
-                for (size_t i = 0; i < v.size() && i < 25; ++i) std::printf("  %-40s %ld\n", v[i].second.c_str(), v[i].first);
+                for (size_t i = 0; i < v.size() && i < 25; ++i) std::printf("  %-40s %lld\n", v[i].second.c_str(), v[i].first);
             }
         }
         if (!hhPath.empty() && !s.games.empty()) {
-            std::ofstream f(hhPath);
+            std::ofstream f(pathFromUtf8(hhPath));
             std::vector<std::string> names;
             for (auto& p : s.games[0].players) names.push_back(p.name);
             for (auto& h : s.games[0].records) f << formatHandHistory(h, names, cfg.format) << "\n";

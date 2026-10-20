@@ -1,4 +1,5 @@
 #include "pokersim/config.hpp"
+#include "pokersim/pathutil.hpp"
 #include <fstream>
 #include <numeric>
 #include <sstream>
@@ -93,6 +94,7 @@ SimConfig SimConfig::fromJsonText(const std::string& text) {
     get("noFlopNoDrop", c.noFlopNoDrop); get("payoutShares", c.payoutShares);
     get("multiplierTimesTotal", c.multiplierTimesTotal);
     get("prwinIterations", c.prwinIterations); get("prwinMaxIterations", c.prwinMaxIterations);
+    get("recordGames", c.recordGames);
     get("workers", c.workers); get("outputDir", c.outputDir); get("writeHandHistory", c.writeHandHistory);
     if (j.contains("levelBy")) c.levelBy = (j["levelBy"].get<std::string>() == "hands") ? LevelBy::Hands : LevelBy::Time;
     if (j.contains("cashStackMode")) c.cashStackMode = (j["cashStackMode"].get<std::string>() == "reset") ? CashStackMode::Reset : CashStackMode::Rebuy;
@@ -105,8 +107,31 @@ SimConfig SimConfig::fromJsonText(const std::string& text) {
     return c;
 }
 
+std::string SimConfig::toJsonText() const {
+    json j;
+    j["format"] = format == GameFormat::Cash ? "cash" : format == GameFormat::SNG ? "sng" : "spin";
+    j["numPlayers"] = numPlayers; j["numGames"] = numGames; j["seed"] = seed; j["startingStack"] = startingStack;
+    j["buyin"] = buyin; j["feePct"] = feePct; j["rotateSeats"] = rotateSeats;
+    j["levelBy"] = levelBy == LevelBy::Hands ? "hands" : "time"; j["levelSeconds"] = levelSeconds; j["levelHands"] = levelHands;
+    j["maxHandsPerGame"] = maxHandsPerGame;
+    j["handBaseSeconds"] = handBaseSeconds; j["actionSeconds"] = actionSeconds; j["showdownSeconds"] = showdownSeconds;
+    j["cashSb"] = cashSb; j["cashBb"] = cashBb; j["cashAnte"] = cashAnte; j["cashHands"] = cashHands; j["cashStack"] = cashStack;
+    j["cashStackMode"] = cashStackMode == CashStackMode::Reset ? "reset" : "rebuy";
+    j["chipValue"] = chipValue; j["rakePct"] = rakePct; j["rakeCap"] = rakeCap; j["noFlopNoDrop"] = noFlopNoDrop;
+    j["payoutShares"] = payoutShares; j["multiplierTimesTotal"] = multiplierTimesTotal;
+    j["prwinIterations"] = prwinIterations; j["prwinMaxIterations"] = prwinMaxIterations;
+    j["workers"] = workers; j["outputDir"] = outputDir; j["recordGames"] = recordGames;
+    j["levels"] = json::array();
+    for (auto& l : levels) j["levels"].push_back({l.sb, l.bb, l.ante});
+    j["multipliers"] = json::array();
+    for (auto& m : multipliers) j["multipliers"].push_back({m.first, m.second});
+    j["players"] = json::array();
+    for (auto& p : players) j["players"].push_back({{"name", p.name}, {"profile", p.profile}});
+    return j.dump(2);
+}
+
 SimConfig SimConfig::fromJsonFile(const std::string& path) {
-    std::ifstream f(path);
+    std::ifstream f(pathFromUtf8(path));
     if (!f) throw std::runtime_error("Impossible d'ouvrir " + path);
     std::stringstream ss; ss << f.rdbuf();
     return fromJsonText(ss.str());

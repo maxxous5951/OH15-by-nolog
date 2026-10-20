@@ -1,5 +1,6 @@
 // Exécution multithread de N parties/sessions + agrégation des statistiques par profil.
 #pragma once
+#include <atomic>
 #include <functional>
 #include <string>
 #include <vector>
@@ -23,11 +24,13 @@ struct SimSummary {
     std::vector<GameResult> games;        // dans l'ordre des parties
     std::vector<ProfileStats> profiles;   // un par joueur déclaré
     double seconds = 0;
+    bool cancelled = false;
 };
 
 // progress(done, total) est appelé depuis les threads de travail (protéger côté appelant si besoin)
+// cancel : si non nul et passé à true, les parties en cours se terminent puis l'exécution s'arrête (résultats partiels conservés)
 SimSummary runSimulation(const SimConfig& cfg, const BrainFactory& factory, bool collectRecords = false,
-                         const std::function<void(int, int)>& progress = nullptr);
+                         const std::function<void(int, int)>& progress = nullptr, std::atomic<bool>* cancel = nullptr);
 
 std::string formatHandHistory(const HandRecord& h, const std::vector<std::string>& names, GameFormat f);
 std::string formatSummary(const SimConfig& cfg, const SimSummary& s);

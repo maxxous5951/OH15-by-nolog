@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <mutex>
 #include "pokersim/handrank.hpp"
+#include "pokersim/pathutil.hpp"
 
 namespace ps::oh {
 namespace {
@@ -536,10 +537,10 @@ std::shared_ptr<FormulaCollection> loadLibrary(const std::string& libraryDir, co
     namespace fs = std::filesystem;
     auto fc = std::make_shared<FormulaCollection>();
     std::error_code ec;
-    if (fs::is_directory(libraryDir, ec)) {
+    if (fs::is_directory(pathFromUtf8(libraryDir), ec)) {
         std::vector<std::string> files;
-        for (auto& e : fs::directory_iterator(libraryDir, ec)) {
-            std::string p = e.path().string(), low = lowerS(e.path().extension().string());
+        for (auto& e : fs::directory_iterator(pathFromUtf8(libraryDir), ec)) {
+            std::string p = pathToUtf8(e.path()), low = lowerS(pathToUtf8(e.path().extension()));
             if (low == ".ohf") files.push_back(p);
         }
         std::sort(files.begin(), files.end());
@@ -547,11 +548,11 @@ std::shared_ptr<FormulaCollection> loadLibrary(const std::string& libraryDir, co
     }
     // ordre d'OpenHoldem (CFormulaParser::LoadDefaultBot + bibliothèque personnalisée) : les derniers fichiers redéfinissent les premiers
     for (const char* n : {"DefaultBot.ohf", "Gecko_NL_6Max_FR_BSS.ohf", "Termita_SNG.ohf", "Winngy_PT_Limit.ohf"}) {
-        fs::path p = fs::path(defaultBotDir) / n;
-        if (fs::exists(p, ec)) fc->addFile(p.string(), true);
+        fs::path p = pathFromUtf8(defaultBotDir) / n;
+        if (fs::exists(p, ec)) fc->addFile(pathToUtf8(p), true);
     }
-    fs::path custom = fs::path(defaultBotDir).parent_path() / "custom_function_library.ohf";
-    if (fs::exists(custom, ec)) fc->addFile(custom.string(), true);
+    fs::path custom = pathFromUtf8(defaultBotDir).parent_path() / "custom_function_library.ohf";
+    if (fs::exists(custom, ec)) fc->addFile(pathToUtf8(custom), true);
     fc->parseAll();
     fc->buildLowerIndex();
     return fc;
@@ -571,7 +572,7 @@ std::shared_ptr<FormulaCollection> buildProfile(const std::string& path, const F
     }
     for (auto& k : added) fc->parseOne(*fc->functions[k]);
     fc->profilePath = path;
-    fc->profileName = path.empty() ? "DefaultBot" : fs::path(path).stem().string();
+    fc->profileName = path.empty() ? "DefaultBot" : pathToUtf8(pathFromUtf8(path).stem());
     fc->buildLowerIndex();
     return fc;
 }

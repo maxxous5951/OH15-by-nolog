@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <mutex>
 #include "pokersim/ohsymbols.hpp"
+#include "pokersim/pathutil.hpp"
 
 namespace ps::oh {
 namespace {
@@ -16,7 +17,7 @@ const std::pair<Flag, const char*> kActionFuncs[] = {{F_ALLIN, "RaiseMax"}, {F_B
 const char* const kMainOpenPPL[4] = {"f$preflop", "f$flop", "f$turn", "f$river"};
 
 std::mutex gUnknownMu;
-std::map<std::string, long> gUnknown;
+std::map<std::string, long long> gUnknown;
 
 class OhBrain : public IBrain {
 public:
@@ -113,7 +114,7 @@ std::map<std::string, std::shared_ptr<const FormulaCollection>> gProfiles;
 
 }  // namespace
 
-std::map<std::string, long> collectUnknownSymbols(bool reset) {
+std::map<std::string, long long> collectUnknownSymbols(bool reset) {
     std::lock_guard<std::mutex> lk(gUnknownMu);
     auto r = gUnknown;
     if (reset) gUnknown.clear();
@@ -123,13 +124,42 @@ std::map<std::string, long> collectUnknownSymbols(bool reset) {
 std::string findOhRoot(const std::string& start) {
     namespace fs = std::filesystem;
     std::error_code ec;
-    fs::path p = fs::absolute(start.empty() ? "." : start, ec);
+    fs::path p = fs::absolute(start.empty() ? fs::path(".") : pathFromUtf8(start), ec);
     for (int i = 0; i < 10 && !p.empty(); ++i) {
-        if (fs::is_directory(p / "OpenPPL" / "OpenPPL_Library", ec)) return p.string();
+        if (fs::is_directory(p / "OpenPPL" / "OpenPPL_Library", ec)) return pathToUtf8(p);
         if (p == p.parent_path()) break;
         p = p.parent_path();
     }
     return "";
+}
+
+ProfileReport inspectProfile(const std::string& path, const std::string& ohRoot) {
+    namespace fs = std::filesystem;
+    ProfileReport r;
+    r.path = path;
+    try {
+        std::string root = ohRoot.empty() ? findOhRoot(".") : ohRoot;
+        if (root.empty()) { r.error = "Racine OpenHoldem introuvable (dossier contenant OpenPPL/OpenPPL_Library)"; return r; }
+        std::error_code ec;
+        std::string libDir = pathToUtf8(pathFromUtf8(root) / "OpenPPL" / "OpenPPL_Library");
+        std::string botDir = pathToUtf8(pathFromUtf8(root) / "##_OpenHoldem_Release_Directory_##" / "bot_logic" / "DefaultBot");
+        std::shared_ptr<FormulaCollection> lib;
+        {
+            std::lock_guard<std::mutex> lk(gProfileMu);
+            auto it = gLibraries.find(libDir);
+            if (it == gLibraries.end()) it = gLibraries.emplace(libDir, loadLibrary(libDir, botDir)).first;
+            lib = it->second;
+        }
+        if (!fs::exists(pathFromUtf8(path), ec)) { r.error = "Fichier introuvable : " + path; return r; }
+        std::string raw = readFileLatin1(path);
+        r.format = isShanky(raw) ? "Shanky PPL (ancien format, converti)" : "OpenHoldem (.ohf / OpenPPL / OH-script)";
+        FormulaCollection user;
+        user.addFile(path, false);
+        user.parseAll();
+        for (auto& kv : user.functions) { if (kv.second->isList) ++r.lists; else ++r.functions; }
+        r.problems = user.errors(false);
+    } catch (const std::exception& e) { r.error = e.what(); }
+    return r;
 }
 
 std::unique_ptr<IBrain> makeOhBrain(std::shared_ptr<const FormulaCollection> fc, const SimConfig& cfg, uint64_t seed, const std::string& name) {
@@ -145,16 +175,16 @@ BrainFactory profileBrainFactory(const std::string& repoRoot) {
         {
             std::lock_guard<std::mutex> lk(gProfileMu);
             std::error_code ec;
-            std::string key = p.profile + "|" + std::to_string(fs::exists(p.profile, ec) ? static_cast<long long>(fs::last_write_time(p.profile, ec).time_since_epoch().count()) : 0);
+            std::string key = p.profile + "|" + std::to_string(fs::exists(pathFromUtf8(p.profile), ec) ? static_cast<long long>(fs::last_write_time(pathFromUtf8(p.profile), ec).time_since_epoch().count()) : 0);
             auto it = gProfiles.find(key);
             if (it == gProfiles.end()) {
                 std::string root = repoRoot.empty() ? findOhRoot(".") : repoRoot;
                 if (root.empty()) throw std::runtime_error("Racine OpenHoldem introuvable (OpenPPL/OpenPPL_Library) : utilisez --oh-root");
-                std::string libDir = (fs::path(root) / "OpenPPL" / "OpenPPL_Library").string();
-                std::string botDir = (fs::path(root) / "##_OpenHoldem_Release_Directory_##" / "bot_logic" / "DefaultBot").string();
+                std::string libDir = pathToUtf8(pathFromUtf8(root) / "OpenPPL" / "OpenPPL_Library");
+                std::string botDir = pathToUtf8(pathFromUtf8(root) / "##_OpenHoldem_Release_Directory_##" / "bot_logic" / "DefaultBot");
                 auto lib = gLibraries.find(libDir);
                 if (lib == gLibraries.end()) lib = gLibraries.emplace(libDir, loadLibrary(libDir, botDir)).first;
-                if (!fs::exists(p.profile, ec) && p.profile != "DefaultBot") throw std::runtime_error("Profil introuvable : " + p.profile);
+                if (!fs::exists(pathFromUtf8(p.profile), ec) && p.profile != "DefaultBot") throw std::runtime_error("Profil introuvable : " + p.profile);
                 it = gProfiles.emplace(key, buildProfile(p.profile, *lib->second)).first;
             }
             prof = it->second;

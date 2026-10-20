@@ -84,3 +84,32 @@ add_test(NAME prwin COMMAND prwin_tests)
 add_executable(symdump apps/symdump/main.cpp)
 target_include_directories(symdump PRIVATE third_party)
 target_link_libraries(symdump PRIVATE pokersim_core)
+
+# ---------------------------------------------------------------------------
+# Interface graphique : logique ImGui portable (testée sans écran) + programme Windows (DirectX 11)
+# ---------------------------------------------------------------------------
+add_library(pokersim_gui_core STATIC
+  apps/gui/gui_app.cpp apps/gui/gui_draw.cpp
+  third_party/imgui/imgui.cpp third_party/imgui/imgui_draw.cpp third_party/imgui/imgui_tables.cpp third_party/imgui/imgui_widgets.cpp
+  third_party/imgui/misc/imgui_stdlib.cpp)
+target_include_directories(pokersim_gui_core PUBLIC apps/gui third_party/imgui third_party)
+target_link_libraries(pokersim_gui_core PUBLIC pokersim_core)
+if(NOT MSVC)
+  set_source_files_properties(third_party/imgui/imgui.cpp third_party/imgui/imgui_draw.cpp third_party/imgui/imgui_tables.cpp
+    third_party/imgui/imgui_widgets.cpp third_party/imgui/misc/imgui_stdlib.cpp PROPERTIES COMPILE_OPTIONS "-w")
+endif()
+
+add_executable(gui_headless_test apps/gui/headless_test.cpp)
+target_link_libraries(gui_headless_test PRIVATE pokersim_gui_core)
+add_test(NAME gui_headless COMMAND gui_headless_test ${POKERSIM_OH_ROOT})
+
+if(WIN32)
+  add_executable(pokersim_gui WIN32
+    apps/gui/main_win32.cpp apps/gui/gui_platform_win32.cpp
+    third_party/imgui/backends/imgui_impl_win32.cpp third_party/imgui/backends/imgui_impl_dx11.cpp)
+  target_link_libraries(pokersim_gui PRIVATE pokersim_gui_core d3d11 dxgi d3dcompiler dwmapi comdlg32 ole32 shell32 uuid gdi32)
+  if(NOT MSVC)
+    target_link_options(pokersim_gui PRIVATE -static -static-libgcc -static-libstdc++)
+    set_source_files_properties(third_party/imgui/backends/imgui_impl_win32.cpp third_party/imgui/backends/imgui_impl_dx11.cpp PROPERTIES COMPILE_OPTIONS "-w")
+  endif()
+endif()

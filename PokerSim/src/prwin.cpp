@@ -149,7 +149,7 @@ PrwinResult computePrwin(const PrwinInput& in, Rng& rng) {
             for (int h = 0; h < in.prw->chair[c].limit; ++h) dd.totalWeight[c] += in.prw->chair[c].weight[h];
         }
     }
-    long win = 0, tie = 0, los = 0;
+    long long win = 0, tie = 0, los = 0;
     for (int it = 1; it < required; ++it) {
         dd.used = in.plCards | in.comCards;
         if (enhanced) {

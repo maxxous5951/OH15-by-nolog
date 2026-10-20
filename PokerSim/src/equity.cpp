@@ -9,7 +9,7 @@ Equity equityVsRandom(const Card hole[2], const Card* board, int nBoard, int nOp
     Deck base;
     base.remove(hole[0]); base.remove(hole[1]);
     for (int i = 0; i < nBoard; ++i) base.remove(board[i]);
-    long win = 0, tie = 0, lose = 0;
+    long long win = 0, tie = 0, lose = 0;
     Card seven[7];
     for (int it = 0; it < iterations; ++it) {
         Deck d = base;
@@ -42,7 +42,7 @@ Equity equityExactHeadsUp(const Card hole[2], const Card* board, int nBoard) {
     const int rem = base.size();
     const int missing = 5 - nBoard;
     if (missing > 2) return eq;   // trop coûteux : l'appelant utilisera Monte-Carlo
-    long win = 0, tie = 0, lose = 0;
+    long long win = 0, tie = 0, lose = 0;
     Card seven[7], opp[7];
     for (int i = 0; i < nBoard; ++i) seven[2 + i] = opp[2 + i] = board[i];
     seven[0] = hole[0]; seven[1] = hole[1];

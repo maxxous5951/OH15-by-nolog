@@ -4,16 +4,37 @@ Simulateur Hold'em No Limit moderne : **Cash**, **SNG** (2 à 10 joueurs, blinds
 et **Spin & Go** (multiplicateurs). Objectif : faire jouer entre eux des profils OpenHoldem
 (`.ohf` OpenPPL / OH-script, `.oppl`, `.txt`) avec les symboles OpenHoldem recalculés nativement (dont `prwin`).
 
-## Compiler
+## Compiler sous Windows (Visual Studio 2022)
 
-Windows (Visual Studio 2022, CMake intégré) :
+**Le plus simple** : double-cliquer sur `PokerSim.sln`, choisir la configuration **Release | x64** (la configuration Debug est
+très lente), puis `F5` (le projet de démarrage est `PokerSimGui`). Aucune dépendance à installer : Dear ImGui est fourni.
+Ou sans ouvrir Visual Studio : `build_windows.bat` compile et lance l'interface ; `run_tests.bat` lance les tests.
 
-    cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+Les exécutables sont dans `bin\Release\` : `pokersim_gui.exe` (interface), `pokersim.exe` (ligne de commande), `ohdump.exe` (diagnostic de profils).
+Les projets `vs\*.vcxproj` sont générés par `python tools/gen_vs.py` (à relancer si vous ajoutez un fichier `.cpp`) ; ils ciblent le
+toolset v143 (VS 2022) — pour VS 2019, remplacer `v143` par `v142`.
+
+Avec CMake (Windows, Linux, macOS) :
+
+    cmake -S . -B build -G "Visual Studio 17 2022" -A x64      # ou -G Ninja
     cmake --build build --config Release
-    build\Release\pokersim_tests.exe
-    build\Release\pokersim.exe --format spin --players 3 --games 1000
+    ctest --test-dir build -C Release
 
-Linux / macOS : `cmake -S . -B build -G Ninja && cmake --build build && ./build/pokersim_tests`
+## Interface graphique
+
+![Résultats](docs/gui_resultats.png)
+
+`pokersim_gui.exe` (Windows, Direct3D 11, Dear ImGui) :
+- **Configuration** : format (cash, SNG, Spin & Go), nombre de joueurs, blinds fixes ou montantes (tableau éditable, au temps ou aux mains),
+  répartition des gains, multiplicateurs Spin & Go (avec retour théorique), rake, graine, threads, plafond d'itérations de `prwin`.
+- **Joueurs** : bot intégré ou profil OpenHoldem (`.ohf`, `.oppl`, `.txt`) avec bouton **Vérifier** (format détecté, erreurs de syntaxe).
+- **Résultats** : classement, ROI ou bb/100 avec **intervalle de confiance à 95 %**, histogramme, gain cumulé, symboles inconnus, export CSV.
+- **Historique des mains** : relecture main par main des premières parties.
+- Simulation en tâche de fond avec bouton **Arrêter** (résultats partiels conservés) ; réglages sauvegardés dans `pokersim_gui.json`.
+
+## Compiler sous Linux / macOS
+
+    cmake -S . -B build -G Ninja && cmake --build build && ctest --test-dir build
 
 Aucune dépendance à installer (`nlohmann/json` est fourni dans `third_party/`).
 
@@ -100,3 +121,12 @@ La CLI liste à la fin les **symboles inconnus** (évalués à 0) pour chaque pr
 
 `pt_*` / `ptt_*` (PokerTracker) renvoient -1, `vs$*` renvoie 0, pas de DLL utilisateur ni de `prw1326` alimenté par DLL,
 No Limit Hold'em uniquement.
+
+### Vérifications de l'interface
+
+- `gui_headless_test` : interface pilotée sans écran (tous les onglets, simulations réelles, annulation, erreurs, CSV, réglages).
+  Passe sous **AddressSanitizer + UBSan** et **ThreadSanitizer** (ce dernier a révélé, puis corrigé, une course de données dans le cœur).
+- Les binaires Windows (cross-compilés MinGW) donnent des résultats **strictement identiques** à Linux à graine égale, avec de vrais profils.
+- L'interface Windows a été lancée sous Wine (Direct3D 11 logiciel) : clic sur « Lancer », résultats et graphiques affichés (`docs/`).
+- **Non testé ici** : la compilation avec le compilateur Microsoft (MSVC). Le code est écrit en C++20 standard et compile avec GCC 13 / MinGW ;
+  en cas d'erreur MSVC, envoyez-la et je corrige.

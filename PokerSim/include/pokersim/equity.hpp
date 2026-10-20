@@ -7,7 +7,7 @@ namespace ps {
 
 struct Equity {
     double win = 0, tie = 0, lose = 0;   // fréquences (somme = 1)
-    long samples = 0;
+    long long samples = 0;
     bool exact = false;
 };
 
