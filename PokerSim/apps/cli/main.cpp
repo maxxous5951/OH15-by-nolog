@@ -23,7 +23,9 @@ static void usage() {
         "  --player Nom=profil        (répétable ; profil = builtin:tag|call|random)\n"
         "  --prwin-max N              plafonne f$prwin_number_of_iterations (0 = fidèle à OpenHoldem, sans plafond)\n"
         "  --oh-root DIR              racine d'OpenHoldem (OpenPPL/OpenPPL_Library) pour les profils .ohf/.oppl/.txt\n"
-        "  --workers N                --hh fichier.txt   (historique des mains, 1ère partie)\n");
+        "  --workers N\n"
+        "  --hh fichier.txt           écrit TOUTES les mains (complètes) dans ce fichier texte\n"
+        "  --hh-games N               limite le fichier aux N premières parties (0 = toutes)\n");
 }
 
 int main(int argc, char** argv) {
@@ -57,6 +59,7 @@ int main(int argc, char** argv) {
             else if (a == "--rake-cap") cfg.rakeCap = std::atoi(val());
             else if (a == "--workers") cfg.workers = std::atoi(val());
             else if (a == "--hh") hhPath = val();
+            else if (a == "--hh-games") cfg.handHistoryGames = std::atoi(val());
             else if (a == "--oh-root") ohRoot = val();
             else if (a == "--prwin-max") cfg.prwinMaxIterations = std::atoi(val());
             else if (a == "--player") {
@@ -78,7 +81,7 @@ int main(int argc, char** argv) {
         auto progress = [&](int d, int n) {
             if (n >= 20 && (d % std::max(1, n / 20) == 0 || d == n)) { std::lock_guard<std::mutex> lk(mu); std::fprintf(stderr, "\r%d/%d", d, n); if (d == n) std::fputc('\n', stderr); }
         };
-        if (!hhPath.empty()) cfg.recordGames = 1;
+        if (!hhPath.empty()) cfg.handHistoryPath = hhPath;
         SimSummary s = runSimulation(cfg, oh::profileBrainFactory(ohRoot), false, progress);
         std::fputs(formatSummary(cfg, s).c_str(), stdout);
         {
@@ -91,13 +94,7 @@ int main(int argc, char** argv) {
                 for (size_t i = 0; i < v.size() && i < 25; ++i) std::printf("  %-40s %lld\n", v[i].second.c_str(), v[i].first);
             }
         }
-        if (!hhPath.empty() && !s.games.empty()) {
-            std::ofstream f(pathFromUtf8(hhPath));
-            std::vector<std::string> names;
-            for (auto& p : s.games[0].players) names.push_back(p.name);
-            for (auto& h : s.games[0].records) f << formatHandHistory(h, names, cfg.format) << "\n";
-            std::printf("Historique écrit : %s\n", hhPath.c_str());
-        }
+        if (!s.handHistoryPath.empty()) std::printf("Historique écrit : %s (%lld mains, %.1f Mo)\n", s.handHistoryPath.c_str(), s.handHistoryHands, static_cast<double>(s.handHistoryBytes) / 1048576.0);
     } catch (const std::exception& e) {
         std::fprintf(stderr, "Erreur : %s\n", e.what());
         return 1;

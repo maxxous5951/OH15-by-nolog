@@ -199,9 +199,23 @@ void App::drawConfigTab() {
     help("0 : fidèle à OpenHoldem, le profil décide (la bibliothèque demande 50 000 itérations, c'est lent).\nUne valeur de 1 000 à 5 000 accélère beaucoup la simulation au prix d'un peu de bruit.");
 
     ImGui::SeparatorText("Historique des mains");
+    ImGui::Checkbox("Ecrire TOUTES les mains dans un fichier texte", &saveHands);
+    help("Chaque main complète : cartes de tous les joueurs, chaque action avec ses montants, pot à chaque street, showdown, pots annexes, rake, résumé et stacks finaux. Le fichier est écrit au fil de la simulation (peu de mémoire).");
+    if (saveHands) {
+        ImGui::SetNextItemWidth(em(520));
+        ImGui::InputText("Fichier##hh", &cfg.handHistoryPath);
+        ImGui::SameLine();
+        if (ImGui::Button("Parcourir...##hh")) { std::string f = platform_.saveFile("Fichier des mains", "mains.txt", "txt"); if (!f.empty()) cfg.handHistoryPath = f; }
+        ImGui::SetNextItemWidth(em(260));
+        inputIntClamped("Limiter aux N premieres parties (0 = toutes)", &cfg.handHistoryGames, 0, 10000000, 10);
+        if (cfg.isCash()) {
+            const double games = cfg.handHistoryGames > 0 ? std::min(cfg.handHistoryGames, cfg.numGames) : cfg.numGames;
+            ImGui::TextDisabled("Estimation : environ %.0f Mo pour %.0f sessions de %d mains.", 1.4e-3 * cfg.cashHands * games, games, cfg.cashHands);
+        } else ImGui::TextDisabled("Compter environ 1,4 Ko par main (quelques dizaines de mains par partie).");
+    }
     ImGui::SetNextItemWidth(em(260));
-    inputIntClamped("Enregistrer les N premieres parties", &cfg.recordGames, 0, 50);
-    help("Consultable dans l'onglet Historique des mains. 0 = aucun (plus rapide, moins de mémoire).");
+    inputIntClamped("Visionneuse : garder les N premieres parties", &cfg.recordGames, 0, 50);
+    help("Consultables dans l'onglet Historique des mains, sans fichier. 0 = aucune (plus rapide, moins de mémoire).");
 
     ImGui::SeparatorText("OpenHoldem et fichiers");
     ImGui::SetNextItemWidth(em(520));
@@ -432,6 +446,13 @@ void App::drawResultsTab() {
         std::string p = platform_.saveFile("Exporter les résultats", "resultats.csv", "csv");
         if (!p.empty() && !exportCsv(p)) error_ = "Impossible d'écrire " + p;
     }
+    if (!r.summary.handHistoryPath.empty()) {
+        ImGui::Text("Mains : %s (%lld mains, %.1f Mo)", r.summary.handHistoryPath.c_str(), r.summary.handHistoryHands, static_cast<double>(r.summary.handHistoryBytes) / 1048576.0);
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Ouvrir##hhopen")) platform_.openPath(r.summary.handHistoryPath);
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Copier le chemin")) ImGui::SetClipboardText(r.summary.handHistoryPath.c_str());
+    }
     ImGui::BeginChild("res", ImVec2(em(0), em(0)), ImGuiChildFlags_None);
     const int cols = cash ? 7 : 8;
     if (ImGui::BeginTable("stats", cols, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp)) {
@@ -513,6 +534,11 @@ void App::drawHandsTab() {
     for (auto& p : g.players) names.push_back(p.name);
     std::string text = ps::formatHandHistory(g.records[static_cast<size_t>(handIndex)], names, g.format);
     if (ImGui::Button("Copier")) ImGui::SetClipboardText(text.c_str());
+    ImGui::SameLine();
+    if (ImGui::Button("Enregistrer cette partie en .txt...")) {
+        std::string p = platform_.saveFile("Enregistrer la partie", "partie.txt", "txt");
+        if (!p.empty() && !exportGameHistory(p, handGame)) error_ = "Impossible d'écrire " + p;
+    }
     ImGui::InputTextMultiline("##hand", &text, ImVec2(-1, -1), ImGuiInputTextFlags_ReadOnly);
 }
 

@@ -94,7 +94,7 @@ SimConfig SimConfig::fromJsonText(const std::string& text) {
     get("noFlopNoDrop", c.noFlopNoDrop); get("payoutShares", c.payoutShares);
     get("multiplierTimesTotal", c.multiplierTimesTotal);
     get("prwinIterations", c.prwinIterations); get("prwinMaxIterations", c.prwinMaxIterations);
-    get("recordGames", c.recordGames);
+    get("recordGames", c.recordGames); get("handHistoryPath", c.handHistoryPath); get("handHistoryGames", c.handHistoryGames);
     get("workers", c.workers); get("outputDir", c.outputDir); get("writeHandHistory", c.writeHandHistory);
     if (j.contains("levelBy")) c.levelBy = (j["levelBy"].get<std::string>() == "hands") ? LevelBy::Hands : LevelBy::Time;
     if (j.contains("cashStackMode")) c.cashStackMode = (j["cashStackMode"].get<std::string>() == "reset") ? CashStackMode::Reset : CashStackMode::Rebuy;
@@ -120,7 +120,7 @@ std::string SimConfig::toJsonText() const {
     j["chipValue"] = chipValue; j["rakePct"] = rakePct; j["rakeCap"] = rakeCap; j["noFlopNoDrop"] = noFlopNoDrop;
     j["payoutShares"] = payoutShares; j["multiplierTimesTotal"] = multiplierTimesTotal;
     j["prwinIterations"] = prwinIterations; j["prwinMaxIterations"] = prwinMaxIterations;
-    j["workers"] = workers; j["outputDir"] = outputDir; j["recordGames"] = recordGames;
+    j["workers"] = workers; j["outputDir"] = outputDir; j["recordGames"] = recordGames; j["handHistoryPath"] = handHistoryPath; j["handHistoryGames"] = handHistoryGames;
     j["levels"] = json::array();
     for (auto& l : levels) j["levels"].push_back({l.sb, l.bb, l.ante});
     j["multipliers"] = json::array();

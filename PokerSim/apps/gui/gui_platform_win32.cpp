@@ -3,6 +3,7 @@
 #endif
 #include <windows.h>
 #include <commdlg.h>
+#include <shellapi.h>
 #include <shlobj.h>
 #include <shobjidl.h>
 #include <vector>
@@ -82,6 +83,11 @@ std::string Win32Platform::pickFolder(const char* title) {
     }
     dlg->Release();
     return result;
+}
+
+void Win32Platform::openPath(const std::string& path) {
+    std::wstring w = widen(path);
+    ShellExecuteW(reinterpret_cast<HWND>(owner_), L"open", w.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
 }
 
 std::string Win32Platform::exeDir() {

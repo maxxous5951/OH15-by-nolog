@@ -137,6 +137,31 @@ int main(int argc, char** argv) {
         allTabs();
         app.handIndex = 299; frames(2);
 
+        std::puts("historique complet des mains dans un fichier");
+        app.cfg.numGames = 3; app.cfg.cashHands = 200; app.cfg.recordGames = 1;
+        app.saveHands = true; app.cfg.handHistoryPath.clear();
+        CHECK(!app.startRun());                       // chemin manquant
+        CHECK(app.lastError().find("fichier") != std::string::npos);
+        app.cfg.handHistoryPath = "/tmp/pokersim_gui_test_mains.txt";
+        std::remove(app.cfg.handHistoryPath.c_str());
+        CHECK(app.startRun());
+        waitRun(app);
+        CHECK(app.lastError().empty() && app.results());
+        if (app.results()) {
+            CHECK(app.results()->summary.handHistoryHands == 3 * 200);
+            CHECK(app.results()->summary.handHistoryPath == app.cfg.handHistoryPath);
+            std::ifstream f(app.cfg.handHistoryPath, std::ios::binary); std::stringstream ss; ss << f.rdbuf();
+            const std::string t = ss.str();
+            CHECK(t.find("SESSION 3") != std::string::npos && t.find("*** RÉSUMÉ ***") != std::string::npos);
+            CHECK(static_cast<long long>(t.size()) == app.results()->summary.handHistoryBytes);
+            CHECK(!app.results()->summary.games[0].records.empty() && app.results()->summary.games[1].records.empty());   // visionneuse : seule la 1re est gardée
+        }
+        CHECK(app.exportGameHistory("/tmp/pokersim_gui_test_partie.txt", 0));
+        { std::ifstream f("/tmp/pokersim_gui_test_partie.txt", std::ios::binary); std::stringstream ss; ss << f.rdbuf(); CHECK(ss.str().find("SESSION 1") != std::string::npos); }
+        CHECK(!app.exportGameHistory("/tmp/x_inutile.txt", 5));      // pas de 6e partie enregistrée
+        allTabs();
+        app.saveHands = false;
+
         std::puts("SNG");
         app.setFormat(ps::GameFormat::SNG);
         CHECK(app.cfg.numPlayers == 9 && app.cfg.payoutShares.size() == 3);

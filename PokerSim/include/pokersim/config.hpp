@@ -62,6 +62,8 @@ struct SimConfig {
     int workers = 0;              // 0 = auto
     std::string outputDir = "output";
     bool writeHandHistory = false;
+    std::string handHistoryPath;  // si non vide : toutes les mains sont écrites dans ce fichier texte (UTF-8), au fil de la simulation
+    int handHistoryGames = 0;     // limite le fichier aux N premières parties (0 = toutes)
     int recordGames = 0;          // nombre de premières parties dont on conserve l'historique des mains (0 = aucune)
 
     bool isCash() const { return format == GameFormat::Cash; }

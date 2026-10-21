@@ -1,4 +1,6 @@
 #include <cmath>
+#include <fstream>
+#include <sstream>
 #include <cstdio>
 #include <cstdlib>
 #include "pokersim/runner.hpp"
@@ -87,6 +89,97 @@ static void checkConservation(GameFormat f, int players, int games, int hands) {
     std::printf("  %s %d joueurs : %ld mains vérifiées\n", formatName(f), players, handsSeen);
 }
 
+// ---- historique complet des mains : invariants vérifiés sur le texte écrit
+static long long intAfter(const std::string& s, size_t from, size_t* end = nullptr) {
+    size_t i = from;
+    while (i < s.size() && !(s[i] >= '0' && s[i] <= '9')) ++i;
+    long long v = 0;
+    while (i < s.size() && s[i] >= '0' && s[i] <= '9') { v = v * 10 + (s[i] - '0'); ++i; }
+    if (end) *end = i;
+    return v;
+}
+static long long sumAll(const std::string& blk, const std::string& marker) {
+    long long t = 0;
+    for (size_t p = blk.find(marker); p != std::string::npos; p = blk.find(marker, p + 1)) t += intAfter(blk, p + marker.size());
+    return t;
+}
+static void checkHandFile(const std::string& path, int expectGames, const char* label) {
+    std::ifstream f(path, std::ios::binary);
+    std::stringstream ss; ss << f.rdbuf();
+    const std::string all = ss.str();
+    CHECK(all.size() > 3 && static_cast<unsigned char>(all[0]) == 0xEF && static_cast<unsigned char>(all[1]) == 0xBB && static_cast<unsigned char>(all[2]) == 0xBF);   // BOM UTF-8
+    // parties dans l'ordre 1..N
+    int last = 0, games = 0;
+    for (size_t p = all.find("################ "); p != std::string::npos; p = all.find("################ ", p + 1)) {
+        size_t e = all.find(' ', p + 17);
+        if (all.compare(p + 17, 6, "PARTIE") == 0 || all.compare(p + 17, 7, "SESSION") == 0) { int n = static_cast<int>(intAfter(all, p + 17)); if (n != last + 1) { std::printf("  ordre : %d après %d\n", n, last); ++failures; } last = n; ++games; }
+        (void)e;
+    }
+    CHECK(games == expectGames);
+    int hands = 0, bad = 0;
+    for (size_t p = all.find("---- Main "); p != std::string::npos;) {
+        size_t nx = all.find("---- Main ", p + 1);
+        const std::string blk = all.substr(p, nx == std::string::npos ? std::string::npos : nx - p);
+        ++hands;
+        size_t sum = blk.find("*** RÉSUMÉ ***");
+        if (sum == std::string::npos) { ++bad; }
+        else {
+            const long long staked = sumAll(blk.substr(sum), "misé ");
+            long long annex = 0;                                   // « Pot annexe N montant » : le montant est le 2e nombre
+            for (size_t q = blk.find("Pot annexe "); q != std::string::npos; q = blk.find("Pot annexe ", q + 1)) { size_t e = 0; intAfter(blk, q + 11, &e); annex += intAfter(blk, e); }
+            const long long out = sumAll(blk, "Pot principal ") + annex + sumAll(blk, "Mise non payée ") + sumAll(blk, "Rake : ");
+            const long long potNo = 0;
+            if (staked != out - potNo) { if (++bad < 4) std::printf("  main incohérente (%s) : misé %lld, pots+rendu+rake %lld\n%s\n", label, staked, out - potNo, blk.c_str()); }
+        }
+        // pot affiché au début du préflop = mises forcées
+        size_t pf = blk.find("*** PRÉFLOP *** (pot : ");
+        if (pf != std::string::npos) {
+            long long shown = intAfter(blk, pf + 22), forced = sumAll(blk, "paie l'ante ") + sumAll(blk, "poste la petite blind ") + sumAll(blk, "poste la grosse blind ");
+            if (shown != forced) { if (++bad < 4) std::printf("  pot préflop %lld != mises forcées %lld\n", shown, forced); }
+        } else ++bad;
+        p = nx;
+    }
+    std::printf("  %s : %d parties, %d mains, %d main(s) incohérente(s)\n", label, games, hands, bad);
+    CHECK(hands > 0 && bad == 0);
+}
+
+static void testHandHistoryFile() {
+    {   // cash avec rake, 4 threads : parties écrites dans l'ordre
+        SimConfig c; c.format = GameFormat::Cash; c.numPlayers = 5; c.numGames = 8; c.cashHands = 150; c.workers = 4; c.seed = 3; c.rakePct = 5; c.rakeCap = 30;
+        c.cashStackMode = CashStackMode::Rebuy; c.handHistoryPath = "/tmp/ps_hh_cash.txt";
+        const char* k[] = {"tag", "call", "random", "random", "tag"};
+        for (int i = 0; i < 5; ++i) c.players.push_back({std::string("J") + std::to_string(i), std::string("builtin:") + k[i]});
+        c.finalize();
+        SimSummary s = runSimulation(c, defaultBrainFactory(), false);
+        CHECK(s.handHistoryHands == 8 * 150 && s.handHistoryBytes > 10000);
+        for (auto& g : s.games) CHECK(g.records.empty());          // pas de mains gardées en mémoire
+        checkHandFile(c.handHistoryPath, 8, "cash");
+    }
+    {   // SNG avec antes (montée rapide aux mains) : le pot préflop inclut les antes
+        SimConfig c; c.format = GameFormat::SNG; c.numPlayers = 6; c.numGames = 6; c.workers = 3; c.seed = 9; c.levelBy = LevelBy::Hands; c.levelHands = 2;
+        c.handHistoryPath = "/tmp/ps_hh_sng.txt";
+        const char* k[] = {"tag", "call", "random", "call", "random", "tag"};
+        for (int i = 0; i < 6; ++i) c.players.push_back({std::string("J") + std::to_string(i), std::string("builtin:") + k[i]});
+        c.finalize();
+        SimSummary s = runSimulation(c, defaultBrainFactory(), false);
+        CHECK(s.handHistoryHands > 6);
+        checkHandFile(c.handHistoryPath, 6, "sng (antes)");
+        std::ifstream f(c.handHistoryPath, std::ios::binary); std::stringstream ss; ss << f.rdbuf();
+        CHECK(ss.str().find("paie l'ante") != std::string::npos);
+    }
+    {   // limite de parties et chemin invalide
+        SimConfig c; c.format = GameFormat::SpinGo; c.numPlayers = 3; c.numGames = 10; c.workers = 2; c.handHistoryPath = "/tmp/ps_hh_lim.txt"; c.handHistoryGames = 3;
+        for (int i = 0; i < 3; ++i) c.players.push_back({"J" + std::to_string(i), "builtin:call"});
+        c.finalize();
+        runSimulation(c, defaultBrainFactory(), false);
+        checkHandFile(c.handHistoryPath, 3, "limite à 3 parties");
+        c.handHistoryPath = "/nulle/part/mains.txt";
+        bool threw = false;
+        try { runSimulation(c, defaultBrainFactory(), false); } catch (const std::exception&) { threw = true; }
+        CHECK(threw);
+    }
+}
+
 int main() {
     std::puts("évaluateur : dénombrement des 2 598 960 mains");
     testEvaluatorCounts();
@@ -99,6 +192,8 @@ int main() {
     checkConservation(GameFormat::SNG, 9, 20, 0);
     checkConservation(GameFormat::SpinGo, 3, 100, 0);
     checkConservation(GameFormat::SpinGo, 2, 50, 0);
+    std::puts("historique complet des mains");
+    testHandHistoryFile();
     if (failures) { std::printf("%d échec(s)\n", failures); return 1; }
     std::puts("OK");
     return 0;

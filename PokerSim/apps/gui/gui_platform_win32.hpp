@@ -13,6 +13,7 @@ public:
     std::string saveFile(const char* title, const char* defaultName, const char* ext) override;
     std::string pickFolder(const char* title) override;
     std::string exeDir() override;
+    void openPath(const std::string& path) override;
 private:
     HWND__* owner_;
 };

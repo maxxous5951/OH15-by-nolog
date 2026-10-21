@@ -32,6 +32,17 @@ Avec CMake (Windows, Linux, macOS) :
 - **Historique des mains** : relecture main par main des premières parties.
 - Simulation en tâche de fond avec bouton **Arrêter** (résultats partiels conservés) ; réglages sauvegardés dans `pokersim_gui.json`.
 
+## Historique complet des mains (fichier texte)
+
+    pokersim --format cash --players 6 --games 20 --hands 5000 --hh mains.txt          # toutes les mains
+    pokersim --format spin --players 3 --games 500 --hh mains.txt --hh-games 50        # 50 premières parties seulement
+
+Dans l'interface : Configuration > Historique des mains > « Ecrire TOUTES les mains dans un fichier texte ».
+Le fichier est écrit au fil de la simulation (mémoire constante), parties **dans l'ordre** même en multithread, en UTF-8 avec BOM.
+Pour chaque main : sièges et cartes de **tous** les joueurs, mises forcées (antes, blinds), chaque action avec ses montants (all-in signalés),
+pot à chaque street, showdown et combinaisons, pots principal et annexes, mise non payée rendue, rake, résumé par joueur (misé, ramassé, net, stack final),
+puis le classement de la partie. Les invariants (total misé = pots + mises rendues + rake ; pot du préflop = mises forcées) sont vérifiés par les tests.
+
 ## Compiler sous Linux / macOS
 
     cmake -S . -B build -G Ninja && cmake --build build && ctest --test-dir build

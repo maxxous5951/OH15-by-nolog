@@ -75,6 +75,7 @@ bool App::saveConfigFile(const std::string& path) const {
         json j;
         j["config"] = json::parse(cfg.toJsonText());
         j["ohRoot"] = ohRoot;
+        j["saveHands"] = saveHands;
         j["players"] = json::array();
         for (auto& p : players) j["players"].push_back({{"name", p.name}, {"kind", static_cast<int>(p.kind)}, {"path", p.path}});
         std::ofstream f(ps::pathFromUtf8(path));
@@ -97,6 +98,7 @@ bool App::loadConfigFile(const std::string& path) {
             if (c.payoutShares.empty()) c.payoutShares = ps::defaultPayoutShares(c.numPlayers);
         }
         cfg = c;
+        saveHands = j.value("saveHands", false);
         if (j.contains("ohRoot") && j["ohRoot"].is_string() && !j["ohRoot"].get<std::string>().empty()) ohRoot = j["ohRoot"].get<std::string>();
         if (j.contains("players")) {
             resetPlayers();
@@ -120,6 +122,8 @@ bool App::loadSettings() { return !settingsPath_.empty() && loadConfigFile(setti
 ps::SimConfig App::buildRunConfig(std::string& error) const {
     ps::SimConfig c = cfg;
     error.clear();
+    if (!saveHands) c.handHistoryPath.clear();
+    else if (c.handHistoryPath.empty()) { error = "Choisissez le fichier texte où écrire les mains (onglet Configuration, Historique des mains)."; return c; }
     c.players.clear();
     for (int i = 0; i < c.numPlayers && i < static_cast<int>(players.size()); ++i) {
         const PlayerRow& r = players[i];
@@ -231,6 +235,20 @@ std::string App::summaryText() const {
         o << buf;
     }
     return o.str();
+}
+
+bool App::exportGameHistory(const std::string& path, int idx) const {
+    if (!results_) return false;
+    int k = 0;
+    for (const ps::GameResult& g : results_->summary.games) {
+        if (g.records.empty()) continue;
+        if (k++ != idx) continue;
+        std::ofstream f(ps::pathFromUtf8(path), std::ios::binary);
+        if (!f) return false;
+        f << "\xEF\xBB\xBF" << ps::formatGameHistory(g, results_->cfg);
+        return static_cast<bool>(f);
+    }
+    return false;
 }
 
 bool App::exportCsv(const std::string& path) const {

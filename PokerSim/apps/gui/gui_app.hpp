@@ -21,6 +21,7 @@ struct Platform {
     virtual std::string saveFile(const char* /*title*/, const char* /*defaultName*/, const char* /*ext*/) { return {}; }
     virtual std::string pickFolder(const char* /*title*/) { return {}; }
     virtual std::string exeDir() { return "."; }
+    virtual void openPath(const std::string& /*path*/) {}      // ouvre un fichier avec l'application associée
 };
 
 enum class PlayerKind : int { BuiltinTag = 0, BuiltinCall = 1, BuiltinRandom = 2, ProfileFile = 3 };
@@ -71,6 +72,7 @@ public:
 
     // ---- export / persistance
     bool exportCsv(const std::string& path) const;
+    bool exportGameHistory(const std::string& path, int recordedGameIndex) const;   // une partie enregistrée -> fichier texte
     std::string summaryText() const;
     bool saveSettings() const;
     bool loadSettings();
@@ -84,6 +86,7 @@ public:
     ps::SimConfig cfg;
     std::vector<PlayerRow> players;
     std::string ohRoot;
+    bool saveHands = false;             // écrire toutes les mains dans cfg.handHistoryPath pendant la simulation
     int requestedTab = -1;              // force la sélection d'un onglet au prochain frame (tests)
     int handGame = 0, handIndex = 0;
 

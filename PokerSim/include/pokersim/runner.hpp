@@ -25,6 +25,8 @@ struct SimSummary {
     std::vector<ProfileStats> profiles;   // un par joueur déclaré
     double seconds = 0;
     bool cancelled = false;
+    std::string handHistoryPath;          // fichier effectivement écrit (vide si aucun)
+    long long handHistoryHands = 0, handHistoryBytes = 0;
 };
 
 // progress(done, total) est appelé depuis les threads de travail (protéger côté appelant si besoin)
@@ -32,7 +34,11 @@ struct SimSummary {
 SimSummary runSimulation(const SimConfig& cfg, const BrainFactory& factory, bool collectRecords = false,
                          const std::function<void(int, int)>& progress = nullptr, std::atomic<bool>* cancel = nullptr);
 
+// Une main, complète : sièges et cartes de tous les joueurs, mises forcées, chaque action avec ses montants, pot à chaque street,
+// showdown, pots (principal/annexes), mise non payée rendue, rake, résumé par joueur (gain net, stack final).
 std::string formatHandHistory(const HandRecord& h, const std::vector<std::string>& names, GameFormat f);
+// Une partie/session entière : en-tête, toutes les mains (records), classement final. Texte UTF-8.
+std::string formatGameHistory(const GameResult& g, const SimConfig& cfg);
 std::string formatSummary(const SimConfig& cfg, const SimSummary& s);
 
 }  // namespace ps
