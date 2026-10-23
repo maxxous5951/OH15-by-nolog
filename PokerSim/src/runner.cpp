@@ -35,6 +35,12 @@ SimSummary runSimulation(const SimConfig& cfg, const BrainFactory& factory, bool
         }
         void finish() { std::lock_guard<std::mutex> lk(mu); for (auto& kv : pending) write(kv.second); pending.clear(); f.flush(); }
     } writer;
+    // PokerTracker simulé : base de départ immuable ; chaque partie ajoute ses propres mains (déterministe, indépendant des threads)
+    std::shared_ptr<const pt::Database> ptBase;
+    if (cfg.ptEnabled && !cfg.ptBaselinePath.empty()) ptBase = std::make_shared<pt::Database>(pt::Database::load(cfg.ptBaselinePath));
+    const pt::Mode ptMode = cfg.isCash() ? pt::Mode::Cash : pt::Mode::Tourney;
+    pt::Database ptTotal;
+    std::mutex ptMu;
     const bool hhOn = !cfg.handHistoryPath.empty();
     const int hhLimit = cfg.handHistoryGames > 0 ? cfg.handHistoryGames : cfg.numGames;
     if (hhOn) {
@@ -73,7 +79,9 @@ SimSummary runSimulation(const SimConfig& cfg, const BrainFactory& factory, bool
                 const bool toFile = hhOn && g < hhLimit;
                 const bool keep = collectRecords || g < cfg.recordGames;
                 Game game(cfg, brains, names, perm, g, gameSeed, keep || toFile);
+                if (cfg.ptEnabled) game.pt = std::make_shared<pt::Tracker>(ptBase, ptMode);
                 out.games[g] = game.play();
+                if (game.pt) { std::lock_guard<std::mutex> lk(ptMu); ptTotal.merge(game.pt->delta()); }
                 if (toFile) writer.submit(g, formatGameHistory(out.games[g], cfg), static_cast<long long>(out.games[g].records.size()));
                 if (!keep) { out.games[g].records.clear(); out.games[g].records.shrink_to_fit(); }
             } catch (const std::exception& e) {
@@ -93,6 +101,15 @@ SimSummary runSimulation(const SimConfig& cfg, const BrainFactory& factory, bool
     worker();
     for (auto& t : th) t.join();
     if (hhOn) writer.finish();
+    if (cfg.ptEnabled && !failed.load()) {
+        out.ptDatabase = std::make_shared<pt::Database>();
+        if (ptBase) out.ptDatabase->merge(*ptBase);
+        out.ptDatabase->merge(ptTotal);
+        if (!cfg.ptSavePath.empty()) {
+            if (!out.ptDatabase->save(cfg.ptSavePath)) throw std::runtime_error("Impossible d'écrire la base PokerTracker : " + cfg.ptSavePath);
+            out.ptSavedPath = cfg.ptSavePath;
+        }
+    }
     if (failed.load()) throw std::runtime_error(error);
 
     // parties non jouées (annulation) : retirées pour que les statistiques ne portent que sur les parties terminées

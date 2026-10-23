@@ -25,13 +25,18 @@ static void usage() {
         "  --oh-root DIR              racine d'OpenHoldem (OpenPPL/OpenPPL_Library) pour les profils .ohf/.oppl/.txt\n"
         "  --workers N\n"
         "  --hh fichier.txt           écrit TOUTES les mains (complètes) dans ce fichier texte\n"
-        "  --hh-games N               limite le fichier aux N premières parties (0 = toutes)\n");
+        "  --hh-games N               limite le fichier aux N premières parties (0 = toutes)\n"
+        "  --pt-db FILE               base PokerTracker simulée de départ (statistiques déjà connues sur les adversaires)\n"
+        "  --pt-save FILE             écrit la base (départ + mains de cette simulation) ; avec --pt-db FILE identique, elle s'enrichit\n"
+        "  --pt-show                  affiche les statistiques PokerTracker de chaque joueur en fin de simulation\n"
+        "  --no-pt                    désactive le PokerTracker simulé (les symboles pt_* renvoient -1)\n");
 }
 
 int main(int argc, char** argv) {
     try {
         SimConfig cfg;
         std::string cfgPath, hhPath, ohRoot;
+        bool ptShow = false;
         for (int i = 1; i < argc; ++i) if (!std::strcmp(argv[i], "--config") && i + 1 < argc) cfgPath = argv[i + 1];
         if (!cfgPath.empty()) cfg = SimConfig::fromJsonFile(cfgPath);
         std::vector<PlayerSpec> cliPlayers;
@@ -60,6 +65,10 @@ int main(int argc, char** argv) {
             else if (a == "--workers") cfg.workers = std::atoi(val());
             else if (a == "--hh") hhPath = val();
             else if (a == "--hh-games") cfg.handHistoryGames = std::atoi(val());
+            else if (a == "--pt-db") cfg.ptBaselinePath = val();
+            else if (a == "--pt-save") cfg.ptSavePath = val();
+            else if (a == "--no-pt") cfg.ptEnabled = false;
+            else if (a == "--pt-show") ptShow = true;
             else if (a == "--oh-root") ohRoot = val();
             else if (a == "--prwin-max") cfg.prwinMaxIterations = std::atoi(val());
             else if (a == "--player") {
@@ -92,6 +101,18 @@ int main(int argc, char** argv) {
                 std::sort(v.rbegin(), v.rend());
                 std::printf("\nSymboles inconnus (évalués à 0) : %zu distincts\n(absents d'OpenHoldem et de sa bibliothèque : symbole Shanky non converti, ancien symbole WinHoldem ou faute de frappe du profil)\n", v.size());
                 for (size_t i = 0; i < v.size() && i < 25; ++i) std::printf("  %-40s %lld\n", v[i].second.c_str(), v[i].first);
+            }
+        }
+        if (!s.ptSavedPath.empty()) std::printf("Base PokerTracker écrite : %s (%zu joueurs)\n", s.ptSavedPath.c_str(), s.ptDatabase ? s.ptDatabase->players.size() : size_t{0});
+        if (ptShow && s.ptDatabase) {
+            const pt::Mode mode = cfg.isCash() ? pt::Mode::Cash : pt::Mode::Tourney;
+            std::printf("\nStatistiques PokerTracker (%s) :\n%-20s %8s %6s %6s %6s %6s %6s %6s %6s %6s\n", cfg.isCash() ? "cash" : "tournoi", "Joueur", "mains", "VPIP", "PFR", "3bet", "steal", "AF", "AFq", "WTSD", "WSSD");
+            for (auto& kv : s.ptDatabase->players) {
+                const pt::PlayerCounters* c = s.ptDatabase->find(kv.first, mode);
+                if (!c || c->num[pt::S_HANDS] <= 0) continue;
+                auto f = [&](int st) { double v = c->value(st); char b[16]; if (v < 0) std::snprintf(b, sizeof b, "   -  "); else if (st == pt::S_TOTAL_AF) std::snprintf(b, sizeof b, "%6.2f", v); else std::snprintf(b, sizeof b, "%5.1f%%", 100.0 * v); return std::string(b); };
+                std::printf("%-20s %8.0f %s %s %s %s %s %s %s %s\n", kv.first.c_str(), c->num[pt::S_HANDS], f(pt::S_VPIP).c_str(), f(pt::S_PFR).c_str(), f(pt::S_P3BET).c_str(),
+                            f(pt::S_STEAL_ATTEMPT).c_str(), f(pt::S_TOTAL_AF).c_str(), f(pt::S_TOTAL_AFQ).c_str(), f(pt::S_WTSD).c_str(), f(pt::S_WSSD).c_str());
             }
         }
         if (!s.handHistoryPath.empty()) std::printf("Historique écrit : %s (%lld mains, %.1f Mo)\n", s.handHistoryPath.c_str(), s.handHistoryHands, static_cast<double>(s.handHistoryBytes) / 1048576.0);

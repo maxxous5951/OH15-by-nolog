@@ -13,7 +13,7 @@ find_package(Threads REQUIRED)
 add_library(pokersim_core STATIC
   src/cards.cpp src/equity.cpp src/config.cpp src/engine.cpp src/brains.cpp src/runner.cpp
   src/ohlang.cpp src/shanky.cpp src/pokerval.cpp src/handrank.cpp src/handrank_data.cpp src/prwin.cpp
-  src/ohsymbols_core.cpp src/ohsymbols_table.cpp src/ohbrain.cpp)
+  src/ohsymbols_core.cpp src/ohsymbols_table.cpp src/ohbrain.cpp src/pt.cpp)
 target_include_directories(pokersim_core PUBLIC include PRIVATE third_party)
 target_link_libraries(pokersim_core PUBLIC Threads::Threads)
 if(MSVC)
@@ -113,3 +113,7 @@ if(WIN32)
     set_source_files_properties(third_party/imgui/backends/imgui_impl_win32.cpp third_party/imgui/backends/imgui_impl_dx11.cpp PROPERTIES COMPILE_OPTIONS "-w")
   endif()
 endif()
+
+add_executable(pt_tests tests/test_pt.cpp)
+target_link_libraries(pt_tests PRIVATE pokersim_core)
+add_test(NAME pt COMMAND pt_tests)

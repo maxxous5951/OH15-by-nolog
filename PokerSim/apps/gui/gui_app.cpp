@@ -76,6 +76,7 @@ bool App::saveConfigFile(const std::string& path) const {
         j["config"] = json::parse(cfg.toJsonText());
         j["ohRoot"] = ohRoot;
         j["saveHands"] = saveHands;
+        j["savePt"] = savePt;
         j["players"] = json::array();
         for (auto& p : players) j["players"].push_back({{"name", p.name}, {"kind", static_cast<int>(p.kind)}, {"path", p.path}});
         std::ofstream f(ps::pathFromUtf8(path));
@@ -99,6 +100,7 @@ bool App::loadConfigFile(const std::string& path) {
         }
         cfg = c;
         saveHands = j.value("saveHands", false);
+        savePt = j.value("savePt", false);
         if (j.contains("ohRoot") && j["ohRoot"].is_string() && !j["ohRoot"].get<std::string>().empty()) ohRoot = j["ohRoot"].get<std::string>();
         if (j.contains("players")) {
             resetPlayers();
@@ -122,6 +124,8 @@ bool App::loadSettings() { return !settingsPath_.empty() && loadConfigFile(setti
 ps::SimConfig App::buildRunConfig(std::string& error) const {
     ps::SimConfig c = cfg;
     error.clear();
+    if (!savePt) c.ptSavePath.clear();
+    else if (c.ptSavePath.empty()) { error = "Choisissez le fichier où enregistrer la base PokerTracker (onglet Configuration, PokerTracker simulé)."; return c; }
     if (!saveHands) c.handHistoryPath.clear();
     else if (c.handHistoryPath.empty()) { error = "Choisissez le fichier texte où écrire les mains (onglet Configuration, Historique des mains)."; return c; }
     c.players.clear();

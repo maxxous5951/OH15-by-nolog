@@ -64,6 +64,10 @@ struct SimConfig {
     bool writeHandHistory = false;
     std::string handHistoryPath;  // si non vide : toutes les mains sont écrites dans ce fichier texte (UTF-8), au fil de la simulation
     int handHistoryGames = 0;     // limite le fichier aux N premières parties (0 = toutes)
+    // PokerTracker simulé : statistiques des adversaires lues par les symboles pt_*
+    bool ptEnabled = true;
+    std::string ptBaselinePath;   // base JSON de départ (statistiques déjà connues sur les adversaires), facultative
+    std::string ptSavePath;       // si non vide : base de départ + toutes les mains de la simulation, écrite à la fin
     int recordGames = 0;          // nombre de premières parties dont on conserve l'historique des mains (0 = aucune)
 
     bool isCash() const { return format == GameFormat::Cash; }

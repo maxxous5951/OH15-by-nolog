@@ -162,6 +162,32 @@ int main(int argc, char** argv) {
         allTabs();
         app.saveHands = false;
 
+        std::puts("PokerTracker simulé : base enregistrée puis réutilisée");
+        std::remove("/tmp/pokersim_gui_pt.json");
+        app.cfg.numGames = 2; app.cfg.cashHands = 120; app.cfg.recordGames = 0; app.saveHands = false;
+        app.cfg.ptEnabled = true; app.savePt = true; app.cfg.ptSavePath.clear(); app.cfg.ptBaselinePath.clear();
+        CHECK(!app.startRun());                       // chemin de base manquant
+        app.cfg.ptSavePath = "/tmp/pokersim_gui_pt.json";
+        CHECK(app.startRun());
+        waitRun(app);
+        CHECK(app.lastError().empty() && app.results() && app.results()->summary.ptDatabase);
+        long long first = app.results() ? app.results()->summary.ptDatabase->totalHands(ps::pt::Mode::Cash) : 0;
+        CHECK(first == 2 * 120 * 4);                  // 4 joueurs x 120 mains x 2 sessions
+        { std::ifstream f("/tmp/pokersim_gui_pt.json"); CHECK(static_cast<bool>(f)); }
+        allTabs();
+        app.cfg.ptBaselinePath = "/tmp/pokersim_gui_pt.json";
+        CHECK(app.startRun());
+        waitRun(app);
+        CHECK(app.results() && app.results()->summary.ptDatabase && app.results()->summary.ptDatabase->totalHands(ps::pt::Mode::Cash) == 2 * first);   // base + nouvelles mains
+        allTabs();
+        app.cfg.ptBaselinePath = "/tmp/pt_inexistante.json";
+        CHECK(app.startRun());
+        waitRun(app);
+        CHECK(!app.lastError().empty());              // base de départ introuvable : erreur affichée
+        app.cfg.ptBaselinePath.clear(); app.savePt = false;
+        CHECK(app.saveConfigFile("/tmp/pokersim_gui_test_cfg2.json"));
+        app.savePt = true; CHECK(app.loadConfigFile("/tmp/pokersim_gui_test_cfg2.json") && !app.savePt);
+
         std::puts("SNG");
         app.setFormat(ps::GameFormat::SNG);
         CHECK(app.cfg.numPlayers == 9 && app.cfg.payoutShares.size() == 3);

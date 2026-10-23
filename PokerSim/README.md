@@ -43,6 +43,26 @@ Pour chaque main : sièges et cartes de **tous** les joueurs, mises forcées (an
 pot à chaque street, showdown et combinaisons, pots principal et annexes, mise non payée rendue, rake, résumé par joueur (misé, ramassé, net, stack final),
 puis le classement de la partie. Les invariants (total misé = pots + mises rendues + rake ; pot du préflop = mises forcées) sont vérifiés par les tests.
 
+## PokerTracker simulé
+
+Les profils OpenHoldem lisent des statistiques sur leurs adversaires (`pt_vpip3`, `pt_pfr_raischair`…). PokerSim les calcule à partir des mains
+jouées, avec les **définitions de PokerTracker 4** (colonnes `flg_*` / `cnt_*`, y compris la définition des « occasions », cf. `PokerTracker_Query_Definitions`).
+
+    pokersim --format cash --players 6 --games 20 --hands 5000 --pt-show --pt-save base.json     # construit une base
+    pokersim ... --pt-db base.json                                                              # les profils connaissent déjà leurs adversaires
+    pokersim ... --pt-db base.json --pt-save base.json                                          # la base s'enrichit à chaque simulation
+
+- **Symboles** : `pt_<stat><siège 0-9>` et `pt_<stat>_<rôle>chair` (`raischair`, `headsupchair`, `smallblindchair`, `bigblindchair`, `dealerchair`,
+  `cutoffchair`, `userchair`, `firstraiserchair`, `firstcallerchair`, `lastcallerchair`). Valeur en fraction de 0 à 1 (AF : ratio), **-1 sans donnée**, comme OpenHoldem.
+- **44 statistiques** : hands, vpip, pfr, rfi, wtsd, wssd, steal_attempt, bb/sb_fold_to_steal, 3bet, fold_to_3bet, 4bet, fold_to_4bet, 3bet_vs_steal (+bb/sb),
+  fold_to_resteal, preflop_called_raise, preflop_squeeze, fold_to_pf_squeeze (+as_raiser/as_caller), flop/turn/river/total_af et _afq, flop/turn/river_seen,
+  flop_cbet, turn_cbet, flop/turn/river_fold_to_cbet, flop_raise_cbet, flop/turn_checkraise, turn_checkcall, flop_donkbet, river_bet.
+- **Identité** = nom du joueur ; **cash et tournoi séparés** (le jeu en cours choisit la base lue, comme PokerTracker).
+- **Déterminisme** : chaque partie voit la base de départ (immuable) + ses propres mains passées ; la base finale est une somme, donc identique quel que soit le nombre de threads.
+- **Non simulées** : les statistiques PT4 plus rares (float, 3bet en pot 3bet, variantes de squeeze...) et les anciens noms (`pt_wsdp`, `pt_aggt`, `pt_icon`, `pt_r_*`) que
+  OpenHoldem 15 rejette aussi : ils renvoient -1 et apparaissent dans la liste des symboles inconnus.
+- Dans l'interface : Configuration > PokerTracker simulé (base de départ, enregistrement) ; Résultats > tableau des statistiques de chaque joueur.
+
 ## Compiler sous Linux / macOS
 
     cmake -S . -B build -G Ninja && cmake --build build && ctest --test-dir build
@@ -78,7 +98,8 @@ Bots intégrés : `builtin:tag` (équité Monte-Carlo), `builtin:call`, `builtin
 2. **[fait]** Parseur de formules : `.ohf` (OpenPPL + OH-script), `.oppl`, `.txt` Shanky
 3. **[fait]** Symboles natifs (698 noms testés) + bibliothèque OpenPPL + cerveau OpenHoldem : les profils jouent
 4. **[fait]** `prwin` / `nhands` / `handrank` / `pokerval` portés depuis l'original (validés par oracle)
-5. À faire : PokerTracker simulé (`pt_*`, actuellement -1), listes `vs$`, exports, interface graphique, performances
+5. **[fait]** Interface graphique, historique complet des mains, **PokerTracker simulé** (`pt_*`)
+6. À faire : listes `vs$`, performances
 
 ## Formules OpenHoldem (phase 2)
 
@@ -130,7 +151,7 @@ La CLI liste à la fin les **symboles inconnus** (évalués à 0) pour chaque pr
 
 ### Limites connues
 
-`pt_*` / `ptt_*` (PokerTracker) renvoient -1, `vs$*` renvoie 0, pas de DLL utilisateur ni de `prw1326` alimenté par DLL,
+`vs$*` renvoie 0, pas de DLL utilisateur ni de `prw1326` alimenté par DLL,
 No Limit Hold'em uniquement.
 
 ### Vérifications de l'interface

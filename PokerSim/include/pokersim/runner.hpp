@@ -6,6 +6,7 @@
 #include <vector>
 #include "pokersim/brains.hpp"
 #include "pokersim/engine.hpp"
+#include "pokersim/pt.hpp"
 
 namespace ps {
 
@@ -27,6 +28,8 @@ struct SimSummary {
     bool cancelled = false;
     std::string handHistoryPath;          // fichier effectivement écrit (vide si aucun)
     long long handHistoryHands = 0, handHistoryBytes = 0;
+    std::shared_ptr<pt::Database> ptDatabase;   // base de départ + toutes les mains de la simulation (si ptEnabled)
+    std::string ptSavedPath;
 };
 
 // progress(done, total) est appelé depuis les threads de travail (protéger côté appelant si besoin)

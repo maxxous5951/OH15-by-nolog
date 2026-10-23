@@ -6,6 +6,7 @@
 #include "pokersim/evaluator.hpp"
 #include "pokersim/handrank.hpp"
 #include "pokersim/ohsymbols.hpp"
+#include "pokersim/pt.hpp"
 
 namespace ps::oh {
 namespace {
@@ -355,7 +356,29 @@ SymbolContext::Native SymbolContext::resolveNative(const std::string& name) {
         if (std::regex_match(low, m, re)) { std::string s = m[1]; int r = m[2].str()[0] - '0'; return [s, r](Ctx& c) { auto it = c.hist.find({s, r}); return it == c.hist.end() ? 0.0 : it->second; }; }
         return [](Ctx&) { return 0.0; };
     }
-    if (startsLow("pt_") || startsLow("ptt_")) return [](Ctx&) { return -1.0; };   // TODO : PokerTracker simulé
+    if (startsLow("pt_")) {
+        // pt_<stat><siège 0-9>  ou  pt_<stat>_<rôle>chair (raischair, headsupchair, bigblindchair, userchair...)
+        std::string rest = low.substr(3), role;
+        int fixedChair = -1;
+        static const std::regex roleRe("^(.+)_([a-z0-9]+)chair$");
+        std::smatch m;
+        bool ok = false;
+        if (std::regex_match(rest, m, roleRe)) {
+            std::string r = m[2];
+            if (r == "dealer" || r == "button" || r == "user" || nativeTable().count(r + "chair")) { role = r; rest = m[1]; ok = true; }
+        }
+        if (!ok && !rest.empty() && std::isdigit(static_cast<unsigned char>(rest.back()))) { fixedChair = rest.back() - '0'; rest.pop_back(); ok = true; }
+        const int stat = ok ? pt::statIndex(rest) : -1;
+        // symbole PokerTracker invalide ou statistique non simulée : -1 comme « pas de données » chez OpenHoldem, et signalé
+        if (stat < 0) return [name](Ctx& c) { c.noteUnknown(name); return -1.0; };
+        return [stat, fixedChair, role](Ctx& c) -> double {
+            if (!c.game || !c.game->pt) return -1.0;
+            const int ch = role.empty() ? fixedChair : roleChair(c, role);
+            if (ch < 0 || ch >= c.t->nchairs) return -1.0;
+            return c.game->pt->stat(c.t->seats[ch].name, stat);
+        };
+    }
+    if (startsLow("ptt_")) return [](Ctx&) { return -1.0; };      // préfixe inexistant dans OpenHoldem 15
     for (const char* p : {"dll$", "sitename$", "log$", "msgbox$", "mh_"}) if (startsLow(p)) return [](Ctx&) { return 0.0; };
     auto it = nativeTable().find(low);
     if (it != nativeTable().end()) return it->second;

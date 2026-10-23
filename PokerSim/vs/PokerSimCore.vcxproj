@@ -73,6 +73,7 @@
     <ClCompile Include="..\src\ohsymbols_table.cpp" />
     <ClCompile Include="..\src\pokerval.cpp" />
     <ClCompile Include="..\src\prwin.cpp" />
+    <ClCompile Include="..\src\pt.cpp" />
     <ClCompile Include="..\src\runner.cpp" />
     <ClCompile Include="..\src\shanky.cpp" />
   </ItemGroup>
@@ -89,6 +90,7 @@
     <ClInclude Include="..\include\pokersim\pathutil.hpp" />
     <ClInclude Include="..\include\pokersim\pokerval.hpp" />
     <ClInclude Include="..\include\pokersim\prwin.hpp" />
+    <ClInclude Include="..\include\pokersim\pt.hpp" />
     <ClInclude Include="..\include\pokersim\rng.hpp" />
     <ClInclude Include="..\include\pokersim\runner.hpp" />
   </ItemGroup>

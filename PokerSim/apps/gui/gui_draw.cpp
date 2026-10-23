@@ -198,6 +198,29 @@ void App::drawConfigTab() {
     inputIntClamped("Plafond d'itérations (0 = aucun)", &cfg.prwinMaxIterations, 0, 10000000, 500);
     help("0 : fidèle à OpenHoldem, le profil décide (la bibliothèque demande 50 000 itérations, c'est lent).\nUne valeur de 1 000 à 5 000 accélère beaucoup la simulation au prix d'un peu de bruit.");
 
+    ImGui::SeparatorText("PokerTracker simule");
+    ImGui::Checkbox("Activer le PokerTracker simule (symboles pt_* des profils)", &cfg.ptEnabled);
+    help("Calcule VPIP, PFR, 3bet, c-bet, AF, WTSD... de chaque adversaire à partir des mains jouées, avec les définitions de PokerTracker 4. Les profils les lisent via pt_<stat><siege> (valeurs de 0 à 1, -1 sans donnée). Cash et tournoi sont séparés, comme dans PokerTracker.");
+    if (cfg.ptEnabled) {
+        ImGui::SetNextItemWidth(em(520));
+        ImGui::InputText("Base de depart (facultatif)##ptb", &cfg.ptBaselinePath);
+        ImGui::SameLine();
+        if (ImGui::Button("Parcourir...##ptb")) { std::string f = platform_.openFile("Base PokerTracker", "Base PokerTracker (*.json)", "*.json"); if (!f.empty()) cfg.ptBaselinePath = f; }
+        ImGui::SameLine();
+        if (ImGui::Button("Effacer##ptb")) cfg.ptBaselinePath.clear();
+        help("Statistiques déjà connues sur vos adversaires (par nom de joueur), comme une base PokerTracker alimentée par des sessions précédentes. Sans base, chaque partie repart de zéro et les statistiques se construisent main après main.");
+        ImGui::Checkbox("Enregistrer la base mise a jour a la fin", &savePt);
+        if (savePt) {
+            ImGui::SetNextItemWidth(em(520));
+            ImGui::InputText("Fichier de la base##pts", &cfg.ptSavePath);
+            ImGui::SameLine();
+            if (ImGui::Button("Parcourir...##pts")) { std::string f = platform_.saveFile("Base PokerTracker", "pokertracker_base.json", "json"); if (!f.empty()) cfg.ptSavePath = f; }
+            if (!cfg.ptBaselinePath.empty() && cfg.ptSavePath != cfg.ptBaselinePath) {
+                if (ImGui::SmallButton("Utiliser le meme fichier que la base de depart (enrichissement)")) cfg.ptSavePath = cfg.ptBaselinePath;
+            }
+        }
+    }
+
     ImGui::SeparatorText("Historique des mains");
     ImGui::Checkbox("Ecrire TOUTES les mains dans un fichier texte", &saveHands);
     help("Chaque main complète : cartes de tous les joueurs, chaque action avec ses montants, pot à chaque street, showdown, pots annexes, rake, résumé et stacks finaux. Le fichier est écrit au fil de la simulation (peu de mémoire).");
@@ -497,6 +520,38 @@ void App::drawResultsTab() {
     drawBars("##bars", labels, vals, errs, cash ? "bb/100" : "ROI %", em(220));
     ImGui::SeparatorText("Gain cumule");
     drawLines("##lines", r.cumulative, labels, em(260));
+
+    if (r.summary.ptDatabase) {
+        const ps::pt::Database& db = *r.summary.ptDatabase;
+        const ps::pt::Mode mode = r.cfg.isCash() ? ps::pt::Mode::Cash : ps::pt::Mode::Tourney;
+        ImGui::SeparatorText("Statistiques PokerTracker simulees (base finale)");
+        if (!r.summary.ptSavedPath.empty()) { ImGui::Text("Base enregistree : %s", r.summary.ptSavedPath.c_str()); ImGui::SameLine(); if (ImGui::SmallButton("Ouvrir##ptopen")) platform_.openPath(r.summary.ptSavedPath); }
+        if (ImGui::BeginTable("pt", 11, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp)) {
+            static const struct { const char* title; int stat; } cols[] = {{"Mains", ps::pt::S_HANDS}, {"VPIP", ps::pt::S_VPIP}, {"PFR", ps::pt::S_PFR}, {"3bet", ps::pt::S_P3BET},
+                {"Vol", ps::pt::S_STEAL_ATTEMPT}, {"AF", ps::pt::S_TOTAL_AF}, {"AFq", ps::pt::S_TOTAL_AFQ}, {"WTSD", ps::pt::S_WTSD}, {"WSSD", ps::pt::S_WSSD}, {"C-bet flop", ps::pt::S_FLOP_CBET}};
+            ImGui::TableSetupColumn("Joueur", ImGuiTableColumnFlags_WidthStretch, 2.0f);
+            for (auto& c : cols) ImGui::TableSetupColumn(c.title);
+            ImGui::TableHeadersRow();
+            for (size_t i = 0; i < r.players.size(); ++i) {
+                const ps::pt::PlayerCounters* pc = db.find(r.players[i].name, mode);
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                ImGui::PushStyleColor(ImGuiCol_Text, ImGui::ColorConvertU32ToFloat4(palette(static_cast<int>(i))));
+                ImGui::TextUnformatted(r.players[i].name.c_str());
+                ImGui::PopStyleColor();
+                for (auto& c : cols) {
+                    ImGui::TableNextColumn();
+                    const double v = pc ? pc->value(c.stat) : -1.0;
+                    if (c.stat == ps::pt::S_HANDS) ImGui::Text("%.0f", v < 0 ? 0.0 : v);
+                    else if (v < 0) ImGui::TextDisabled("-");
+                    else if (c.stat == ps::pt::S_TOTAL_AF) ImGui::Text("%.2f", v);
+                    else ImGui::Text("%.1f%%", 100.0 * v);
+                }
+            }
+            ImGui::EndTable();
+        }
+        ImGui::TextDisabled("Stats calculees comme PokerTracker 4 (definitions des occasions comprises). '-' : aucune occasion observee.");
+    }
 
     if (!r.unknownSymbols.empty()) {
         ImGui::SeparatorText("Symboles inconnus rencontres (evalues a 0)");

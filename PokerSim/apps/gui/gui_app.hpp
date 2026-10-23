@@ -86,6 +86,7 @@ public:
     ps::SimConfig cfg;
     std::vector<PlayerRow> players;
     std::string ohRoot;
+    bool savePt = false;                // enregistrer la base PokerTracker mise à jour dans cfg.ptSavePath
     bool saveHands = false;             // écrire toutes les mains dans cfg.handHistoryPath pendant la simulation
     int requestedTab = -1;              // force la sélection d'un onglet au prochain frame (tests)
     int handGame = 0, handIndex = 0;

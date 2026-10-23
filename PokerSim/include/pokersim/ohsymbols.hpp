@@ -54,6 +54,7 @@ public:
 
     // diagnostics : symboles inconnus rencontrés (nom -> nombre d'évaluations)
     const std::map<std::string, long long>& unknownSymbols() const { return unknown_; }
+    void noteUnknown(const std::string& n) { ++unknown_[n]; }
 
     // ---- état lié (public : utilisé par la table de symboles)
     std::shared_ptr<const FormulaCollection> fc;

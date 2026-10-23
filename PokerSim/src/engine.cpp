@@ -3,6 +3,7 @@
 #include <numeric>
 #include <map>
 #include "pokersim/evaluator.hpp"
+#include "pokersim/pt.hpp"
 
 namespace ps {
 
@@ -220,6 +221,7 @@ void Game::playHand() {
         rec.seats.push_back(sr);
     }
     ++handsPlayed_;
+    if (pt) { std::vector<std::string> nm; for (auto& s : t.seats) nm.push_back(s.name); pt->update(rec, nm); }   // les statistiques ne voient que les mains passées
     for (int ch : alive) t.seats[ch].brain->endHand(*this, rec);
     if (collect_) records_.push_back(std::move(rec));
 }

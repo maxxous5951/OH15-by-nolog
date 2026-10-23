@@ -87,6 +87,7 @@ struct Table {
 };
 
 class Game;
+namespace pt { class Tracker; }
 
 class IBrain {
 public:
@@ -122,6 +123,7 @@ public:
 
     Table t;
     Rng rng;
+    std::shared_ptr<pt::Tracker> pt;      // PokerTracker simulé (facultatif) : mis à jour à la fin de chaque main
     const SimConfig& cfg;
     bool cash() const { return cfg.isCash(); }
 

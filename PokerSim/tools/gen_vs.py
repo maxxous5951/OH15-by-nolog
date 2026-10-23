@@ -39,6 +39,7 @@ PROJECTS = [
     dict(name="Test_Core", cfg="Application", sub="Console", target="test_core", src=["tests/test_core.cpp"], refs=["PokerSimCore"], inc=[], folder="Tests"),
     dict(name="Test_OhLang", cfg="Application", sub="Console", target="test_ohlang", src=["tests/test_ohlang.cpp"], refs=["PokerSimCore"], inc=[], folder="Tests"),
     dict(name="Test_Prwin", cfg="Application", sub="Console", target="test_prwin", src=["tests/test_prwin.cpp"], refs=["PokerSimCore"], inc=[], folder="Tests"),
+    dict(name="Test_Pt", cfg="Application", sub="Console", target="test_pt", src=["tests/test_pt.cpp"], refs=["PokerSimCore"], inc=[], folder="Tests"),
     dict(name="Test_GuiHeadless", cfg="Application", sub="Console", target="test_gui_headless", src=["apps/gui/headless_test.cpp"],
          refs=["PokerSimGuiCore", "PokerSimCore"], inc=["apps/gui", "third_party/imgui"], folder="Tests"),
 ]
