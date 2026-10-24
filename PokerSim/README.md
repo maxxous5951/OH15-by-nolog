@@ -38,8 +38,8 @@ L'onglet **Optimisation** cherche un profil qui bat un pool de 15 bots (6 styles
 [OpenHoldem-Profile-Generator-WIP](https://github.com/maxxous5951/OpenHoldem-Profile-Generator-WIP) (`ohpg`), les fait jouer dans ce simulateur, garde les meilleures,
 puis le résultat est **validé sur 5 bots jamais vus** pendant la recherche et comparé aux 6 presets d'`ohpg`.
 
-Il pilote les scripts du dépôt [poker-profile-optimizer](https://github.com/maxxous5951/poker-profile-optimizer) (`make_pool.py`, `optimize.py`, `validate.py`) en processus externes :
-**Python 3 est donc nécessaire**, ainsi que ces deux dépôts (dossiers voisins du programme, ou à indiquer dans l'onglet).
+Il pilote les scripts du dossier `optimizer/` du dépôt [OpenHoldem-Profile-Generator-WIP](https://github.com/maxxous5951/OpenHoldem-Profile-Generator-WIP) (`make_pool.py`, `optimize.py`, `validate.py`) en processus externes :
+**Python 3 est donc nécessaire**, ainsi que le dépôt du générateur, dont le dossier `optimizer/` contient les scripts (ou le dépôt `poker-profile-optimizer`) ; ils sont trouvés automatiquement s'ils sont à côté du programme ou au-dessus, sinon à indiquer dans l'onglet.
 
 1. **Environnement** : indiquer Python, le dossier des scripts, celui d'`ohpg` et `pokersim.exe` (celui de cette version, qui a l'option `--json`), puis « Vérifier l'environnement ».
 2. **Pool** : « Créer le pool » (15 bots, 10 d'entraînement et 5 de validation, reproductibles avec la graine).

@@ -55,13 +55,15 @@ void Optimizer::initDefaults(const std::string& exeDir) {
     std::string b = exeDir.empty() ? "." : exeDir;
     for (int i = 0; i < 5; ++i) { bases.push_back(b); b = joinPath(b, ".."); }
     if (s.scriptsDir.empty()) {
+        // dépôt poker-profile-optimizer, ou dossier optimizer/ du dépôt du générateur
         for (const auto& base : bases)
-            for (const char* name : {"poker-profile-optimizer", "optimizer"})
+            for (const char* name : {"poker-profile-optimizer", "OpenHoldem-Profile-Generator-WIP/optimizer", "optimizer"})
                 if (s.scriptsDir.empty() && exists(joinPath(joinPath(base, name), "optimize.py"))) s.scriptsDir = joinPath(base, name);
     }
     if (s.ohpgDir.empty()) {
         std::vector<std::string> cands = bases;
         if (!s.scriptsDir.empty()) cands.push_back(joinPath(s.scriptsDir, ".."));
+        if (!s.scriptsDir.empty() && exists(joinPath(joinPath(joinPath(s.scriptsDir, ".."), "ohpg"), "params.py"))) s.ohpgDir = joinPath(s.scriptsDir, "..");   // optimizer/ dans le dépôt du générateur
         for (const auto& base : cands)
             if (s.ohpgDir.empty() && exists(joinPath(joinPath(joinPath(base, "OpenHoldem-Profile-Generator-WIP"), "ohpg"), "params.py")))
                 s.ohpgDir = joinPath(base, "OpenHoldem-Profile-Generator-WIP");
