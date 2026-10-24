@@ -66,6 +66,51 @@ std::string findRepo(const std::string& base, const std::string& prefixLower, co
 }
 }  // namespace
 
+const OptGroup kOptGroups[8] = {
+    {"open", "Ouvertures", 7, "Largeur des ranges d'ouverture par position, isolation des limpers, overlimp."},
+    {"defense", "Defense et 3bet", 6, "3bet, cold-call, defense de la BB, continuer face au 3bet, 4bet value."},
+    {"big", "4bet / 5bet / squeeze", 11, "Bluffs et calls en 4bet, 5bet, squeeze, face a un all-in."},
+    {"flop", "Flop", 28, "C-bet, semi-bluffs, check-raise, probe, donk, textures de board, engagement du tapis."},
+    {"turn", "Turn", 7, "Barrels, c-bet retarde, probe."},
+    {"river", "River", 6, "Value fine, bluffs, blockers, tolerance de call."},
+    {"sizes", "Tailles de mise", 20, "Toutes les tailles : preflop (ouverture, isolation, 3bet, 4bet, squeeze) et postflop (% du pot)."},
+    {"global", "Reglages globaux", 2, "Echelle de toutes les ranges d'ouverture et agressivite globale."},
+};
+
+int Optimizer::stageCount() const { return s.searchMode == 2 ? 3 + (s.useStats ? 1 : 0) : 1; }
+
+int Optimizer::paramCount() const {
+    int n = 0;
+    switch (s.searchMode) {
+    case 0: n = 23; break;
+    case 1: for (const auto& g : kOptGroups) n += g.count; break;
+    case 2: { int a = kOptGroups[0].count + kOptGroups[1].count + kOptGroups[2].count;
+              int b = kOptGroups[3].count + kOptGroups[4].count + kOptGroups[5].count;
+              int c = kOptGroups[6].count + kOptGroups[7].count;
+              n = std::max({a, b, c}); break; }
+    default: for (int i = 0; i < kOptGroupCount; ++i) if (s.customGroups & (1 << i)) n += kOptGroups[i].count; break;
+    }
+    if (s.useStats && s.searchMode != 2) n += kExploitParams;
+    return n;
+}
+
+bool Optimizer::searchArgs(std::vector<std::string>& out, std::string& error) const {
+    out.clear();
+    switch (s.searchMode) {
+    case 0: out = {"--groups", "base"}; break;
+    case 1: out = {"--groups", "all"}; break;
+    case 2: out = {"--stages", "open,defense,big;flop,turn,river;sizes,global"}; break;
+    default: {
+        std::string g;
+        for (int i = 0; i < kOptGroupCount; ++i) if (s.customGroups & (1 << i)) g += (g.empty() ? "" : ",") + std::string(kOptGroups[i].key);
+        if (g.empty()) { error = "Cochez au moins un groupe de parametres a optimiser."; return false; }
+        out = {"--groups", g};
+        break;
+    }
+    }
+    return true;
+}
+
 std::string joinPath(const std::string& a, const std::string& b) {
     if (a.empty()) return b;
     const char c = a.back();
@@ -142,6 +187,7 @@ std::vector<std::string> Optimizer::buildArgv(OptTask t, bool resume, const std:
                            "--t2", std::to_string(s.t2), "--games", std::to_string(s.games), "--hands", std::to_string(s.hands),
                            "--k", num(s.k), "--sigma", num(s.sigma), "--seed", std::to_string(s.seed), "--jobs", std::to_string(s.jobs),
                            "--prwin-max", std::to_string(s.prwinMax), "--rake", num(s.rake), "--rake-cap", std::to_string(s.rakeCap)});
+        { std::vector<std::string> sa; std::string e; searchArgs(sa, e); a.insert(a.end(), sa.begin(), sa.end()); }
         if (s.useStats) a.push_back("--use-stats");
         if (resume) a.push_back("--resume");
         break;
@@ -169,6 +215,7 @@ bool Optimizer::start(OptTask t, bool resume, const std::string& ohRoot, std::st
         if (ohRoot.empty()) { error = "La racine OpenHoldem (OpenPPL/OpenPPL_Library) n'est pas definie (onglet Configuration)."; return false; }
         if (!exists(joinPath(s.poolDir, "pool.json"))) { error = "Pool de bots introuvable : creez-le d'abord (bouton 'Creer le pool')."; return false; }
     }
+    if (t == OptTask::Optimize) { std::vector<std::string> sa; if (!searchArgs(sa, error)) return false; }
     if (t == OptTask::Validate && !exists(joinPath(s.runDir, "best.ohf"))) { error = "Aucun meilleur profil a valider : lancez d'abord une optimisation."; return false; }
     if (t == OptTask::Optimize && resume && !exists(joinPath(s.runDir, "state.json"))) { error = "Rien a reprendre dans ce dossier de run."; return false; }
 
@@ -244,8 +291,8 @@ double Optimizer::elapsedSeconds() const {
 double Optimizer::etaSeconds() const {
     if (task_ != OptTask::Optimize || genAtStart_ < -1) return -1;
     const int done = currentGen - std::max(genAtStart_, 0);
-    if (done < 1 || currentGen >= s.gens) return -1;
-    return elapsedSeconds() / done * (s.gens - currentGen);
+    if (done < 1 || currentGen >= totalGens()) return -1;
+    return elapsedSeconds() / done * (totalGens() - currentGen);
 }
 
 std::string Optimizer::bestOhfPath() const { return joinPath(s.runDir, "best.ohf"); }
@@ -268,7 +315,7 @@ void Optimizer::refreshFiles() {
     // état / meilleur
     stateExists = exists(joinPath(s.runDir, "state.json"));
     bestExists = exists(joinPath(s.runDir, "best.ohf"));
-    currentGen = -1;
+    currentGen = -1; curStage = curStages = 0; activeLabel.clear();
     if (readFile(joinPath(s.runDir, "best.json"), txt)) {
         try {
             const json j = json::parse(txt);
@@ -276,6 +323,9 @@ void Optimizer::refreshFiles() {
             bestMean = j.value("mean_bb100", 0.0);
             bestCi = j.value("ci95", 0.0);
             bestHands = j.value("hands", 0LL);
+            curStage = j.value("stage", 1);
+            curStages = j.value("stages", 1);
+            activeLabel = j.value("active_genes", std::string());
         } catch (...) {}
     }
     // historique : meilleur de chaque génération
@@ -289,6 +339,7 @@ void Optimizer::refreshFiles() {
                 const json j = json::parse(line);
                 HistPoint h;
                 h.gen = j.at("gen").get<int>();
+                h.stage = j.value("stage", 1);
                 accStats(j.at("best").at("acc"), h.mean, h.ci, h.hands);
                 history.push_back(h);
             } catch (...) {}
@@ -322,6 +373,7 @@ std::string Optimizer::toJsonText() const {
     j["gens"] = s.gens; j["mu"] = s.mu; j["lam"] = s.lam; j["refine"] = s.refine; j["t1"] = s.t1; j["t2"] = s.t2;
     j["games"] = s.games; j["hands"] = s.hands; j["seed"] = s.seed; j["jobs"] = s.jobs; j["prwinMax"] = s.prwinMax;
     j["k"] = s.k; j["sigma"] = s.sigma; j["rake"] = s.rake; j["rakeCap"] = s.rakeCap; j["useStats"] = s.useStats;
+    j["searchMode"] = s.searchMode; j["customGroups"] = s.customGroups;
     j["vTables"] = s.vTables; j["vGames"] = s.vGames; j["vHands"] = s.vHands;
     return j.dump();
 }
@@ -342,6 +394,7 @@ void Optimizer::fromJsonText(const std::string& text) {
         num("k", s.k, 0.0, 10.0); num("sigma", s.sigma, 0.001, 1.0); num("rake", s.rake, 0.0, 20.0); num("rakeCap", s.rakeCap, 0, 100000);
         num("vTables", s.vTables, 1, 10000); num("vGames", s.vGames, 1, 1000); num("vHands", s.vHands, 50, 1000000);
         if (j.contains("useStats") && j["useStats"].is_boolean()) s.useStats = j["useStats"].get<bool>();
+        num("searchMode", s.searchMode, 0, 3); num("customGroups", s.customGroups, 0, 255);
     } catch (...) {}
 }
 

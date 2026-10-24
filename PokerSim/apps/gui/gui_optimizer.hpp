@@ -24,13 +24,21 @@ struct OptSettings {
     double k = 1.0, sigma = 0.10, rake = 0.0;
     int rakeCap = 0;
     bool useStats = false;
+    int searchMode = 2;          // 0 base (23 parametres), 1 complet en une etape, 2 complet par etapes, 3 groupes a cocher
+    int customGroups = 0xFF;     // mode 3 : bits des groupes de kOptGroups
     // validation
     int vTables = 12, vGames = 4, vHands = 1000;
 };
 
 enum class OptTask { None, Check, Pool, Optimize, Validate };
 
-struct HistPoint { int gen = 0; double mean = 0, ci = 0; long long hands = 0; };
+struct HistPoint { int gen = 0, stage = 1; double mean = 0, ci = 0; long long hands = 0; };
+
+// Groupes de parametres (memes noms que optimize.py --groups). count = nombre de parametres (indicatif).
+struct OptGroup { const char* key; const char* label; int count; const char* help; };
+extern const OptGroup kOptGroups[8];
+constexpr int kOptGroupCount = 8;
+constexpr int kExploitParams = 16;
 struct ValRow { std::string name; double trMean = 0, trCi = 0, vaMean = 0, vaCi = 0; long long trHands = 0, vaHands = 0; };
 
 class Optimizer {
@@ -45,6 +53,12 @@ public:
     bool start(OptTask t, bool resume, const std::string& ohRoot, std::string& error);
     void stop();
     void poll();                                   // à appeler à chaque frame : journal, fin de tâche, relecture des fichiers (1 Hz)
+    // Arguments d'optimize.py qui decrivent la recherche (--groups / --stages). false + error si rien n'est selectionne.
+    bool searchArgs(std::vector<std::string>& out, std::string& error) const;
+    int stageCount() const;                        // nombre d'etapes du run en fonction des reglages
+    int totalGens() const { return stageCount() * s.gens; }
+    int paramCount() const;                        // nombre de parametres optimises (par etape la plus large pour le mode 2)
+
     bool busy() const { return proc_ && proc_->running(); }
     OptTask task() const { return task_; }
     bool stopping() const { return stopping_; }
@@ -56,6 +70,8 @@ public:
     bool stateExists = false;                      // state.json présent : on peut reprendre
     int currentGen = -1;                           // dernière génération terminée (-1 : aucune)
     bool bestExists = false;
+    int curStage = 0, curStages = 0;               // etape en cours / nombre d'etapes (best.json)
+    std::string activeLabel;                       // groupes de l'etape en cours, ex. "flop"
     double bestMean = 0, bestCi = 0;
     long long bestHands = 0;
     std::vector<HistPoint> history;

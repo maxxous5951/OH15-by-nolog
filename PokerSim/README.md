@@ -43,7 +43,7 @@ Il pilote les scripts du dossier `optimizer/` du dépôt [OpenHoldem-Profile-Gen
 
 1. **Environnement** : indiquer Python, le dossier des scripts, celui d'`ohpg` et `pokersim.exe` (celui de cette version, qui a l'option `--json`), puis « Vérifier l'environnement ».
 2. **Pool** : « Créer le pool » (15 bots, 10 d'entraînement et 5 de validation, reproductibles avec la graine).
-3. **Optimisation** : réglages (générations, tables, mains, rake, `use_stats`...), « Lancer », « Arrêter », « Reprendre ». Courbe du meilleur bb/100 (IC 95 %) par génération, temps restant estimé, journal en direct. Tout est sauvegardé à chaque génération.
+3. **Optimisation** : choix des paramètres (rapide 23 / complet 87 en une étape / **complet par étapes**, recommandé : ouvertures-défense-4bet, puis flop-turn-river, puis tailles et réglages globaux, chaque étape repartant du meilleur profil / groupes à cocher), réglages (générations par étape, tables, mains, rake, `use_stats` = étape d'exploitation en plus...), « Lancer », « Arrêter », « Reprendre ». Courbe du meilleur bb/100 (IC 95 %) par génération, temps restant estimé, journal en direct. Tout est sauvegardé à chaque génération.
 4. **Validation** : bb/100 avec IC 95 % sur les bots d'entraînement et sur les bots jamais vus, écart (surapprentissage) et verdict face à la meilleure référence.
 5. « Utiliser comme joueur 1 », « Exporter best.ohf », « Ouvrir le dossier du run ».
 

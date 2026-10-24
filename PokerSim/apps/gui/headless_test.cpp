@@ -337,6 +337,18 @@ int main(int argc, char** argv) {
             CHECK(std::chrono::steady_clock::now() - t1 < std::chrono::seconds(10));
         }
 #endif
+        // ------------------------------------------------------------------ modes de recherche (sans scripts)
+        {
+            Optimizer o; std::vector<std::string> a; std::string e;
+            o.s.searchMode = 0; CHECK(o.searchArgs(a, e) && a.size() == 2 && a[1] == "base" && o.stageCount() == 1 && o.paramCount() == 23);
+            o.s.searchMode = 1; CHECK(o.searchArgs(a, e) && a[1] == "all" && o.paramCount() == 87);
+            o.s.searchMode = 2; o.s.gens = 5; CHECK(o.searchArgs(a, e) && a[0] == "--stages" && o.stageCount() == 3 && o.totalGens() == 15);
+            o.s.useStats = true; CHECK(o.stageCount() == 4 && o.totalGens() == 20);
+            o.s.useStats = false;
+            o.s.searchMode = 3; o.s.customGroups = 0; CHECK(!o.searchArgs(a, e) && !e.empty());
+            o.s.customGroups = (1 << 3) | (1 << 7); CHECK(o.searchArgs(a, e) && a[1] == "flop,global");
+            Optimizer o2; o2.fromJsonText(o.toJsonText()); CHECK(o2.s.searchMode == 3 && o2.s.customGroups == o.s.customGroups);
+        }
         // ------------------------------------------------------------------ onglet Optimisation (vrais scripts si les variables sont définies)
         {
             const char* sc = std::getenv("PS_OPT_SCRIPTS");
@@ -351,6 +363,7 @@ int main(int argc, char** argv) {
                 o.s.scriptsDir = sc; o.s.ohpgDir = og; o.s.pokersimExe = px; o.s.poolDir = work + "/pool"; o.s.runDir = work + "/run";
                 o.s.gens = 3; o.s.mu = 4; o.s.lam = 4; o.s.refine = 2; o.s.t1 = 2; o.s.t2 = 3; o.s.games = 1; o.s.hands = 300; o.s.seed = 5;
                 o.s.vTables = 2; o.s.vGames = 1; o.s.vHands = 300;
+                o.s.searchMode = 0;
                 std::string e;
                 CHECK(!o.start(OptTask::Optimize, false, ohr, e) && !e.empty());          // pas de pool : refusé avec un message
                 CHECK(!o.start(OptTask::Validate, false, ohr, e) && !e.empty());
@@ -372,6 +385,17 @@ int main(int argc, char** argv) {
                 CHECK(o.lastExitCode == 0 && o.currentGen == stopped + 2);
                 CHECK(static_cast<int>(o.history.size()) >= 2);
                 allTabs();
+                {   // recherche complete par etapes : 3 etapes x 1 generation
+                    const std::string run0 = o.s.runDir; const int g0 = o.s.gens;
+                    o.s.runDir = work + "/run_staged"; o.s.searchMode = 2; o.s.gens = 1;
+                    CHECK(o.start(OptTask::Optimize, false, ohr, e)); waitOpt(app, 600000);
+                    CHECK(o.lastExitCode == 0 && o.currentGen == 3 && o.curStages == 3 && o.curStage == 3 && !o.activeLabel.empty());
+                    CHECK(o.history.size() == 3 && o.history[0].stage == 1 && o.history[2].stage == 3);
+                    allTabs();
+                    o.s.searchMode = 3; o.s.customGroups = 0;
+                    CHECK(!o.start(OptTask::Optimize, false, ohr, e) && !e.empty());     // aucun groupe coche : refuse
+                    o.s.runDir = run0; o.s.gens = g0; o.s.searchMode = 0; o.refreshFiles();
+                }
                 CHECK(o.start(OptTask::Validate, false, ohr, e)); waitOpt(app);
                 CHECK(o.lastExitCode == 0 && o.validation.size() == 7);
                 checkOptimizerLayout("avec resultats, 1400 px");

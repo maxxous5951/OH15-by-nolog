@@ -90,6 +90,12 @@ void drawProgress(const std::vector<HistPoint>& h, float height) {
     std::snprintf(buf, sizeof buf, "%+.0f", lo); dl->AddText(ImVec2(p0.x + 4, bottom - 8), IM_COL32(170, 170, 170, 255), buf);
     dl->AddText(ImVec2(left, p0.y + height - 18), IM_COL32(170, 170, 170, 255), "generation");
     dl->AddText(ImVec2(p0.x + 4, p0.y + 1), IM_COL32(170, 170, 170, 255), "bb/100 (meilleur profil, IC 95 %)");
+    for (int i = 1; i < n; ++i) if (h[i].stage != h[i - 1].stage) {
+        const float x = (xOf(h[i - 1].gen) + xOf(h[i].gen)) * 0.5f;
+        dl->AddLine(ImVec2(x, top), ImVec2(x, bottom), IM_COL32(150, 150, 150, 120), 1.0f);
+        char sb[24]; std::snprintf(sb, sizeof sb, "etape %d", h[i].stage);
+        dl->AddText(ImVec2(x + 3, top - 12), IM_COL32(170, 170, 170, 255), sb);
+    }
     for (int i = 0; i < n; ++i) {
         const float x = xOf(h[i].gen);
         dl->AddLine(ImVec2(x, yOf(h[i].mean - h[i].ci)), ImVec2(x, yOf(h[i].mean + h[i].ci)), IM_COL32(86, 180, 233, 110), 2.0f);
@@ -152,8 +158,26 @@ void App::drawOptimizerTab() {
     ImGui::BeginDisabled(busy);
     pathRow(platform_, "Dossier du run", "run", &s.runDir, true, "Dossier de cette optimisation",
             "Contient l'etat (reprise possible), le meilleur profil (best.ohf), l'historique et la validation.");
+    {
+        static const char* modes[] = {"Rapide : 23 parametres de style", "Complet en une etape (87 parametres)",
+                                      "Complet par etapes (recommande)", "Choisir les groupes..."};
+        ImGui::SetNextItemWidth(em(330));
+        ImGui::Combo("Parametres a optimiser", &s.searchMode, modes, 4);
+        help("Par etapes : 1) ouvertures, defense, 4bet  2) flop, turn, river  3) tailles de mise et reglages globaux. "
+             "Chaque etape part du meilleur profil de la precedente et ne touche que ses propres parametres.");
+        if (s.searchMode == 3) {
+            for (int i = 0; i < kOptGroupCount; ++i) {
+                bool on = (s.customGroups >> i) & 1;
+                char lab[96]; std::snprintf(lab, sizeof lab, "%s (~%d)##grp%d", kOptGroups[i].label, kOptGroups[i].count, i);
+                if (ImGui::Checkbox(lab, &on)) s.customGroups = on ? (s.customGroups | (1 << i)) : (s.customGroups & ~(1 << i));
+                help(kOptGroups[i].help);
+            }
+        }
+        ImGui::TextDisabled("%d parametres%s, %d etape%s, %d generations au total", opt.paramCount(), s.searchMode == 2 ? " (au plus par etape)" : "",
+                            opt.stageCount(), opt.stageCount() > 1 ? "s" : "", opt.totalGens());
+    }
     if (ImGui::TreeNode("Reglages de l'optimisation")) {
-        inInt("Generations", &s.gens, 1, 100000, 5); help("Nombre total de generations (le run repris continue jusqu'a ce nombre).");
+        inInt("Generations (par etape)", &s.gens, 1, 100000, 5); help("Generations de chaque etape. Total = etapes x generations. Un run repris continue la ou il s'est arrete.");
         inInt("Survivants (mu)", &s.mu, 2, 200); help("Taille de la population conservee d'une generation a l'autre.");
         inInt("Enfants par generation", &s.lam, 1, 400);
         inInt("Enfants affines", &s.refine, 1, 400); help("Les meilleurs enfants de l'etape 1 recoivent un gros volume de mains (etape 2).");
@@ -168,7 +192,7 @@ void App::drawOptimizerTab() {
         inDouble("Rake (%)", &s.rake, 0.0, 20.0, "%.1f"); help("0 = jeu a somme nulle : bb/100 > 0 veut dire que le profil bat le champ.");
         inInt("Plafond du rake (jetons)", &s.rakeCap, 0, 100000, 5); help("BB = 10 jetons : 30 = 3 BB. 0 = sans plafond.");
         ImGui::Checkbox("Exploiter les stats adversaires (use_stats)", &s.useStats);
-        help("Ajoute 16 parametres d'exploitation (nit / fish / maniaque) a la recherche. Les profils lisent alors les stats PokerTracker simulees.");
+        help("Ajoute 16 parametres d'exploitation (nit / fish / maniaque) : une etape de plus en mode par etapes, sinon ajoutes a la recherche. Les profils lisent alors les stats PokerTracker simulees.");
         ImGui::TreePop();
     }
     if (ImGui::Button("Lancer l'optimisation", ImVec2(em(190), em(28)))) { std::string e; if (!opt.start(OptTask::Optimize, false, ohRoot, e)) opt.lastError = e; else optNote_.clear(); }
@@ -184,13 +208,15 @@ void App::drawOptimizerTab() {
     if (!opt.stateExists && !busy) { ImGui::SameLine(); ImGui::TextDisabled("Un nouveau lancement ecrase le run precedent de ce dossier."); }
 
     if (busy) {
-        const int total = std::max(1, s.gens);
+        const int total = std::max(1, opt.totalGens());
         const float frac = std::clamp(static_cast<float>(std::max(0, opt.currentGen)) / static_cast<float>(total), 0.0f, 1.0f);
         char ov[200];
         const double el = opt.elapsedSeconds(), eta = opt.etaSeconds();
         if (opt.task() == OptTask::Optimize) {
-            if (eta >= 0) std::snprintf(ov, sizeof ov, "Generation %d / %d  -  %.0f min ecoulees, reste ~%.0f min%s", std::max(0, opt.currentGen), total, el / 60, eta / 60, opt.stopping() ? "  -  arret..." : "");
-            else std::snprintf(ov, sizeof ov, "Generation %d / %d  -  %.0f s ecoulees%s", std::max(0, opt.currentGen), total, el, opt.stopping() ? "  -  arret..." : "");
+            char st[96] = "";
+            if (opt.curStages > 1) std::snprintf(st, sizeof st, "etape %d/%d (%s)  -  ", opt.curStage, opt.curStages, opt.activeLabel.c_str());
+            if (eta >= 0) std::snprintf(ov, sizeof ov, "%sGeneration %d / %d  -  %.0f min ecoulees, reste ~%.0f min%s", st, std::max(0, opt.currentGen), total, el / 60, eta / 60, opt.stopping() ? "  -  arret..." : "");
+            else std::snprintf(ov, sizeof ov, "%sGeneration %d / %d  -  %.0f s ecoulees%s", st, std::max(0, opt.currentGen), total, el, opt.stopping() ? "  -  arret..." : "");
             ImGui::ProgressBar(frac, ImVec2(-1, em(24)), ov);
         } else {
             std::snprintf(ov, sizeof ov, "%s en cours...  %.0f s%s", taskName(opt.task()), el, opt.stopping() ? "  -  arret..." : "");
