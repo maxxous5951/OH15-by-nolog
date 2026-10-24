@@ -33,13 +33,18 @@ bool inDouble(const char* label, double* v, double lo, double hi, const char* fm
     return ch;
 }
 
-// Champ de chemin + bouton « ... » (dossier ou fichier)
-void pathRow(Platform& plat, const char* label, const char* id, std::string* path, bool folder, const char* title) {
+// Ligne de chemin : étiquette (colonne fixe) | champ (largeur restante) | bouton « ... » (dossier ou fichier). Tient dans toute largeur.
+void pathRow(Platform& plat, const char* label, const char* id, std::string* path, bool folder, const char* title, const char* tip = nullptr) {
     ImGui::PushID(id);
-    ImGui::SetNextItemWidth(-em(60));
-    ImGui::InputText(label, path);
+    const float labelW = em(235), btnW = em(36);
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(label);
+    if (tip) help(tip);
+    ImGui::SameLine(labelW);
+    ImGui::SetNextItemWidth(std::max(em(60), ImGui::GetContentRegionAvail().x - btnW - ImGui::GetStyle().ItemSpacing.x));
+    ImGui::InputText("##path", path);
     ImGui::SameLine();
-    if (ImGui::Button("...")) {
+    if (ImGui::Button("...", ImVec2(btnW, 0))) {
         const std::string r = folder ? plat.pickFolder(title) : plat.openFile(title, "Programmes", "*.exe");
         if (!r.empty()) *path = r;
     }
@@ -111,17 +116,19 @@ void App::drawOptimizerTab() {
     ImGui::BeginChild("opt", ImVec2(em(0), em(0)), ImGuiChildFlags_None);
     ImGui::TextWrapped("Cherche automatiquement un profil qui bat un pool de bots : chaque generation cree des variantes (ohpg), les fait jouer dans "
                        "ce simulateur, garde les meilleures. Le resultat est ensuite verifie sur des bots jamais vus pendant la recherche. "
-                       "Necessite Python 3 et les depots poker-profile-optimizer et OpenHoldem-Profile-Generator-WIP.");
+                       "Necessite Python 3 et le depot OpenHoldem-Profile-Generator-WIP (dossier optimizer/).");
 
     // ---------------------------------------------------------------- environnement
     ImGui::SeparatorText("1. Environnement");
     ImGui::BeginDisabled(busy);
-    pathRow(platform_, "Python##py", "py", &s.python, false, "Executable Python");
-    help("Nom ou chemin de Python 3 (python sous Windows, python3 sous Linux/macOS).");
-    pathRow(platform_, "Scripts (poker-profile-optimizer)##sc", "sc", &s.scriptsDir, true, "Dossier poker-profile-optimizer");
-    pathRow(platform_, "Generateur (ohpg)##oh", "oh", &s.ohpgDir, true, "Dossier OpenHoldem-Profile-Generator-WIP");
-    pathRow(platform_, "pokersim (ligne de commande)##ex", "ex", &s.pokersimExe, false, "pokersim");
-    help("Le pokersim de CETTE version (option --json). Il est compile a cote de l'interface.");
+    pathRow(platform_, "Python", "py", &s.python, false, "Executable Python",
+            "Nom ou chemin de Python 3 (python sous Windows, python3 sous Linux/macOS).");
+    pathRow(platform_, "Dossier des scripts", "sc", &s.scriptsDir, true, "Dossier des scripts (optimizer)",
+            "Le dossier optimizer/ du depot OpenHoldem-Profile-Generator-WIP (ou le depot poker-profile-optimizer) : il contient optimize.py.");
+    pathRow(platform_, "Dossier du generateur (ohpg)", "oh", &s.ohpgDir, true, "Dossier OpenHoldem-Profile-Generator-WIP",
+            "Le dossier OpenHoldem-Profile-Generator-WIP : il contient le dossier ohpg/.");
+    pathRow(platform_, "pokersim (ligne de commande)", "ex", &s.pokersimExe, false, "pokersim",
+            "Le pokersim de CETTE version (option --json). Il est compile a cote de l'interface.");
     ImGui::Text("Racine OpenHoldem : %s", ohRoot.empty() ? "(non definie : onglet Configuration)" : ohRoot.c_str());
     if (ImGui::Button("Verifier l'environnement")) { std::string e; if (!opt.start(OptTask::Check, false, ohRoot, e)) opt.lastError = e; else optNote_.clear(); }
     ImGui::EndDisabled();
@@ -130,7 +137,7 @@ void App::drawOptimizerTab() {
     // ---------------------------------------------------------------- pool
     ImGui::SeparatorText("2. Pool d'adversaires");
     ImGui::BeginDisabled(busy);
-    pathRow(platform_, "Dossier du pool##pool", "pool", &s.poolDir, true, "Dossier du pool de bots");
+    pathRow(platform_, "Dossier du pool", "pool", &s.poolDir, true, "Dossier du pool de bots");
     inInt("Graine du pool", &s.poolSeed, 0, 1000000000);
     help("Meme graine = meme pool. Le pool contient 15 bots (6 styles x 2 a 3 variantes) : 10 pour l'entrainement, 5 reserves a la validation.");
     ImGui::SameLine();
@@ -143,8 +150,8 @@ void App::drawOptimizerTab() {
     // ---------------------------------------------------------------- optimisation
     ImGui::SeparatorText("3. Optimisation");
     ImGui::BeginDisabled(busy);
-    pathRow(platform_, "Dossier du run##run", "run", &s.runDir, true, "Dossier de cette optimisation");
-    help("Contient l'etat (reprise possible), le meilleur profil (best.ohf), l'historique et la validation.");
+    pathRow(platform_, "Dossier du run", "run", &s.runDir, true, "Dossier de cette optimisation",
+            "Contient l'etat (reprise possible), le meilleur profil (best.ohf), l'historique et la validation.");
     if (ImGui::TreeNode("Reglages de l'optimisation")) {
         inInt("Generations", &s.gens, 1, 100000, 5); help("Nombre total de generations (le run repris continue jusqu'a ce nombre).");
         inInt("Survivants (mu)", &s.mu, 2, 200); help("Taille de la population conservee d'une generation a l'autre.");

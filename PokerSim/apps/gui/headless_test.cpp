@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -10,6 +11,7 @@
 #include "gui_app.hpp"
 #include "gui_process.hpp"
 #include "imgui.h"
+#include "imgui_internal.h"
 #include "pokersim/pathutil.hpp"
 
 using namespace psgui;
@@ -55,6 +57,23 @@ static void waitOpt(App& app, int maxMs = 300000) {
     frames(2);
 }
 
+// Aucun contenu de l'onglet Optimisation ne doit dépasser la largeur de sa zone (champs, étiquettes et boutons visibles).
+static void checkOptimizerLayout(const char* when) {
+    gApp->requestedTab = 4; frames(4);
+    int seen = 0;
+    ImGuiContext* ctx = ImGui::GetCurrentContext();
+    for (ImGuiWindow* w : ctx->Windows) {
+        const char* last = std::strrchr(w->Name, '/');          // nom du dernier niveau : "opt_<id>" (le journal imbriqué est "optlog_<id>")
+        if (!last || std::strncmp(last + 1, "opt_", 4) != 0) continue;
+        ++seen;
+        if (w->ContentSize.x > w->InnerRect.GetWidth() + 2.0f) {
+            std::printf("ECHEC debordement (%s) : contenu %.0f px > zone %.0f px\n", when, w->ContentSize.x, w->InnerRect.GetWidth());
+            ++failures;
+        }
+    }
+    CHECK(seen == 1);
+}
+
 static void allTabs() { for (int t = 0; t < 5; ++t) { gApp->requestedTab = t; frames(3); } }
 
 int main(int argc, char** argv) {
@@ -74,6 +93,10 @@ int main(int argc, char** argv) {
         gApp = &app;
         std::puts("onglets vides");
         allTabs();
+        std::puts("mise en page de l'onglet Optimisation (1400 et 1000 px de large)");
+        checkOptimizerLayout("1400 px");
+        io.DisplaySize = ImVec2(1000, 900); checkOptimizerLayout("1000 px");
+        io.DisplaySize = ImVec2(1400, 900);
 
         std::puts("Spin & Go avec bots intégrés");
         app.cfg.numGames = 30; app.cfg.recordGames = 1; app.cfg.seed = 5; app.cfg.workers = 2;
@@ -231,6 +254,42 @@ int main(int argc, char** argv) {
             allTabs();
         } else std::puts("(profils réels ignorés : pas de racine OpenHoldem en argument)");
 
+        // ------------------------------------------------------------------ détection des dossiers (téléchargements ZIP GitHub, extraction en double)
+        std::puts("détection des dossiers de l'onglet Optimisation");
+        {
+            namespace fs = std::filesystem;
+            auto same = [](const std::string& a, const fs::path& b) { return fs::path(a).lexically_normal() == b.lexically_normal(); };   // indépendant du séparateur de chemin
+            const fs::path root = "/tmp/pokersim_gui_detect";
+            std::error_code ec; fs::remove_all(root, ec);
+            auto touch = [](const fs::path& f) { fs::create_directories(f.parent_path()); std::ofstream(f) << "x"; };
+            const fs::path exeDir = root / "Downloads/OH15-by-nolog-gui-optimizer/PokerSim/bin/Release";
+            fs::create_directories(exeDir);
+            // générateur téléchargé en ZIP de la branche, extrait en double ; scripts dans optimizer/
+            const fs::path gen = root / "Downloads/OpenHoldem-Profile-Generator-WIP-add-optimizer/OpenHoldem-Profile-Generator-WIP-add-optimizer";
+            touch(gen / "ohpg/params.py"); touch(gen / "optimizer/optimize.py");
+            Optimizer o1; o1.initDefaults(exeDir.string());
+            CHECK(same(o1.s.scriptsDir, gen / "optimizer"));
+            CHECK(same(o1.s.ohpgDir, gen));
+            CHECK(o1.s.pokersimExe.find("pokersim") != std::string::npos);
+            CHECK(same(o1.s.poolDir, fs::path(o1.s.scriptsDir) / "pool"));
+            // des réglages déjà renseignés ne sont jamais écrasés
+            Optimizer o2; o2.s.scriptsDir = "/deja/la"; o2.initDefaults(exeDir.string());
+            CHECK(o2.s.scriptsDir == "/deja/la");
+            // rien trouvé : champs vides, données dans optimizer_data près de l'exécutable
+            fs::remove_all(root / "Downloads/OpenHoldem-Profile-Generator-WIP-add-optimizer", ec);
+            Optimizer o3; o3.initDefaults(exeDir.string());
+            CHECK(o3.s.scriptsDir.empty() && o3.s.ohpgDir.empty());
+            CHECK(o3.s.poolDir.find("optimizer_data") != std::string::npos);
+            std::string e;
+            CHECK(!o3.start(OptTask::Pool, false, "", e) && e.find("'...'") != std::string::npos);   // message qui explique quoi faire
+            // ancien dépôt poker-profile-optimizer + générateur sous son nom simple
+            touch(root / "Downloads/poker-profile-optimizer-main/optimize.py");
+            touch(root / "Downloads/OpenHoldem-Profile-Generator-WIP/ohpg/params.py");
+            Optimizer o4; o4.initDefaults(exeDir.string());
+            CHECK(same(o4.s.scriptsDir, root / "Downloads/poker-profile-optimizer-main"));
+            CHECK(same(o4.s.ohpgDir, root / "Downloads/OpenHoldem-Profile-Generator-WIP"));
+            fs::remove_all(root, ec);
+        }
         // ------------------------------------------------------------------ lanceur de processus (sans dépendance externe)
         std::puts("processus externe : sortie en direct, code de sortie, arrêt");
 #ifndef _WIN32
@@ -315,6 +374,9 @@ int main(int argc, char** argv) {
                 allTabs();
                 CHECK(o.start(OptTask::Validate, false, ohr, e)); waitOpt(app);
                 CHECK(o.lastExitCode == 0 && o.validation.size() == 7);
+                checkOptimizerLayout("avec resultats, 1400 px");
+                io.DisplaySize = ImVec2(1000, 900); checkOptimizerLayout("avec resultats, 1000 px");
+                io.DisplaySize = ImVec2(1400, 900);
                 bool hasCand = false; for (auto& r : o.validation) if (r.name == "CANDIDAT" && r.vaHands > 0) hasCand = true;
                 CHECK(hasCand);
                 allTabs();

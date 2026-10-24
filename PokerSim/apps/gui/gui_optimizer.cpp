@@ -1,5 +1,6 @@
 #include "gui_optimizer.hpp"
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -33,6 +34,36 @@ void accStats(const json& a, double& mean, double& ci, long long& hands) {
     mean = s / n;
     if (n >= 2) ci = 1.96 * std::sqrt(std::max(0.0, (ss - s * s / n) / (n - 1)) / n);
 }
+
+std::string lowerCase(std::string s) {
+    for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return s;
+}
+
+// Sous-dossiers de `base` dont le nom commence par `prefixLower` (sans tenir compte de la casse), triés.
+std::vector<std::string> subdirsStartingWith(const std::string& base, const std::string& prefixLower) {
+    std::vector<std::string> out;
+    std::error_code ec;
+    for (fs::directory_iterator it(ps::pathFromUtf8(base), ec), end; !ec && it != end; it.increment(ec)) {
+        std::error_code e2;
+        if (!it->is_directory(e2)) continue;
+        const std::string name = ps::pathToUtf8(it->path().filename());
+        if (lowerCase(name).rfind(prefixLower, 0) == 0) out.push_back(joinPath(base, name));
+    }
+    std::sort(out.begin(), out.end());
+    return out;
+}
+
+// Cherche dans `base` un dossier "<prefix>*" qui contient `marker` : "OpenHoldem-Profile-Generator-WIP", "...-WIP-main" ou "...-WIP-add-optimizer"
+// (téléchargements ZIP GitHub), éventuellement extrait en double ("X/X/").
+std::string findRepo(const std::string& base, const std::string& prefixLower, const std::string& marker) {
+    for (const auto& d : subdirsStartingWith(base, prefixLower)) {
+        if (exists(joinPath(d, marker))) return d;
+        for (const auto& d2 : subdirsStartingWith(d, prefixLower))
+            if (exists(joinPath(d2, marker))) return d2;
+    }
+    return {};
+}
 }  // namespace
 
 std::string joinPath(const std::string& a, const std::string& b) {
@@ -51,24 +82,40 @@ void Optimizer::initDefaults(const std::string& exeDir) {
     const char* exe = "pokersim";
 #endif
     if (s.pokersimExe.empty()) s.pokersimExe = joinPath(exeDir, exe);
+
+    // dossiers à explorer : celui de l'exécutable et ses 5 parents
     std::vector<std::string> bases;
-    std::string b = exeDir.empty() ? "." : exeDir;
-    for (int i = 0; i < 5; ++i) { bases.push_back(b); b = joinPath(b, ".."); }
+    {
+        fs::path p = ps::pathFromUtf8(exeDir.empty() ? "." : exeDir);
+        for (int i = 0; i < 6 && !p.empty(); ++i) {
+            bases.push_back(ps::pathToUtf8(p));
+            const fs::path parent = p.parent_path();
+            if (parent == p) break;
+            p = parent;
+        }
+    }
     if (s.scriptsDir.empty()) {
-        // dépôt poker-profile-optimizer, ou dossier optimizer/ du dépôt du générateur
-        for (const auto& base : bases)
-            for (const char* name : {"poker-profile-optimizer", "OpenHoldem-Profile-Generator-WIP/optimizer", "optimizer"})
-                if (s.scriptsDir.empty() && exists(joinPath(joinPath(base, name), "optimize.py"))) s.scriptsDir = joinPath(base, name);
+        for (const auto& base : bases) {
+            std::string r = findRepo(base, "poker-profile-optimizer", "optimize.py");
+            if (r.empty()) {
+                r = findRepo(base, "openholdem-profile-generator-wip", "optimizer/optimize.py");
+                if (!r.empty()) r = joinPath(r, "optimizer");
+            }
+            if (r.empty() && exists(joinPath(joinPath(base, "optimizer"), "optimize.py"))) r = joinPath(base, "optimizer");
+            if (!r.empty()) { s.scriptsDir = r; break; }
+        }
     }
     if (s.ohpgDir.empty()) {
-        std::vector<std::string> cands = bases;
-        if (!s.scriptsDir.empty()) cands.push_back(joinPath(s.scriptsDir, ".."));
-        if (!s.scriptsDir.empty() && exists(joinPath(joinPath(joinPath(s.scriptsDir, ".."), "ohpg"), "params.py"))) s.ohpgDir = joinPath(s.scriptsDir, "..");   // optimizer/ dans le dépôt du générateur
-        for (const auto& base : cands)
-            if (s.ohpgDir.empty() && exists(joinPath(joinPath(joinPath(base, "OpenHoldem-Profile-Generator-WIP"), "ohpg"), "params.py")))
-                s.ohpgDir = joinPath(base, "OpenHoldem-Profile-Generator-WIP");
+        if (!s.scriptsDir.empty()) {                     // optimizer/ dans le dépôt du générateur : le générateur est son parent
+            const std::string parent = ps::pathToUtf8(ps::pathFromUtf8(s.scriptsDir).parent_path());
+            if (exists(joinPath(joinPath(parent, "ohpg"), "params.py"))) s.ohpgDir = parent;
+        }
+        for (const auto& base : bases) {
+            if (!s.ohpgDir.empty()) break;
+            s.ohpgDir = findRepo(base, "openholdem-profile-generator-wip", "ohpg/params.py");
+        }
     }
-    const std::string root = s.scriptsDir.empty() ? exeDir : s.scriptsDir;
+    const std::string root = s.scriptsDir.empty() ? joinPath(exeDir, "optimizer_data") : s.scriptsDir;
     if (s.poolDir.empty()) s.poolDir = joinPath(root, "pool");
     if (s.runDir.empty()) s.runDir = joinPath(joinPath(root, "runs"), "run1");
 }
@@ -114,9 +161,9 @@ bool Optimizer::start(OptTask t, bool resume, const std::string& ohRoot, std::st
     if (busy()) { error = "une tache est deja en cours"; return false; }
     if (s.python.empty()) { error = "Indiquez l'executable Python."; return false; }
     if (s.scriptsDir.empty() || !exists(joinPath(s.scriptsDir, "optimize.py")))
-        { error = "Dossier des scripts introuvable : il doit contenir optimize.py (depot poker-profile-optimizer)."; return false; }
+        { error = "Dossier des scripts introuvable : choisissez le dossier optimizer du depot OpenHoldem-Profile-Generator-WIP (il contient optimize.py) avec le bouton '...'."; return false; }
     if (s.ohpgDir.empty() || !exists(joinPath(joinPath(s.ohpgDir, "ohpg"), "params.py")))
-        { error = "Dossier du generateur introuvable : il doit contenir ohpg/params.py (depot OpenHoldem-Profile-Generator-WIP)."; return false; }
+        { error = "Dossier du generateur introuvable : choisissez le dossier OpenHoldem-Profile-Generator-WIP (il contient le dossier ohpg) avec le bouton '...'."; return false; }
     if (t != OptTask::Pool && !exists(s.pokersimExe)) { error = "pokersim (ligne de commande) introuvable : " + s.pokersimExe; return false; }
     if (t == OptTask::Optimize || t == OptTask::Validate) {
         if (ohRoot.empty()) { error = "La racine OpenHoldem (OpenPPL/OpenPPL_Library) n'est pas definie (onglet Configuration)."; return false; }
