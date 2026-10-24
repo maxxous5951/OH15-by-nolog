@@ -9,6 +9,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include "gui_optimizer.hpp"
 #include "pokersim/ohsymbols.hpp"
 #include "pokersim/runner.hpp"
 
@@ -90,8 +91,13 @@ public:
     bool saveHands = false;             // écrire toutes les mains dans cfg.handHistoryPath pendant la simulation
     int requestedTab = -1;              // force la sélection d'un onglet au prochain frame (tests)
     int handGame = 0, handIndex = 0;
+    Optimizer opt;                      // optimisation automatique de profils (onglet « Optimisation »)
+
+    // Place un profil .ohf comme joueur n°1 du simulateur (utilisé par « Utiliser le meilleur profil »)
+    bool useProfileAsPlayer(const std::string& path, const std::string& name);
 
 private:
+    void drawOptimizerTab();
     void drawTopBar();
     void drawConfigTab();
     void drawFormatSpecific();
@@ -119,6 +125,7 @@ private:
     bool ohRootOk_ = false;
     std::string ohRootChecked_;
     std::string statusMsg_;
+    std::string optNote_;               // message de l'onglet Optimisation (succès d'une action)
 };
 
 }  // namespace psgui

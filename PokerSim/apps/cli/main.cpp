@@ -29,13 +29,14 @@ static void usage() {
         "  --pt-db FILE               base PokerTracker simulée de départ (statistiques déjà connues sur les adversaires)\n"
         "  --pt-save FILE             écrit la base (départ + mains de cette simulation) ; avec --pt-db FILE identique, elle s'enrichit\n"
         "  --pt-show                  affiche les statistiques PokerTracker de chaque joueur en fin de simulation\n"
+        "  --json FILE                écrit les résultats en JSON (profils + sessions) ; '-' = sortie standard\n"
         "  --no-pt                    désactive le PokerTracker simulé (les symboles pt_* renvoient -1)\n");
 }
 
 int main(int argc, char** argv) {
     try {
         SimConfig cfg;
-        std::string cfgPath, hhPath, ohRoot;
+        std::string cfgPath, hhPath, ohRoot, jsonPath;
         bool ptShow = false;
         for (int i = 1; i < argc; ++i) if (!std::strcmp(argv[i], "--config") && i + 1 < argc) cfgPath = argv[i + 1];
         if (!cfgPath.empty()) cfg = SimConfig::fromJsonFile(cfgPath);
@@ -70,6 +71,7 @@ int main(int argc, char** argv) {
             else if (a == "--no-pt") cfg.ptEnabled = false;
             else if (a == "--pt-show") ptShow = true;
             else if (a == "--oh-root") ohRoot = val();
+            else if (a == "--json") jsonPath = val();
             else if (a == "--prwin-max") cfg.prwinMaxIterations = std::atoi(val());
             else if (a == "--player") {
                 std::string v = val();
@@ -92,6 +94,16 @@ int main(int argc, char** argv) {
         };
         if (!hhPath.empty()) cfg.handHistoryPath = hhPath;
         SimSummary s = runSimulation(cfg, oh::profileBrainFactory(ohRoot), false, progress);
+        if (jsonPath == "-") {
+            std::fputs(formatSummaryJson(cfg, s).c_str(), stdout);
+            std::fputc('\n', stdout);
+            return 0;
+        }
+        if (!jsonPath.empty()) {
+            std::ofstream jf(jsonPath, std::ios::binary);
+            if (!jf) throw std::runtime_error("Impossible d'écrire " + jsonPath);
+            jf << formatSummaryJson(cfg, s);
+        }
         std::fputs(formatSummary(cfg, s).c_str(), stdout);
         {
             auto unk = oh::collectUnknownSymbols();

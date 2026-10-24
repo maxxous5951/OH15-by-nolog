@@ -41,7 +41,17 @@ App::App(Platform& platform, std::string settingsPath) : platform_(platform), se
     setFormat(ps::GameFormat::SpinGo);
     ohRoot = ps::oh::findOhRoot(platform_.exeDir());
     if (ohRoot.empty()) ohRoot = ps::oh::findOhRoot(".");
+    opt.initDefaults(platform_.exeDir());
     if (!settingsPath_.empty()) loadSettings();
+    opt.refreshFiles();
+}
+
+bool App::useProfileAsPlayer(const std::string& path, const std::string& name) {
+    if (players.empty() || path.empty()) return false;
+    players[0].kind = PlayerKind::ProfileFile;
+    players[0].path = path;
+    players[0].name = name;
+    return true;
 }
 
 App::~App() {
@@ -77,6 +87,7 @@ bool App::saveConfigFile(const std::string& path) const {
         j["ohRoot"] = ohRoot;
         j["saveHands"] = saveHands;
         j["savePt"] = savePt;
+        j["optimizer"] = json::parse(opt.toJsonText());
         j["players"] = json::array();
         for (auto& p : players) j["players"].push_back({{"name", p.name}, {"kind", static_cast<int>(p.kind)}, {"path", p.path}});
         std::ofstream f(ps::pathFromUtf8(path));
@@ -101,6 +112,7 @@ bool App::loadConfigFile(const std::string& path) {
         cfg = c;
         saveHands = j.value("saveHands", false);
         savePt = j.value("savePt", false);
+        if (j.contains("optimizer") && j["optimizer"].is_object()) opt.fromJsonText(j["optimizer"].dump());
         if (j.contains("ohRoot") && j["ohRoot"].is_string() && !j["ohRoot"].get<std::string>().empty()) ohRoot = j["ohRoot"].get<std::string>();
         if (j.contains("players")) {
             resetPlayers();

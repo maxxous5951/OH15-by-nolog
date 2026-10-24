@@ -32,6 +32,24 @@ Avec CMake (Windows, Linux, macOS) :
 - **Historique des mains** : relecture main par main des premières parties.
 - Simulation en tâche de fond avec bouton **Arrêter** (résultats partiels conservés) ; réglages sauvegardés dans `pokersim_gui.json`.
 
+## Optimisation automatique de profils (onglet « Optimisation »)
+
+L'onglet **Optimisation** cherche un profil qui bat un pool de 15 bots (6 styles x variantes) : chaque génération crée des variantes avec le générateur
+[OpenHoldem-Profile-Generator-WIP](https://github.com/maxxous5951/OpenHoldem-Profile-Generator-WIP) (`ohpg`), les fait jouer dans ce simulateur, garde les meilleures,
+puis le résultat est **validé sur 5 bots jamais vus** pendant la recherche et comparé aux 6 presets d'`ohpg`.
+
+Il pilote les scripts du dépôt [poker-profile-optimizer](https://github.com/maxxous5951/poker-profile-optimizer) (`make_pool.py`, `optimize.py`, `validate.py`) en processus externes :
+**Python 3 est donc nécessaire**, ainsi que ces deux dépôts (dossiers voisins du programme, ou à indiquer dans l'onglet).
+
+1. **Environnement** : indiquer Python, le dossier des scripts, celui d'`ohpg` et `pokersim.exe` (celui de cette version, qui a l'option `--json`), puis « Vérifier l'environnement ».
+2. **Pool** : « Créer le pool » (15 bots, 10 d'entraînement et 5 de validation, reproductibles avec la graine).
+3. **Optimisation** : réglages (générations, tables, mains, rake, `use_stats`...), « Lancer », « Arrêter », « Reprendre ». Courbe du meilleur bb/100 (IC 95 %) par génération, temps restant estimé, journal en direct. Tout est sauvegardé à chaque génération.
+4. **Validation** : bb/100 avec IC 95 % sur les bots d'entraînement et sur les bots jamais vus, écart (surapprentissage) et verdict face à la meilleure référence.
+5. « Utiliser comme joueur 1 », « Exporter best.ohf », « Ouvrir le dossier du run ».
+
+`pokersim --json FICHIER` (ou `-`) écrit les résultats par profil et par session en JSON ; c'est ce que lisent les scripts.
+Le test `gui_headless_test` exerce toute la chaîne avec de vrais scripts quand `PS_OPT_SCRIPTS`, `PS_OPT_OHPG`, `PS_OPT_POKERSIM` et `PS_OPT_OHROOT` sont définies.
+
 ## Historique complet des mains (fichier texte)
 
     pokersim --format cash --players 6 --games 20 --hands 5000 --hh mains.txt          # toutes les mains
@@ -91,6 +109,7 @@ Bots intégrés : `builtin:tag` (équité Monte-Carlo), `builtin:call`, `builtin
 | `runner.*` | exécution multithread reproductible (graine par partie), statistiques |
 | `ohlang.*` | langage de formules OpenHoldem : OH-script + OpenPPL (tokenizer, parseur, évaluation, listes de mains) |
 | `shanky.cpp` | profils Shanky `.txt` / `.oPPL` ancien format -> `.ohf`, y compris les blocs `NEW LIST ... END LIST` |
+| `apps/gui/gui_optimizer.*`, `gui_process.*` | onglet Optimisation : pilotage des scripts Python, lecture des résultats, lanceur de processus Windows / POSIX |
 
 ## Feuille de route
 
@@ -160,5 +179,6 @@ No Limit Hold'em uniquement.
   Passe sous **AddressSanitizer + UBSan** et **ThreadSanitizer** (ce dernier a révélé, puis corrigé, une course de données dans le cœur).
 - Les binaires Windows (cross-compilés MinGW) donnent des résultats **strictement identiques** à Linux à graine égale, avec de vrais profils.
 - L'interface Windows a été lancée sous Wine (Direct3D 11 logiciel) : clic sur « Lancer », résultats et graphiques affichés (`docs/`).
+- L'onglet Optimisation passe sous **ASan + UBSan** et **TSan** (Linux) ; son lanceur de processus Windows (CreateProcess, tube, objet Job) a été exécuté sous Wine (sortie, code de sortie, arrêt). L'affichage de l'onglet n'a été vu que dans le test sans écran.
 - **Non testé ici** : la compilation avec le compilateur Microsoft (MSVC). Le code est écrit en C++20 standard et compile avec GCC 13 / MinGW ;
   en cas d'erreur MSVC, envoyez-la et je corrige.

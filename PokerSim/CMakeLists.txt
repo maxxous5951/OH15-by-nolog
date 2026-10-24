@@ -89,7 +89,7 @@ target_link_libraries(symdump PRIVATE pokersim_core)
 # Interface graphique : logique ImGui portable (testée sans écran) + programme Windows (DirectX 11)
 # ---------------------------------------------------------------------------
 add_library(pokersim_gui_core STATIC
-  apps/gui/gui_app.cpp apps/gui/gui_draw.cpp
+  apps/gui/gui_app.cpp apps/gui/gui_draw.cpp apps/gui/gui_optimizer.cpp apps/gui/gui_optimizer_draw.cpp apps/gui/gui_process.cpp
   third_party/imgui/imgui.cpp third_party/imgui/imgui_draw.cpp third_party/imgui/imgui_tables.cpp third_party/imgui/imgui_widgets.cpp
   third_party/imgui/misc/imgui_stdlib.cpp)
 target_include_directories(pokersim_gui_core PUBLIC apps/gui third_party/imgui third_party)

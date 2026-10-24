@@ -114,6 +114,7 @@ void drawLines(const char* id, const std::vector<std::vector<float>>& series, co
 // ============================================================ fenêtre principale
 void App::frame() {
     poll();
+    opt.poll();
     checkOhRoot();
     ImGuiIO& io = ImGui::GetIO();
     ImGui::SetNextWindowPos(ImVec2(em(0), em(0)));
@@ -128,6 +129,7 @@ void App::frame() {
         tab(1, "Joueurs", &App::drawPlayersTab);
         tab(2, "Resultats", &App::drawResultsTab);
         tab(3, "Historique des mains", &App::drawHandsTab);
+        tab(4, "Optimisation", &App::drawOptimizerTab);
         ImGui::EndTabBar();
         requestedTab = -1;
     }

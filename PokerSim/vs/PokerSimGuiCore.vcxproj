@@ -62,6 +62,9 @@
   <ItemGroup>
     <ClCompile Include="..\apps\gui\gui_app.cpp" />
     <ClCompile Include="..\apps\gui\gui_draw.cpp" />
+    <ClCompile Include="..\apps\gui\gui_optimizer.cpp" />
+    <ClCompile Include="..\apps\gui\gui_optimizer_draw.cpp" />
+    <ClCompile Include="..\apps\gui\gui_process.cpp" />
     <ClCompile Include="..\third_party\imgui\imgui.cpp"><WarningLevel>TurnOffAllWarnings</WarningLevel></ClCompile>
     <ClCompile Include="..\third_party\imgui\imgui_draw.cpp"><WarningLevel>TurnOffAllWarnings</WarningLevel></ClCompile>
     <ClCompile Include="..\third_party\imgui\imgui_tables.cpp"><WarningLevel>TurnOffAllWarnings</WarningLevel></ClCompile>
@@ -71,6 +74,8 @@
   <ItemGroup>
     <ClInclude Include="..\apps\gui\gui_app.hpp" />
     <ClInclude Include="..\apps\gui\gui_platform_win32.hpp" />
+    <ClInclude Include="..\apps\gui\gui_optimizer.hpp" />
+    <ClInclude Include="..\apps\gui\gui_process.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="PokerSimCore.vcxproj"><Project>{3B8CE78B-A900-5DA8-B096-9442C432FD30}</Project></ProjectReference>

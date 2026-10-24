@@ -43,5 +43,7 @@ std::string formatHandHistory(const HandRecord& h, const std::vector<std::string
 // Une partie/session entière : en-tête, toutes les mains (records), classement final. Texte UTF-8.
 std::string formatGameHistory(const GameResult& g, const SimConfig& cfg);
 std::string formatSummary(const SimConfig& cfg, const SimSummary& s);
+// Même contenu en JSON (profils + une entrée par session), pour l'optimisation automatique.
+std::string formatSummaryJson(const SimConfig& cfg, const SimSummary& s);
 
 }  // namespace ps

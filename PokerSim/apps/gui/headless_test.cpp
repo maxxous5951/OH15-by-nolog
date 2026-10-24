@@ -3,10 +3,12 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <thread>
 #include "gui_app.hpp"
+#include "gui_process.hpp"
 #include "imgui.h"
 #include "pokersim/pathutil.hpp"
 
@@ -43,7 +45,17 @@ static void waitRun(App& app, int maxMs = 120000) {
     frames(2);
 }
 
-static void allTabs() { for (int t = 0; t < 4; ++t) { gApp->requestedTab = t; frames(3); } }
+static void waitOpt(App& app, int maxMs = 300000) {
+    auto t0 = std::chrono::steady_clock::now();
+    while (app.opt.busy()) {
+        frames(1);
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count() > maxMs) { std::printf("TIMEOUT (optimisation)\n"); ++failures; return; }
+    }
+    frames(2);
+}
+
+static void allTabs() { for (int t = 0; t < 5; ++t) { gApp->requestedTab = t; frames(3); } }
 
 int main(int argc, char** argv) {
     const std::string ohRoot = argc > 1 ? argv[1] : "";
@@ -218,6 +230,109 @@ int main(int argc, char** argv) {
             CHECK(app.results() && app.results()->summary.games.size() == 6);
             allTabs();
         } else std::puts("(profils réels ignorés : pas de racine OpenHoldem en argument)");
+
+        // ------------------------------------------------------------------ lanceur de processus (sans dépendance externe)
+        std::puts("processus externe : sortie en direct, code de sortie, arrêt");
+#ifndef _WIN32
+        {
+            Process p; std::string err;
+            CHECK(p.start({"sh", "-c", "echo un; echo deux 1>&2; exit 3"}, "", err));
+            auto t0 = std::chrono::steady_clock::now();
+            std::vector<std::string> got;
+            while (!p.finished() && std::chrono::steady_clock::now() - t0 < std::chrono::seconds(10)) { for (auto& l : p.drainLines()) got.push_back(l); std::this_thread::sleep_for(std::chrono::milliseconds(10)); }
+            p.join();
+            for (auto& l : p.drainLines()) got.push_back(l);
+            CHECK(p.finished() && p.exitCode() == 3);
+            CHECK(got.size() == 2);
+            Process q;
+            CHECK(!q.start({"programme_inexistant_pokersim"}, "", err) && !err.empty());
+            Process r;
+            CHECK(r.start({"sh", "-c", "sleep 60 & sleep 60"}, "", err));
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            CHECK(r.running());
+            auto t1 = std::chrono::steady_clock::now();
+            r.terminate(); r.join();
+            CHECK(r.finished());
+            CHECK(std::chrono::steady_clock::now() - t1 < std::chrono::seconds(5));
+        }
+#else
+        {
+            Process p; std::string err;
+            CHECK(p.start({"cmd", "/c", "echo un& echo deux 1>&2& exit 3"}, "", err));
+            auto t0 = std::chrono::steady_clock::now();
+            std::vector<std::string> got;
+            while (!p.finished() && std::chrono::steady_clock::now() - t0 < std::chrono::seconds(20)) { for (auto& l : p.drainLines()) got.push_back(l); std::this_thread::sleep_for(std::chrono::milliseconds(10)); }
+            p.join();
+            for (auto& l : p.drainLines()) got.push_back(l);
+            CHECK(p.finished() && p.exitCode() == 3);
+            CHECK(got.size() == 2);
+            Process q;
+            CHECK(!q.start({"programme_inexistant_pokersim"}, "", err) && !err.empty());
+            Process r;
+            CHECK(r.start({"ping", "-n", "60", "127.0.0.1"}, "", err));
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            CHECK(r.running());
+            auto t1 = std::chrono::steady_clock::now();
+            r.terminate(); r.join();
+            CHECK(r.finished());
+            CHECK(std::chrono::steady_clock::now() - t1 < std::chrono::seconds(10));
+        }
+#endif
+        // ------------------------------------------------------------------ onglet Optimisation (vrais scripts si les variables sont définies)
+        {
+            const char* sc = std::getenv("PS_OPT_SCRIPTS");
+            const char* og = std::getenv("PS_OPT_OHPG");
+            const char* px = std::getenv("PS_OPT_POKERSIM");
+            const char* ohr = std::getenv("PS_OPT_OHROOT");
+            if (sc && og && px && ohr) {
+                std::puts("onglet Optimisation : environnement, pool, optimisation, arrêt, reprise, validation");
+                const std::string work = "/tmp/pokersim_gui_opt";
+                std::error_code ec; std::filesystem::remove_all(work, ec); std::filesystem::create_directories(work, ec);
+                Optimizer& o = app.opt;
+                o.s.scriptsDir = sc; o.s.ohpgDir = og; o.s.pokersimExe = px; o.s.poolDir = work + "/pool"; o.s.runDir = work + "/run";
+                o.s.gens = 3; o.s.mu = 4; o.s.lam = 4; o.s.refine = 2; o.s.t1 = 2; o.s.t2 = 3; o.s.games = 1; o.s.hands = 300; o.s.seed = 5;
+                o.s.vTables = 2; o.s.vGames = 1; o.s.vHands = 300;
+                std::string e;
+                CHECK(!o.start(OptTask::Optimize, false, ohr, e) && !e.empty());          // pas de pool : refusé avec un message
+                CHECK(!o.start(OptTask::Validate, false, ohr, e) && !e.empty());
+                CHECK(o.start(OptTask::Check, false, ohr, e)); waitOpt(app);
+                CHECK(o.envChecked && o.envOk);
+                CHECK(o.start(OptTask::Pool, false, ohr, e)); waitOpt(app);
+                CHECK(o.lastExitCode == 0 && o.poolBots == 15 && o.poolTrain == 10 && o.poolValidation == 5);
+                allTabs();
+                CHECK(o.start(OptTask::Optimize, false, ohr, e)); CHECK(!o.start(OptTask::Optimize, false, ohr, e));   // déjà en cours
+                auto t0 = std::chrono::steady_clock::now();
+                while (o.busy() && o.currentGen < 1 && std::chrono::steady_clock::now() - t0 < std::chrono::seconds(120)) { frames(1); std::this_thread::sleep_for(std::chrono::milliseconds(50)); }
+                allTabs();
+                o.stop(); waitOpt(app);
+                CHECK(!o.busy() && o.lastError.empty());                                  // un arrêt demandé n'est pas une erreur
+                CHECK(o.stateExists && o.bestExists && o.currentGen >= 0 && !o.history.empty());
+                const int stopped = o.currentGen;
+                o.s.gens = stopped + 2;
+                CHECK(o.start(OptTask::Optimize, true, ohr, e)); waitOpt(app);              // reprise
+                CHECK(o.lastExitCode == 0 && o.currentGen == stopped + 2);
+                CHECK(static_cast<int>(o.history.size()) >= 2);
+                allTabs();
+                CHECK(o.start(OptTask::Validate, false, ohr, e)); waitOpt(app);
+                CHECK(o.lastExitCode == 0 && o.validation.size() == 7);
+                bool hasCand = false; for (auto& r : o.validation) if (r.name == "CANDIDAT" && r.vaHands > 0) hasCand = true;
+                CHECK(hasCand);
+                allTabs();
+                CHECK(app.useProfileAsPlayer(o.bestOhfPath(), "OPT_BEST") && app.players[0].kind == PlayerKind::ProfileFile);
+                // les réglages sont sauvegardés et rechargés
+                o.s.gens = 77;
+                CHECK(app.saveConfigFile("/tmp/pokersim_gui_test_cfg3.json"));
+                o.s.gens = 5;
+                CHECK(app.loadConfigFile("/tmp/pokersim_gui_test_cfg3.json") && o.s.gens == 77);
+                // le meilleur profil joue vraiment dans le simulateur
+                app.setFormat(ps::GameFormat::Cash);
+                app.cfg.numPlayers = 3; app.cfg.numGames = 2; app.cfg.cashHands = 100; app.cfg.recordGames = 0; app.cfg.prwinMaxIterations = 400;
+                app.players[1].kind = PlayerKind::BuiltinCall; app.players[2].kind = PlayerKind::BuiltinTag;
+                app.ohRoot = ohr; app.savePt = false; app.saveHands = false;
+                CHECK(app.startRun()); waitRun(app);
+                CHECK(app.lastError().empty() && app.results() && app.results()->summary.games.size() == 2);
+            } else std::puts("(onglet Optimisation ignoré : PS_OPT_SCRIPTS, PS_OPT_OHPG, PS_OPT_POKERSIM, PS_OPT_OHROOT non définies)");
+        }
         gApp = nullptr;
     }
     // le destructeur a écrit les réglages

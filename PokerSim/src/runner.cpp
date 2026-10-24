@@ -10,6 +10,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <thread>
+#include "nlohmann/json.hpp"
 
 namespace ps {
 
@@ -298,6 +299,54 @@ std::string formatSummary(const SimConfig& cfg, const SimSummary& s) {
         }
     }
     return o.str();
+}
+
+// Résultats lisibles par machine : un bloc par profil + une ligne par session (permet de calculer un intervalle de confiance).
+std::string formatSummaryJson(const SimConfig& cfg, const SimSummary& s) {
+    using nlohmann::json;
+    json j;
+    long long hands = 0;
+    for (auto& g : s.games) hands += g.hands;
+    j["format"] = formatName(cfg.format);
+    j["cash"] = cfg.isCash();
+    j["players"] = cfg.numPlayers;
+    j["sessions_count"] = s.games.size();
+    j["hands"] = hands;
+    j["seconds"] = s.seconds;
+    j["cancelled"] = s.cancelled;
+    j["big_blind"] = cfg.cashBb;
+    j["profiles"] = json::array();
+    for (auto& p : s.profiles) {
+        json x;
+        x["name"] = p.name;
+        x["games"] = p.games;
+        x["wins"] = p.wins;
+        x["hands"] = p.hands;
+        x["rebuys"] = p.rebuys;
+        x["net_chips"] = p.netChips;
+        x["bb100"] = cfg.isCash() ? p.bb100(cfg.cashBb) : 0.0;
+        x["total_net"] = p.totalNet;
+        x["roi"] = p.roi();
+        x["avg_place"] = p.avgPlace();
+        j["profiles"].push_back(x);
+    }
+    j["sessions"] = json::array();
+    for (auto& g : s.games) {
+        json sg;
+        sg["game"] = g.game;
+        sg["hands"] = g.hands;
+        sg["players"] = json::array();
+        for (auto& p : g.players) {
+            json x;
+            x["name"] = p.name;
+            x["hands"] = p.hands;
+            x["net_chips"] = p.netChips;
+            x["net"] = p.net;
+            sg["players"].push_back(x);
+        }
+        j["sessions"].push_back(sg);
+    }
+    return j.dump();
 }
 
 }  // namespace ps
