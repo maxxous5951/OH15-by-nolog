@@ -46,7 +46,7 @@ namespace ohstats {
   X(three_bet_steal) X(three_bet_steal_opp) \
   X(bb_3bet_steal) X(bb_3bet_steal_opp) X(sb_3bet_steal) X(sb_3bet_steal_opp) \
   X(called_raise) X(called_raise_opp) \
-  X(three_bet) X(three_bet_opp) X(fold_3bet) X(fold_3bet_opp) \
+  X(three_bet) X(three_bet_opp) X(fold_3bet) X(fold_3bet_opp) X(fold_3bet_r) X(fold_3bet_r_opp) \
   X(fold_resteal) X(fold_resteal_opp) \
   X(four_bet) X(four_bet_opp) X(fold_4bet) X(fold_4bet_opp) \
   X(squeeze) X(squeeze_opp) \
@@ -178,12 +178,20 @@ inline std::vector<PlayerStats> Analyze(const hh::Hand &h) {
   //----------------------------------------------------------------------------
   // Preflop
   //----------------------------------------------------------------------------
+  // Definitions follow the PokerTracker reference guide: facing a 3-bet / 4-bet
+  // counts regardless of the previous actions of the player (e.g. the opener
+  // facing a 3-bet is the typical 4-bet / fold-to-3-bet spot), once per hand.
   int  raises = 0, limpers = 0, callers_since_raise = 0;
   int  last_raiser = -1;
   bool first_raiser_steal = false;
   bool acted[hh::kMaxSeats], raise_was_steal[hh::kMaxSeats];
+  bool opp3[hh::kMaxSeats], opp4[hh::kMaxSeats], opp_f3[hh::kMaxSeats], opp_f4[hh::kMaxSeats], opp_sq[hh::kMaxSeats];
   int  last_raise_index[hh::kMaxSeats];
-  for (int i = 0; i < hh::kMaxSeats; ++i) { acted[i] = false; raise_was_steal[i] = false; last_raise_index[i] = 0; }
+  for (int i = 0; i < hh::kMaxSeats; ++i) {
+    acted[i] = raise_was_steal[i] = false;
+    opp3[i] = opp4[i] = opp_f3[i] = opp_f4[i] = opp_sq[i] = false;
+    last_raise_index[i] = 0;
+  }
 
   for (size_t a = 0; a < h.actions.size(); ++a) {
     const hh::Action &act = h.actions[a];
@@ -195,11 +203,12 @@ inline std::vector<PlayerStats> Analyze(const hh::Hand &h) {
     const bool call  = (act.type == hh::kCall);
     const bool fold  = (act.type == hh::kFold);
     const bool steal_position = (pos == kPositionCO || pos == kPositionBTN || pos == kPositionSB);
+    const int  n = raises;     // raises before this action
     bool this_raise_is_steal = false;
 
     if (!acted[s]) {
       CNT(s, pfr_opp) = 1;
-      if (raises == 0) {
+      if (n == 0) {
         if (limpers == 0) {
           CNT(s, rfi_opp) = 1;
           if (raise) CNT(s, rfi) = 1;
@@ -211,12 +220,11 @@ inline std::vector<PlayerStats> Analyze(const hh::Hand &h) {
       } else {
         CNT(s, called_raise_opp) = 1;
         if (call) CNT(s, called_raise) = 1;
-        if (raises == 1) {
-          CNT(s, three_bet_opp) = 1;
-          if (raise) CNT(s, three_bet) = 1;
-          if (first_raiser_steal) {
-            CNT(s, three_bet_steal_opp) = 1;
-            if (raise) CNT(s, three_bet_steal) = 1;
+        if (n == 1 && first_raiser_steal) {
+          CNT(s, three_bet_steal_opp) = 1;
+          if (raise) CNT(s, three_bet_steal) = 1;
+          // Steal defence: nobody else has called the steal raise
+          if (callers_since_raise == 0) {
             if (pos == kPositionBB) {
               CNT(s, bb_steal_opp) = 1;
               if (fold) CNT(s, bb_fold_steal) = 1;
@@ -229,29 +237,47 @@ inline std::vector<PlayerStats> Analyze(const hh::Hand &h) {
               if (raise) CNT(s, sb_3bet_steal) = 1;
             }
           }
-          if (callers_since_raise >= 1) {
-            CNT(s, squeeze_opp) = 1;
-            if (raise) CNT(s, squeeze) = 1;
-          }
-        } else if (raises == 2) {
-          CNT(s, four_bet_opp) = 1;
-          if (raise) CNT(s, four_bet) = 1;
         }
       }
       acted[s] = true;
-    } else {
-      // Later decision of the same player: facing a re-raise
-      if (last_raise_index[s] == 1 && raises == 2) {
-        CNT(s, fold_3bet_opp) = 1;
-        if (fold) CNT(s, fold_3bet) = 1;
-        if (raise_was_steal[s]) {
+    }
+
+    // Facing exactly one raise: chance to 3-bet (squeeze if somebody has called)
+    if (n == 1 && !opp3[s]) {
+      opp3[s] = true;
+      CNT(s, three_bet_opp) = 1;
+      if (raise) CNT(s, three_bet) = 1;
+    }
+    if (n == 1 && callers_since_raise >= 1 && !opp_sq[s]) {
+      opp_sq[s] = true;
+      CNT(s, squeeze_opp) = 1;
+      if (raise) CNT(s, squeeze) = 1;
+    }
+    // Facing a 3-bet: fold to 3-bet, (fold to 3-bet after raising), fold to re-steal
+    if (n == 2 && !opp_f3[s]) {
+      opp_f3[s] = true;
+      CNT(s, fold_3bet_opp) = 1;
+      if (fold) CNT(s, fold_3bet) = 1;
+      if (last_raise_index[s] == 1) {
+        CNT(s, fold_3bet_r_opp) = 1;
+        if (fold) CNT(s, fold_3bet_r) = 1;
+        const int reraiser_pos = (last_raiser >= 0) ? positions[last_raiser] : kPositionUnknown;
+        if (raise_was_steal[s] && (reraiser_pos == kPositionSB || reraiser_pos == kPositionBB)) {
           CNT(s, fold_resteal_opp) = 1;
           if (fold) CNT(s, fold_resteal) = 1;
         }
-      } else if (last_raise_index[s] == 2 && raises == 3) {
-        CNT(s, fold_4bet_opp) = 1;
-        if (fold) CNT(s, fold_4bet) = 1;
       }
+    }
+    // Facing a 3-bet or higher: chance to 4-bet (or higher)
+    if (n >= 2) {
+      if (!opp4[s]) { opp4[s] = true; CNT(s, four_bet_opp) = 1; }
+      if (raise) CNT(s, four_bet) = 1;
+    }
+    // Facing a 4-bet or higher
+    if (n >= 3 && !opp_f4[s]) {
+      opp_f4[s] = true;
+      CNT(s, fold_4bet_opp) = 1;
+      if (fold) CNT(s, fold_4bet) = 1;
     }
     if (call || raise) CNT(s, vpip) = 1;
     if (raise) CNT(s, pfr) = 1;

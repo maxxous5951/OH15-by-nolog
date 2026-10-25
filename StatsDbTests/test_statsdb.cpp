@@ -56,6 +56,18 @@ static int Count(const std::vector<PlayerStats> &players, int seat, int counter)
 }
 #define C(seat, name) Count(p, seat, c_##name)
 
+static std::string TempPath(const char *name) {
+  char buffer[256];
+  snprintf(buffer, sizeof(buffer), "/tmp/claude-0/statsdb_test_%d_%s", (int)getpid(), name);
+  return buffer;
+}
+
+static void RemoveDb(const std::string &path) {
+  unlink(path.c_str());
+  unlink((path + "-wal").c_str());
+  unlink((path + "-shm").c_str());
+}
+
 static void TestPositions() {
   printf("positions\n");
   HandBuilder b("pos");
@@ -146,10 +158,12 @@ static void TestThreeBetFourBetSqueeze() {
    .Act(5, hh::kFold, 1);
   p = Analyze(r.h);
   CHECK(C(0, three_bet_steal_opp) == 1 && C(0, three_bet_steal) == 1);
-  CHECK(C(5, fold_resteal_opp) == 1 && C(5, fold_resteal) == 1 && C(5, fold_3bet) == 1);
+  // The button 3bets: no "re-steal" (only the blinds count), but fold to 3bet after raising
+  CHECK(C(5, fold_resteal_opp) == 0 && C(5, fold_3bet_r) == 1 && C(5, fold_3bet) == 1);
   // The BB faces a steal AND a 3bet (squeeze), which is no "steal defence" spot
   CHECK(C(2, bb_steal_opp) == 0 && C(2, bb_fold_steal) == 0);
-  CHECK(C(2, three_bet_opp) == 0 && C(2, four_bet_opp) == 1);
+  // Facing the squeeze: no 3bet chance any more, but a 4bet+ chance; he folds, so fold to 3bet
+  CHECK(C(2, three_bet_opp) == 0 && C(2, four_bet_opp) == 1 && C(2, fold_3bet) == 1);
 }
 
 static void TestPostflop() {
@@ -209,21 +223,88 @@ static void TestPostflop() {
   CHECK(C(2, turn_cr_opp) == 1 && C(2, turn_cc) == 1 && C(2, turn_cr) == 0);
 }
 
+
+static void TestFourBetByOpener() {
+  printf("opener facing a 3bet (PokerTracker guide: regardless of previous action)\n");
+  // UTG opens, MP 3bets, UTG 4bets, MP calls
+  HandBuilder b("4bet");
+  b.Act(3, hh::kRaise, 1).Act(4, hh::kRaise, 1)
+   .Act(5, hh::kFold, 1).Act(0, hh::kFold, 1).Act(1, hh::kFold, 1).Act(2, hh::kFold, 1)
+   .Act(3, hh::kRaise, 1).Act(4, hh::kCall, 1);
+  std::vector<PlayerStats> p = Analyze(b.h);
+  CHECK(C(3, four_bet_opp) == 1 && C(3, four_bet) == 1);
+  CHECK(C(3, fold_3bet_opp) == 1 && C(3, fold_3bet) == 0);
+  CHECK(C(3, fold_3bet_r_opp) == 1 && C(3, fold_3bet_r) == 0);
+  CHECK(C(4, three_bet_opp) == 1 && C(4, three_bet) == 1);
+  CHECK(C(4, fold_4bet_opp) == 1 && C(4, fold_4bet) == 0);
+  CHECK(C(4, four_bet_opp) == 1 && C(4, four_bet) == 0);   // facing the 4bet: 5bet chance ("4bet or higher")
+  // Players who are only dealt in and fold facing the 3bet: fold to 3bet, but not "after raise"
+  CHECK(C(5, fold_3bet_opp) == 1 && C(5, fold_3bet) == 1 && C(5, fold_3bet_r_opp) == 0);
+  CHECK(C(5, four_bet_opp) == 1 && C(5, four_bet) == 0);
+
+  // Limp, isolation raise, limper re-raises: a 3bet opportunity at the second action
+  HandBuilder l("limp-reraise");
+  l.Act(3, hh::kCall, 1).Act(4, hh::kRaise, 1)
+   .Act(5, hh::kFold, 1).Act(0, hh::kFold, 1).Act(1, hh::kFold, 1).Act(2, hh::kFold, 1)
+   .Act(3, hh::kRaise, 1).Act(4, hh::kFold, 1);
+  p = Analyze(l.h);
+  CHECK(C(3, rfi_opp) == 1 && C(3, rfi) == 0);
+  CHECK(C(3, three_bet_opp) == 1 && C(3, three_bet) == 1);
+  CHECK(C(4, fold_3bet_opp) == 1 && C(4, fold_3bet) == 1 && C(4, fold_3bet_r) == 1);
+
+  // Steal defence only if nobody called the steal: SB calls, BB is not "facing a steal"
+  HandBuilder sd("steal-defence");
+  sd.Act(3, hh::kFold, 1).Act(4, hh::kFold, 1).Act(5, hh::kFold, 1)
+    .Act(0, hh::kRaise, 1).Act(1, hh::kCall, 1).Act(2, hh::kFold, 1);
+  p = Analyze(sd.h);
+  CHECK(C(0, steal_opp) == 1 && C(0, steal) == 1);
+  CHECK(C(1, sb_steal_opp) == 1 && C(1, sb_fold_steal) == 0);
+  CHECK(C(2, bb_steal_opp) == 0 && C(2, bb_fold_steal) == 0);
+
+  // Re-steal: CO steals, BB 3bets, CO folds -> fold to re-steal (reraiser is a blind)
+  HandBuilder rs("restealed");
+  rs.Act(3, hh::kFold, 1).Act(4, hh::kFold, 1).Act(5, hh::kRaise, 1)
+    .Act(0, hh::kFold, 1).Act(1, hh::kFold, 1).Act(2, hh::kRaise, 1).Act(5, hh::kFold, 1);
+  p = Analyze(rs.h);
+  CHECK(C(5, fold_resteal_opp) == 1 && C(5, fold_resteal) == 1);
+  // ... but not if the 3bettor was the button
+  HandBuilder rb("restealed-by-button");
+  rb.Act(3, hh::kFold, 1).Act(4, hh::kFold, 1).Act(5, hh::kRaise, 1)
+    .Act(0, hh::kRaise, 1).Act(1, hh::kFold, 1).Act(2, hh::kFold, 1).Act(5, hh::kFold, 1);
+  p = Analyze(rb.h);
+  CHECK(C(5, fold_resteal_opp) == 0 && C(5, fold_3bet_r) == 1);
+}
+
+static void TestAggressionFrequency() {
+  printf("AFq without checks\n");
+  std::string path = TempPath("afq.db");
+  RemoveDb(path);
+  Db db;
+  CHECK(db.Open(path));
+  HandBuilder b("afq");
+  b.Act(3, hh::kFold, 1).Act(4, hh::kFold, 1).Act(5, hh::kRaise, 1)
+   .Act(0, hh::kFold, 1).Act(1, hh::kFold, 1).Act(2, hh::kCall, 1)
+   .Board(3)
+   // BB: check, then calls a bet -> 0 aggressive of (call) = AFq 0, AF 0
+   .Act(2, hh::kCheck, 2).Act(5, hh::kBet, 2).Act(2, hh::kCall, 2);
+  CHECK(db.InsertHand(b.h, "x"));
+  StatFilter f;
+  f.site = "x";
+  double v = -1;
+  CHECK(db.GetStat("flop_afq", "P5", f, &v));
+  CHECK_NEAR(v, 1.0);                     // one bet, nothing else
+  CHECK(db.GetStat("flop_afq", "P2", f, &v));
+  CHECK_NEAR(v, 0.0);                     // the check does not count, one call
+  CHECK(!db.GetStat("flop_af", "P5", f, &v));   // no calls: undefined
+  CHECK(db.GetStat("flop_af", "P2", f, &v));
+  CHECK_NEAR(v, 0.0);
+  db.Close();
+  RemoveDb(path);
+}
+
 //------------------------------------------------------------------------------
 // Database
 //------------------------------------------------------------------------------
-
-static std::string TempPath(const char *name) {
-  char buffer[256];
-  snprintf(buffer, sizeof(buffer), "/tmp/claude-0/statsdb_test_%d_%s", (int)getpid(), name);
-  return buffer;
-}
-
-static void RemoveDb(const std::string &path) {
-  unlink(path.c_str());
-  unlink((path + "-wal").c_str());
-  unlink((path + "-shm").c_str());
-}
 
 // "Villain" (seat 5) opens from the CO and cbets; BB folds. 10 hands, 4 of them
 // with a raise of Villain.
@@ -401,6 +482,8 @@ int main(int argc, char **argv) {
   TestStealAndCbet();
   TestThreeBetFourBetSqueeze();
   TestPostflop();
+  TestFourBetByOpener();
+  TestAggressionFrequency();
   TestDatabase();
   if (argc > 1) TestStatNamesMatchPokerTracker(argv[1]);
   printf("\n%d checks, %d failures\n", g_checks, g_failures);
