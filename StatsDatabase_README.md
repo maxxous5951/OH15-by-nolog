@@ -36,7 +36,7 @@ pt_<N><période>_<stat><siège> pt_12months_3bet5   sur la période donnée
 
 Exemple de formule : `when pt_vpip_raischair > 0.45 and pt_hands_raischair >= 30 ...`
 
-## Stats disponibles (49)
+## Stats disponibles (73)
 
 Chaque stat = somme d'un compteur / somme d'un autre, sur les mains du joueur. Noms des compteurs = colonnes de `hand_player`.
 
@@ -114,6 +114,50 @@ Chaque stat = somme d'un compteur / somme d'un autre, sur les mains du joueur. N
 | `pt_flop_donkbet<siège>` | Donk bet flop (mise avant l'agresseur préflop) | `SUM(flop_donk) / SUM(flop_donk_opp)` |
 | `pt_river_bet<siège>` | Mise à la river quand il peut ouvrir l'action | `SUM(river_bet) / SUM(river_bet_opp)` |
 
+### BB vs SB (ouverture de la small blind)
+
+La SB ouvre en premier (sans limpers) et la BB répond. Compte toutes les tailles ; les variantes par taille sont dans la section suivante.
+
+| Symbole | Signification | Calcul |
+|---|---|---|
+| `pt_bb_3bet_vs_sb<siège>` | BB 3-bet l'open-raise de la SB | `SUM(vs_sb_3bet) / SUM(vs_sb_opp)` |
+| `pt_bb_fold_vs_sb<siège>` | BB se couche face à l'open-raise de la SB | `SUM(vs_sb_fold) / SUM(vs_sb_opp)` |
+| `pt_bb_call_vs_sb<siège>` | BB paye l'open-raise de la SB | `SUM(vs_sb_call) / SUM(vs_sb_opp)` |
+
+
+### Par taille d'ouverture (2bb / 2,5bb / 3bb)
+
+Taille = *relance à* ÷ big blind : **2bb** = 1,75 à 2,25 · **2,5bb** = 2,25 à 2,75 · **3bb** = 2,75 à 3,5. Une ouverture hors de ces plages (min-raise, 4bb et plus) compte dans les stats globales (`rfi`, `3bet`…) mais dans aucune taille.
+
+- **RFI / steal** : part des occasions d'ouvrir où le joueur a ouvert à cette taille. `rfi_2bb + rfi_25bb + rfi_3bb` ≤ `rfi`.
+- **3-bet** : le joueur 3-bet **face à une ouverture de cette taille** (`3bet_vs_25bb` = 3-bet contre un open 2,5bb).
+
+| Symbole | Signification | Calcul |
+|---|---|---|
+| `pt_rfi_2bb<siège>` | RFI avec une ouverture à 2bb | `SUM(rfi_s2) / SUM(rfi_opp)` |
+| `pt_rfi_25bb<siège>` | RFI avec une ouverture à 2,5bb | `SUM(rfi_s25) / SUM(rfi_opp)` |
+| `pt_rfi_3bb<siège>` | RFI avec une ouverture à 3bb | `SUM(rfi_s3) / SUM(rfi_opp)` |
+| `pt_steal_attempt_2bb<siège>` | Steal (CO/BTN/SB) à 2bb | `SUM(steal_s2) / SUM(steal_opp)` |
+| `pt_steal_attempt_25bb<siège>` | Steal (CO/BTN/SB) à 2,5bb | `SUM(steal_s25) / SUM(steal_opp)` |
+| `pt_steal_attempt_3bb<siège>` | Steal (CO/BTN/SB) à 3bb | `SUM(steal_s3) / SUM(steal_opp)` |
+| `pt_3bet_vs_2bb<siège>` | 3-bet face à une ouverture à 2bb | `SUM(three_bet_s2) / SUM(three_bet_opp_s2)` |
+| `pt_3bet_vs_25bb<siège>` | 3-bet face à une ouverture à 2,5bb | `SUM(three_bet_s25) / SUM(three_bet_opp_s25)` |
+| `pt_3bet_vs_3bb<siège>` | 3-bet face à une ouverture à 3bb | `SUM(three_bet_s3) / SUM(three_bet_opp_s3)` |
+| `pt_3bet_vs_steal_2bb<siège>` | 3-bet face à un steal à 2bb | `SUM(three_bet_steal_s2) / SUM(three_bet_steal_opp_s2)` |
+| `pt_3bet_vs_steal_25bb<siège>` | 3-bet face à un steal à 2,5bb | `SUM(three_bet_steal_s25) / SUM(three_bet_steal_opp_s25)` |
+| `pt_3bet_vs_steal_3bb<siège>` | 3-bet face à un steal à 3bb | `SUM(three_bet_steal_s3) / SUM(three_bet_steal_opp_s3)` |
+| `pt_bb_3bet_vs_steal_2bb<siège>` | BB 3-bet un steal à 2bb | `SUM(bb_3bet_steal_s2) / SUM(bb_3bet_steal_opp_s2)` |
+| `pt_bb_3bet_vs_steal_25bb<siège>` | BB 3-bet un steal à 2,5bb | `SUM(bb_3bet_steal_s25) / SUM(bb_3bet_steal_opp_s25)` |
+| `pt_bb_3bet_vs_steal_3bb<siège>` | BB 3-bet un steal à 3bb | `SUM(bb_3bet_steal_s3) / SUM(bb_3bet_steal_opp_s3)` |
+| `pt_sb_3bet_vs_steal_2bb<siège>` | SB 3-bet un steal à 2bb | `SUM(sb_3bet_steal_s2) / SUM(sb_3bet_steal_opp_s2)` |
+| `pt_sb_3bet_vs_steal_25bb<siège>` | SB 3-bet un steal à 2,5bb | `SUM(sb_3bet_steal_s25) / SUM(sb_3bet_steal_opp_s25)` |
+| `pt_sb_3bet_vs_steal_3bb<siège>` | SB 3-bet un steal à 3bb | `SUM(sb_3bet_steal_s3) / SUM(sb_3bet_steal_opp_s3)` |
+| `pt_bb_3bet_vs_sb_2bb<siège>` | BB 3-bet l'open-raise de la SB à 2bb | `SUM(vs_sb_3bet_s2) / SUM(vs_sb_opp_s2)` |
+| `pt_bb_3bet_vs_sb_25bb<siège>` | BB 3-bet l'open-raise de la SB à 2,5bb | `SUM(vs_sb_3bet_s25) / SUM(vs_sb_opp_s25)` |
+| `pt_bb_3bet_vs_sb_3bb<siège>` | BB 3-bet l'open-raise de la SB à 3bb | `SUM(vs_sb_3bet_s3) / SUM(vs_sb_opp_s3)` |
+
+Exemples : `pt_rfi_25bb4` (siège 4 ouvre-t-il à 2,5bb ?), `pt_bb_3bet_vs_sb_25bb2` (la BB du siège 2 3-bet-elle les opens 2,5bb de la SB ?), `pt_200hands_3bet_vs_3bb5`. Avec PokerTracker comme source ces symboles sont valides mais toujours indéfinis.
+
 ### Occasions (compteurs)
 
 | Symbole | Signification | Calcul |
@@ -140,12 +184,12 @@ Alignées sur le [Statistical Reference Guide de PokerTracker](https://www.poker
 
 27 stats PokerTracker n'existent pas encore dans cette base (le symbole renvoie *indéfini*) : `4bet_plus_ratio`, `call_f_float_bet`, `call_f_float_bet_in_3b_pot`, `cbet_flop_in_3bet_pot`, `cbet_flop_opp_in_3bet_pot`, `donk_flop_in_3bet_plus_pot`, `float_flop`, `float_flop_in_3bet_pot`, `flop_check_raise_in_3bet_plus_pot`, `flop_check_raise_in_3bet_pot`, `flop_float`, `flop_fold_to_3bet`, `fold_to_f_cbet_in_3bet_plus_pot_opp`, `fold_to_f_cbet_in_3bet_pot`, `fold_to_f_check_raise`, `fold_to_f_check_raise_3b_plus_pot`, `fold_to_f_check_raise_opp`, `fold_to_f_float_bet_in_3b_plus_pot`, `fold_to_f_float_bet_in_3b_pot`, `fold_to_pf_squeeze`, `fold_to_squeeze_as_caller`, `fold_to_squeeze_as_raiser`, `fold_to_squeeze_as_raiser_opp`, `icon`, `postflop_fold_to_3bet`, `river_fold_to_3bet`, `turn_fold_to_3bet`.
 
-`icon` n'est pas supporté (désactivé aussi dans le code PokerTracker). Pas de filtres de limite, de taille de stack ni de type de tournoi.
+`icon` n'est pas supporté (désactivé aussi dans le code PokerTracker). Pas de filtres de limite, de taille de stack ni de type de tournoi. Les tailles d'ouverture ne sont pas disponibles pour les autres stats (squeeze, 4-bet…).
 
 ## Structure de la base
 
 - `hands` : une ligne par main (site, hand_id, date, table, blinds, board, pot, rake…). Clé unique `(site, hand_id)`, les doublons sont refusés.
-- `hand_player` : une ligne par joueur et main (pseudo, siège, position, stacks, cartes, gains) + 70 compteurs.
+- `hand_player` : une ligne par joueur et main (pseudo, siège, position, stacks, cartes, gains) + 110 compteurs.
 - `hand_actions` : toutes les actions de la main.
 - Version du schéma : `PRAGMA user_version` = 1. Une base créée par une version plus récente est refusée.
 - Seules les mains qui passent les contrôles de cohérence du générateur sont enregistrées.
@@ -153,7 +197,7 @@ Alignées sur le [Statistical Reference Guide de PokerTracker](https://www.poker
 ## Tests
 
 ```
-StatsDbTests/build_and_run.sh      # Linux / macOS, nécessite g++ ; 222 vérifications
+StatsDbTests/build_and_run.sh      # Linux / macOS, nécessite g++ ; 295 vérifications
 ```
 
 La partie Windows/MFC (préférences, branchement dans OpenHoldem) n'a pas été compilée dans l'environnement de test : compiler une fois sous Visual Studio.

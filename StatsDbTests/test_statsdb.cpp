@@ -38,9 +38,9 @@ struct HandBuilder {
     Act(1, hh::kPostSmallBlind, 1);
     Act(2, hh::kPostBigBlind, 1);
   }
-  HandBuilder &Act(int seat, hh::ActionType type, int street) {
+  HandBuilder &Act(int seat, hh::ActionType type, int street, double to = 0) {
     hh::Action a;
-    a.seat = seat; a.type = type; a.street = street;
+    a.seat = seat; a.type = type; a.street = street; a.to = to;
     h.actions.push_back(a);
     if (type == hh::kFold) h.folded[seat] = true;
     return *this;
@@ -302,6 +302,94 @@ static void TestAggressionFrequency() {
   RemoveDb(path);
 }
 
+static void TestOpenSizesAndBbVsSb() {
+  printf("open sizes (2bb / 2.5bb / 3bb) and BB vs SB\n");
+  CHECK(OpenSizeBucket(2.0, 1) == 1 && OpenSizeBucket(2.2, 1) == 1);
+  CHECK(OpenSizeBucket(2.5, 1) == 2 && OpenSizeBucket(2.7, 1) == 2);
+  CHECK(OpenSizeBucket(3.0, 1) == 3 && OpenSizeBucket(3.4, 1) == 3);
+  CHECK(OpenSizeBucket(1.0, 1) == 0 && OpenSizeBucket(4.0, 1) == 0 && OpenSizeBucket(2.5, 0) == 0);
+  CHECK(OpenSizeBucket(5.0, 2) == 2);     // 5 / 2 = 2.5bb with a big blind of 2
+
+  // SB opens 2.5bb, BB 3bets
+  HandBuilder b("sb25");
+  b.Act(3, hh::kFold, 1).Act(4, hh::kFold, 1).Act(5, hh::kFold, 1).Act(0, hh::kFold, 1)
+   .Act(1, hh::kRaise, 1, 2.5).Act(2, hh::kRaise, 1, 9).Act(1, hh::kFold, 1);
+  std::vector<PlayerStats> p = Analyze(b.h);
+  CHECK(C(1, rfi) == 1 && C(1, rfi_s25) == 1 && C(1, rfi_s2) == 0 && C(1, rfi_s3) == 0);
+  CHECK(C(1, steal) == 1 && C(1, steal_s25) == 1);
+  CHECK(C(2, vs_sb_opp) == 1 && C(2, vs_sb_3bet) == 1 && C(2, vs_sb_fold) == 0 && C(2, vs_sb_call) == 0);
+  CHECK(C(2, vs_sb_opp_s25) == 1 && C(2, vs_sb_3bet_s25) == 1 && C(2, vs_sb_opp_s2) == 0);
+  CHECK(C(2, three_bet_opp_s25) == 1 && C(2, three_bet_s25) == 1);
+  CHECK(C(2, three_bet_steal_opp_s25) == 1 && C(2, three_bet_steal_s25) == 1);
+  CHECK(C(2, bb_3bet_steal_opp_s25) == 1 && C(2, bb_3bet_steal_s25) == 1);
+  CHECK(C(1, fold_3bet_opp) == 1 && C(1, fold_3bet) == 1);
+
+  // SB opens 2bb, BB folds / calls
+  HandBuilder f("sb2-fold");
+  f.Act(3, hh::kFold, 1).Act(4, hh::kFold, 1).Act(5, hh::kFold, 1).Act(0, hh::kFold, 1)
+   .Act(1, hh::kRaise, 1, 2).Act(2, hh::kFold, 1);
+  p = Analyze(f.h);
+  CHECK(C(1, rfi_s2) == 1);
+  CHECK(C(2, vs_sb_opp) == 1 && C(2, vs_sb_fold) == 1 && C(2, vs_sb_3bet) == 0 && C(2, vs_sb_opp_s2) == 1 && C(2, vs_sb_3bet_s2) == 0);
+  HandBuilder c("sb3-call");
+  c.Act(3, hh::kFold, 1).Act(4, hh::kFold, 1).Act(5, hh::kFold, 1).Act(0, hh::kFold, 1)
+   .Act(1, hh::kRaise, 1, 3).Act(2, hh::kCall, 1);
+  p = Analyze(c.h);
+  CHECK(C(1, rfi_s3) == 1 && C(2, vs_sb_call) == 1 && C(2, vs_sb_opp_s3) == 1 && C(2, vs_sb_3bet_s3) == 0);
+
+  // Not an SB open: UTG opens 3bb, BB 3bets -> 3bet with size, but no "vs SB"
+  HandBuilder u("utg3");
+  u.Act(3, hh::kRaise, 1, 3).Act(4, hh::kFold, 1).Act(5, hh::kFold, 1).Act(0, hh::kFold, 1)
+   .Act(1, hh::kFold, 1).Act(2, hh::kRaise, 1, 11).Act(3, hh::kCall, 1);
+  p = Analyze(u.h);
+  CHECK(C(3, rfi_s3) == 1 && C(3, steal_s3) == 0);       // UTG is no steal position
+  CHECK(C(2, vs_sb_opp) == 0);
+  CHECK(C(2, three_bet_opp_s3) == 1 && C(2, three_bet_s3) == 1 && C(2, three_bet_steal_opp_s3) == 0);
+  CHECK(C(4, three_bet_opp_s3) == 1 && C(4, three_bet_s3) == 0);   // folds to the open
+
+  // Open of 4bb: counts as RFI but has no size bucket
+  HandBuilder big("utg4");
+  big.Act(3, hh::kRaise, 1, 4).Act(4, hh::kFold, 1).Act(5, hh::kFold, 1).Act(0, hh::kFold, 1)
+     .Act(1, hh::kFold, 1).Act(2, hh::kFold, 1);
+  p = Analyze(big.h);
+  CHECK(C(3, rfi) == 1 && C(3, rfi_s2) + C(3, rfi_s25) + C(3, rfi_s3) == 0);
+  CHECK(C(4, three_bet_opp) == 1 && C(4, three_bet_opp_s2) + C(4, three_bet_opp_s25) + C(4, three_bet_opp_s3) == 0);
+
+  // Database: ratios per size
+  std::string path = TempPath("size.db");
+  RemoveDb(path);
+  Db db;
+  CHECK(db.Open(path));
+  const double sizes[4] = { 2, 2.5, 2.5, 3 };
+  for (int i = 0; i < 4; ++i) {
+    char id[16];
+    snprintf(id, sizeof(id), "s%d", i);
+    HandBuilder h(id, 3000000 + i);
+    h.Act(3, hh::kFold, 1).Act(4, hh::kFold, 1).Act(5, hh::kFold, 1).Act(0, hh::kFold, 1)
+     .Act(1, hh::kRaise, 1, sizes[i]);
+    if (i == 1) h.Act(2, hh::kRaise, 1, 9).Act(1, hh::kFold, 1);      // one 3bet vs 2.5bb
+    else h.Act(2, hh::kFold, 1);                                      // all others fold
+    CHECK(db.InsertHand(h.h, "x"));
+  }
+  StatFilter f1;
+  f1.site = "x";
+  double v = -1;
+  CHECK(db.GetStat("rfi_25bb", "P1", f1, &v));     CHECK_NEAR(v, 0.5);    // 2 of 4 opens were 2.5bb
+  CHECK(db.GetStat("rfi_2bb", "P1", f1, &v));      CHECK_NEAR(v, 0.25);
+  CHECK(db.GetStat("rfi_3bb", "P1", f1, &v));      CHECK_NEAR(v, 0.25);
+  CHECK(db.GetStat("steal_attempt_25bb", "P1", f1, &v)); CHECK_NEAR(v, 0.5);
+  CHECK(db.GetStat("bb_3bet_vs_sb", "P2", f1, &v)); CHECK_NEAR(v, 0.25);  // 1 of 4
+  CHECK(db.GetStat("bb_fold_vs_sb", "P2", f1, &v)); CHECK_NEAR(v, 0.75);
+  CHECK(db.GetStat("bb_3bet_vs_sb_25bb", "P2", f1, &v)); CHECK_NEAR(v, 0.5); // 1 of 2 vs 2.5bb
+  CHECK(db.GetStat("bb_3bet_vs_sb_2bb", "P2", f1, &v));  CHECK_NEAR(v, 0.0);
+  CHECK(db.GetStat("3bet_vs_25bb", "P2", f1, &v));  CHECK_NEAR(v, 0.5);
+  CHECK(db.GetStat("bb_3bet_vs_steal_25bb", "P2", f1, &v)); CHECK_NEAR(v, 0.5);
+  CHECK(!db.GetStat("sb_3bet_vs_steal_25bb", "P2", f1, &v));              // BB never was SB
+  CHECK(db.SelfTest());
+  db.Close();
+  RemoveDb(path);
+}
+
 //------------------------------------------------------------------------------
 // Database
 //------------------------------------------------------------------------------
@@ -471,6 +559,7 @@ static void TestStatNamesMatchPokerTracker(const char *header_path) {
     std::string quoted = "\"" + names[i] + "\"";
     bool found = text.find("// name\n\t\t" + quoted) != std::string::npos ||
                  text.find("// name\r\n\t\t" + quoted) != std::string::npos;
+    if (!found) found = text.find("OH_DB_ONLY_STAT(" + quoted) != std::string::npos;
     CHECK(found);
     if (!found) printf("    missing: %s\n", names[i].c_str());
   }
@@ -484,6 +573,7 @@ int main(int argc, char **argv) {
   TestPostflop();
   TestFourBetByOpener();
   TestAggressionFrequency();
+  TestOpenSizesAndBbVsSb();
   TestDatabase();
   if (argc > 1) TestStatNamesMatchPokerTracker(argv[1]);
   printf("\n%d checks, %d failures\n", g_checks, g_failures);

@@ -59,7 +59,14 @@ namespace ohstats {
   X(river_cbet_faced) X(river_fold_cbet) \
   X(flop_cr) X(flop_cr_opp) X(turn_cr) X(turn_cr_opp) X(turn_cc) \
   X(flop_donk) X(flop_donk_opp) \
-  X(river_bet) X(river_bet_opp)
+  X(river_bet) X(river_bet_opp) \
+  X(rfi_s2) X(rfi_s25) X(rfi_s3) X(steal_s2) X(steal_s25) X(steal_s3) \
+  X(three_bet_s2) X(three_bet_opp_s2) X(three_bet_s25) X(three_bet_opp_s25) X(three_bet_s3) X(three_bet_opp_s3) \
+  X(three_bet_steal_s2) X(three_bet_steal_opp_s2) X(three_bet_steal_s25) X(three_bet_steal_opp_s25) X(three_bet_steal_s3) X(three_bet_steal_opp_s3) \
+  X(bb_3bet_steal_s2) X(bb_3bet_steal_opp_s2) X(bb_3bet_steal_s25) X(bb_3bet_steal_opp_s25) X(bb_3bet_steal_s3) X(bb_3bet_steal_opp_s3) \
+  X(sb_3bet_steal_s2) X(sb_3bet_steal_opp_s2) X(sb_3bet_steal_s25) X(sb_3bet_steal_opp_s25) X(sb_3bet_steal_s3) X(sb_3bet_steal_opp_s3) \
+  X(vs_sb_opp) X(vs_sb_3bet) X(vs_sb_fold) X(vs_sb_call) \
+  X(vs_sb_3bet_s2) X(vs_sb_3bet_s25) X(vs_sb_3bet_s3) X(vs_sb_opp_s2) X(vs_sb_opp_s25) X(vs_sb_opp_s3)
 
 enum Counter {
 #define OHSTATS_X(name) c_##name,
@@ -108,6 +115,17 @@ struct PlayerStats {
     for (int i = 0; i < kNumCounters; ++i) counters[i] = 0;
   }
 };
+
+// Size of an open raise in big blinds -> bucket: 1 = 2bb, 2 = 2.5bb, 3 = 3bb, 0 = other.
+// "raise to" divided by the big blind: [1.75, 2.25) / [2.25, 2.75) / [2.75, 3.5)
+inline int OpenSizeBucket(double raise_to, double big_blind) {
+  if (big_blind <= 0 || raise_to <= 0) return 0;
+  const double r = raise_to / big_blind;
+  if (r >= 1.75 && r < 2.25) return 1;
+  if (r >= 2.25 && r < 2.75) return 2;
+  if (r >= 2.75 && r < 3.5)  return 3;
+  return 0;
+}
 
 namespace detail {
 
@@ -164,6 +182,11 @@ inline std::vector<PlayerStats> Analyze(const hh::Hand &h) {
   }
   if (result.empty()) return result;
   #define CNT(seat, name) (result[index_of[seat]].counters[c_##name])
+  // Counter with the size of the open: SZ(seat, name, bucket) = name_s2 / name_s25 / name_s3
+  #define SZ(seat, name, bucket) do { \
+    if ((bucket) == 1) CNT(seat, name##_s2) = 1; \
+    else if ((bucket) == 2) CNT(seat, name##_s25) = 1; \
+    else if ((bucket) == 3) CNT(seat, name##_s3) = 1; } while (0)
 
   // Street at which the player folded (0 = did not fold)
   int fold_street[hh::kMaxSeats];
@@ -184,6 +207,7 @@ inline std::vector<PlayerStats> Analyze(const hh::Hand &h) {
   int  raises = 0, limpers = 0, callers_since_raise = 0;
   int  last_raiser = -1;
   bool first_raiser_steal = false;
+  int  open_bucket = 0;       // size of the first raise (OpenSizeBucket)
   bool acted[hh::kMaxSeats], raise_was_steal[hh::kMaxSeats];
   bool opp3[hh::kMaxSeats], opp4[hh::kMaxSeats], opp_f3[hh::kMaxSeats], opp_f4[hh::kMaxSeats], opp_sq[hh::kMaxSeats];
   int  last_raise_index[hh::kMaxSeats];
@@ -211,10 +235,11 @@ inline std::vector<PlayerStats> Analyze(const hh::Hand &h) {
       if (n == 0) {
         if (limpers == 0) {
           CNT(s, rfi_opp) = 1;
-          if (raise) CNT(s, rfi) = 1;
+          const int bucket = raise ? OpenSizeBucket(act.to, h.bblind) : 0;
+          if (raise) { CNT(s, rfi) = 1; SZ(s, rfi, bucket); }
           if (steal_position) {
             CNT(s, steal_opp) = 1;
-            if (raise) { CNT(s, steal) = 1; this_raise_is_steal = true; }
+            if (raise) { CNT(s, steal) = 1; SZ(s, steal, bucket); this_raise_is_steal = true; }
           }
         }
       } else {
@@ -222,19 +247,30 @@ inline std::vector<PlayerStats> Analyze(const hh::Hand &h) {
         if (call) CNT(s, called_raise) = 1;
         if (n == 1 && first_raiser_steal) {
           CNT(s, three_bet_steal_opp) = 1;
-          if (raise) CNT(s, three_bet_steal) = 1;
+          SZ(s, three_bet_steal_opp, open_bucket);
+          if (raise) { CNT(s, three_bet_steal) = 1; SZ(s, three_bet_steal, open_bucket); }
           // Steal defence: nobody else has called the steal raise
           if (callers_since_raise == 0) {
             if (pos == kPositionBB) {
               CNT(s, bb_steal_opp) = 1;
               if (fold) CNT(s, bb_fold_steal) = 1;
               CNT(s, bb_3bet_steal_opp) = 1;
-              if (raise) CNT(s, bb_3bet_steal) = 1;
+              SZ(s, bb_3bet_steal_opp, open_bucket);
+              if (raise) { CNT(s, bb_3bet_steal) = 1; SZ(s, bb_3bet_steal, open_bucket); }
+              // BB against the open raise of the small blind
+              if (last_raiser >= 0 && positions[last_raiser] == kPositionSB) {
+                CNT(s, vs_sb_opp) = 1;
+                SZ(s, vs_sb_opp, open_bucket);
+                if (fold) CNT(s, vs_sb_fold) = 1;
+                if (call) CNT(s, vs_sb_call) = 1;
+                if (raise) { CNT(s, vs_sb_3bet) = 1; SZ(s, vs_sb_3bet, open_bucket); }
+              }
             } else if (pos == kPositionSB) {
               CNT(s, sb_steal_opp) = 1;
               if (fold) CNT(s, sb_fold_steal) = 1;
               CNT(s, sb_3bet_steal_opp) = 1;
-              if (raise) CNT(s, sb_3bet_steal) = 1;
+              SZ(s, sb_3bet_steal_opp, open_bucket);
+              if (raise) { CNT(s, sb_3bet_steal) = 1; SZ(s, sb_3bet_steal, open_bucket); }
             }
           }
         }
@@ -246,7 +282,8 @@ inline std::vector<PlayerStats> Analyze(const hh::Hand &h) {
     if (n == 1 && !opp3[s]) {
       opp3[s] = true;
       CNT(s, three_bet_opp) = 1;
-      if (raise) CNT(s, three_bet) = 1;
+      SZ(s, three_bet_opp, open_bucket);
+      if (raise) { CNT(s, three_bet) = 1; SZ(s, three_bet, open_bucket); }
     }
     if (n == 1 && callers_since_raise >= 1 && !opp_sq[s]) {
       opp_sq[s] = true;
@@ -288,7 +325,10 @@ inline std::vector<PlayerStats> Analyze(const hh::Hand &h) {
       last_raise_index[s] = raises;
       last_raiser = s;
       callers_since_raise = 0;
-      if (raises == 1) first_raiser_steal = this_raise_is_steal;
+      if (raises == 1) {
+        first_raiser_steal = this_raise_is_steal;
+        open_bucket = OpenSizeBucket(act.to, h.bblind);
+      }
       raise_was_steal[s] = this_raise_is_steal;
     } else if (call) {
       if (raises == 0) ++limpers; else ++callers_since_raise;
@@ -414,6 +454,7 @@ inline std::vector<PlayerStats> Analyze(const hh::Hand &h) {
       }
     }
   }
+  #undef SZ
   #undef CNT
   return result;
 }

@@ -146,6 +146,11 @@
 #define PT4_QUERY_SUPPORT__FOLD_TO_F_CHECK_RAISE_OPP     				(TRUE)	// ""
 #define PT4_QUERY_SUPPORT__FOLD_TO_SQUEEZE_AS_RAISER_OPP     				(TRUE)	// ""
 
+// Stats that only exist in the OpenHoldem stats database (Preferences / Stats Database):
+// RFI / steal / 3bet by open size (2bb, 2.5bb, 3bb) and BB vs SB.
+// With PokerTracker as the source they are valid symbols that are always undefined.
+#define PT4_QUERY_SUPPORT__OH_DB_ONLY_STATS     				(TRUE)	// 24 stats
+
 const int k_number_of_pokertracker_stats =  //GENERAL STATS
 (PT4_QUERY_SUPPORT__ICON ? 1 : 0)
 + (PT4_QUERY_SUPPORT__NB_HANDS ? 1 : 0)
@@ -251,7 +256,8 @@ const int k_number_of_pokertracker_stats =  //GENERAL STATS
 + (PT4_QUERY_SUPPORT__FLOP_DONKBET_OPP ? 1 : 0)
 + (PT4_QUERY_SUPPORT__FOLD_TO_F_CBET_IN_3BET_PLUS_POT_OPP ? 1 : 0)
 + (PT4_QUERY_SUPPORT__FOLD_TO_F_CHECK_RAISE_OPP ? 1 : 0)
-+ (PT4_QUERY_SUPPORT__FOLD_TO_SQUEEZE_AS_RAISER_OPP ? 1 : 0);
++ (PT4_QUERY_SUPPORT__FOLD_TO_SQUEEZE_AS_RAISER_OPP ? 1 : 0)
++ (PT4_QUERY_SUPPORT__OH_DB_ONLY_STATS ? 24 : 0);
 
 // PokerTracker support
 enum PT_Groups {
@@ -280,6 +286,10 @@ struct t_QueryDefinition {
 
 // PokerTracker naming conventions: 
 //   http://www.pokertracker.com/guides/PT3/tutorials/using-custom-reports-and-statistics#Naming-conventions
+// Definition of a stat that is only calculated by the OpenHoldem database
+#define OH_DB_ONLY_STAT(stat_name, stat_description) \
+	{ stat_name, stat_description, "SELECT NULL as result", pt_group_advanced }
+
 t_QueryDefinition query_definitions[k_number_of_pokertracker_stats] =
 {
 #if PT4_QUERY_SUPPORT__ICON
@@ -2549,6 +2559,33 @@ t_QueryDefinition query_definitions[k_number_of_pokertracker_stats] =
 	// stat_group
 	pt_group_advanced
 	},
+#endif
+
+#if PT4_QUERY_SUPPORT__OH_DB_ONLY_STATS
+	OH_DB_ONLY_STAT("rfi_2bb", "RFI with a 2bb open (OpenHoldem database only)"),
+	OH_DB_ONLY_STAT("rfi_25bb", "RFI with a 2.5bb open (OpenHoldem database only)"),
+	OH_DB_ONLY_STAT("rfi_3bb", "RFI with a 3bb open (OpenHoldem database only)"),
+	OH_DB_ONLY_STAT("steal_attempt_2bb", "Steal attempt with a 2bb open (OpenHoldem database only)"),
+	OH_DB_ONLY_STAT("steal_attempt_25bb", "Steal attempt with a 2.5bb open (OpenHoldem database only)"),
+	OH_DB_ONLY_STAT("steal_attempt_3bb", "Steal attempt with a 3bb open (OpenHoldem database only)"),
+	OH_DB_ONLY_STAT("3bet_vs_2bb", "3bet vs a 2bb open (OpenHoldem database only)"),
+	OH_DB_ONLY_STAT("3bet_vs_25bb", "3bet vs a 2.5bb open (OpenHoldem database only)"),
+	OH_DB_ONLY_STAT("3bet_vs_3bb", "3bet vs a 3bb open (OpenHoldem database only)"),
+	OH_DB_ONLY_STAT("3bet_vs_steal_2bb", "3bet vs a steal of 2bb open (OpenHoldem database only)"),
+	OH_DB_ONLY_STAT("3bet_vs_steal_25bb", "3bet vs a steal of 2.5bb open (OpenHoldem database only)"),
+	OH_DB_ONLY_STAT("3bet_vs_steal_3bb", "3bet vs a steal of 3bb open (OpenHoldem database only)"),
+	OH_DB_ONLY_STAT("bb_3bet_vs_steal_2bb", "BB 3bet vs a steal of 2bb open (OpenHoldem database only)"),
+	OH_DB_ONLY_STAT("bb_3bet_vs_steal_25bb", "BB 3bet vs a steal of 2.5bb open (OpenHoldem database only)"),
+	OH_DB_ONLY_STAT("bb_3bet_vs_steal_3bb", "BB 3bet vs a steal of 3bb open (OpenHoldem database only)"),
+	OH_DB_ONLY_STAT("sb_3bet_vs_steal_2bb", "SB 3bet vs a steal of 2bb open (OpenHoldem database only)"),
+	OH_DB_ONLY_STAT("sb_3bet_vs_steal_25bb", "SB 3bet vs a steal of 2.5bb open (OpenHoldem database only)"),
+	OH_DB_ONLY_STAT("sb_3bet_vs_steal_3bb", "SB 3bet vs a steal of 3bb open (OpenHoldem database only)"),
+	OH_DB_ONLY_STAT("bb_3bet_vs_sb", "BB 3bet vs SB open raise (OpenHoldem database only)"),
+	OH_DB_ONLY_STAT("bb_fold_vs_sb", "BB fold vs SB open raise (OpenHoldem database only)"),
+	OH_DB_ONLY_STAT("bb_call_vs_sb", "BB call vs SB open raise (OpenHoldem database only)"),
+	OH_DB_ONLY_STAT("bb_3bet_vs_sb_2bb", "BB 3bet vs a 2bb SB open raise (OpenHoldem database only)"),
+	OH_DB_ONLY_STAT("bb_3bet_vs_sb_25bb", "BB 3bet vs a 2.5bb SB open raise (OpenHoldem database only)"),
+	OH_DB_ONLY_STAT("bb_3bet_vs_sb_3bb", "BB 3bet vs a 3bb SB open raise (OpenHoldem database only)"),
 #endif
 
 };
