@@ -65,6 +65,15 @@ namespace ohstats {
   X(three_bet_steal_s2) X(three_bet_steal_opp_s2) X(three_bet_steal_s25) X(three_bet_steal_opp_s25) X(three_bet_steal_s3) X(three_bet_steal_opp_s3) \
   X(bb_3bet_steal_s2) X(bb_3bet_steal_opp_s2) X(bb_3bet_steal_s25) X(bb_3bet_steal_opp_s25) X(bb_3bet_steal_s3) X(bb_3bet_steal_opp_s3) \
   X(sb_3bet_steal_s2) X(sb_3bet_steal_opp_s2) X(sb_3bet_steal_s25) X(sb_3bet_steal_opp_s25) X(sb_3bet_steal_s3) X(sb_3bet_steal_opp_s3) \
+  X(four_bet_r) X(four_bet_r_opp) \
+  X(sq_def_opp_r) X(sq_def_fold_r) X(sq_def_opp_c) X(sq_def_fold_c) \
+  X(flop_cbet_p3p) X(flop_cbet_opp_p3p) X(flop_cbet_faced_p3p) X(flop_fold_cbet_p3p) \
+  X(flop_donk_p3p) X(flop_donk_opp_p3p) \
+  X(flop_cr_p3) X(flop_cr_opp_p3) X(flop_cr_p3p) X(flop_cr_opp_p3p) \
+  X(flop_fcr) X(flop_fcr_opp) X(flop_fcr_p3p) X(flop_fcr_opp_p3p) \
+  X(flop_f3) X(flop_f3_opp) X(turn_f3) X(turn_f3_opp) X(river_f3) X(river_f3_opp) \
+  X(float_flop) X(float_flop_opp) X(float3_flop) X(float3_flop_opp) \
+  X(fd_opp_sr) X(fd_call_sr) X(fd_opp_p3) X(fd_call_p3) X(fd_fold_p3) X(fd_opp_p3p) X(fd_fold_p3p) \
   X(vs_sb_opp) X(vs_sb_3bet) X(vs_sb_fold) X(vs_sb_call) \
   X(vs_sb_3bet_s2) X(vs_sb_3bet_s25) X(vs_sb_3bet_s3) X(vs_sb_opp_s2) X(vs_sb_opp_s25) X(vs_sb_opp_s3)
 
@@ -211,10 +220,14 @@ inline std::vector<PlayerStats> Analyze(const hh::Hand &h) {
   bool acted[hh::kMaxSeats], raise_was_steal[hh::kMaxSeats];
   bool opp3[hh::kMaxSeats], opp4[hh::kMaxSeats], opp_f3[hh::kMaxSeats], opp_f4[hh::kMaxSeats], opp_sq[hh::kMaxSeats];
   int  last_raise_index[hh::kMaxSeats];
+  // For the defence against squeezes, the 4-bet of the opener and floats
+  int  first_raiser = -1;
+  bool caller[hh::kMaxSeats], called_3bet[hh::kMaxSeats], opp4r[hh::kMaxSeats], sq_pending[hh::kMaxSeats];
   for (int i = 0; i < hh::kMaxSeats; ++i) {
     acted[i] = raise_was_steal[i] = false;
     opp3[i] = opp4[i] = opp_f3[i] = opp_f4[i] = opp_sq[i] = false;
     last_raise_index[i] = 0;
+    caller[i] = called_3bet[i] = opp4r[i] = sq_pending[i] = false;
   }
 
   for (size_t a = 0; a < h.actions.size(); ++a) {
@@ -229,6 +242,18 @@ inline std::vector<PlayerStats> Analyze(const hh::Hand &h) {
     const bool steal_position = (pos == kPositionCO || pos == kPositionBTN || pos == kPositionSB);
     const int  n = raises;     // raises before this action
     bool this_raise_is_steal = false;
+
+    // Defence against a squeeze: the first raiser and the callers before the squeeze
+    if (sq_pending[s]) {
+      sq_pending[s] = false;
+      if (s == first_raiser) {
+        CNT(s, sq_def_opp_r) = 1;
+        if (fold) CNT(s, sq_def_fold_r) = 1;
+      } else {
+        CNT(s, sq_def_opp_c) = 1;
+        if (fold) CNT(s, sq_def_fold_c) = 1;
+      }
+    }
 
     if (!acted[s]) {
       CNT(s, pfr_opp) = 1;
@@ -309,7 +334,13 @@ inline std::vector<PlayerStats> Analyze(const hh::Hand &h) {
     if (n >= 2) {
       if (!opp4[s]) { opp4[s] = true; CNT(s, four_bet_opp) = 1; }
       if (raise) CNT(s, four_bet) = 1;
+      // ... as the player who opened the pot
+      if (last_raise_index[s] == 1) {
+        if (!opp4r[s]) { opp4r[s] = true; CNT(s, four_bet_r_opp) = 1; }
+        if (raise) CNT(s, four_bet_r) = 1;
+      }
     }
+    if (n == 2 && call && last_raise_index[s] == 1) called_3bet[s] = true;
     // Facing a 4-bet or higher
     if (n >= 3 && !opp_f4[s]) {
       opp_f4[s] = true;
@@ -319,8 +350,18 @@ inline std::vector<PlayerStats> Analyze(const hh::Hand &h) {
     if (call || raise) CNT(s, vpip) = 1;
     if (raise) CNT(s, pfr) = 1;
 
+    // A squeeze (raise after a raise and at least one caller): the raiser and
+    // the callers will have to answer it
+    if (raise && n == 1 && callers_since_raise >= 1) {
+      for (int v = 0; v < hh::kMaxSeats; ++v) {
+        if (v != s && index_of[v] >= 0 && (v == first_raiser || caller[v])) sq_pending[v] = true;
+      }
+    }
+    if (call && n == 1) caller[s] = true;
+
     // Update the state of the betting round
     if (raise) {
+      if (raises == 0) first_raiser = s;
       ++raises;
       last_raise_index[s] = raises;
       last_raiser = s;
@@ -335,6 +376,9 @@ inline std::vector<PlayerStats> Analyze(const hh::Hand &h) {
     }
   }
   const int aggressor = last_raiser;   // preflop aggressor, -1 if nobody raised
+  const int pre_raises = raises;       // 1 = raised pot, 2 = 3-bet pot, 3+ = 4-bet pot
+  const bool pot3  = (pre_raises == 2);
+  const bool pot3p = (pre_raises >= 2);   // 3-bet pot or higher
 
   //----------------------------------------------------------------------------
   // Streets seen, showdown
@@ -366,8 +410,11 @@ inline std::vector<PlayerStats> Analyze(const hh::Hand &h) {
     int  bets = 0, first_bettor = -1;
     bool acted_here[hh::kMaxSeats], checked[hh::kMaxSeats];
     bool responded_cbet[hh::kMaxSeats], responded_cr[hh::kMaxSeats];
+    bool responded_fd[hh::kMaxSeats], f3_seen[hh::kMaxSeats];
+    bool cr_pending = false, fcr_done = false;
     for (int i = 0; i < hh::kMaxSeats; ++i) {
       acted_here[i] = checked[i] = responded_cbet[i] = responded_cr[i] = false;
+      responded_fd[i] = f3_seen[i] = false;
     }
     const bool cbet_chain_ok = (street == 2) || cbet_made[street - 1];
     for (size_t a = 0; a < h.actions.size(); ++a) {
@@ -393,6 +440,25 @@ inline std::vector<PlayerStats> Analyze(const hh::Hand &h) {
       else if (check) cnt[c_check] = cnt[c_check] + 1;
       else if (fold) cnt[c_fold] = cnt[c_fold] + 1;
 
+      // The bettor facing the check-raise of an opponent (flop)
+      if (street == 2 && cr_pending && s == first_bettor && !fcr_done && (fold || call || raise)) {
+        fcr_done = true;
+        cnt[c_flop_fcr_opp] = 1;
+        if (fold) cnt[c_flop_fcr] = 1;
+        if (pot3p) {
+          cnt[c_flop_fcr_opp_p3p] = 1;
+          if (fold) cnt[c_flop_fcr_p3p] = 1;
+        }
+      }
+      // Facing a 3-bet on this street (bet, raise, re-raise): fold to 3-bet
+      if (bets == 3 && !f3_seen[s] && (fold || call || raise)) {
+        f3_seen[s] = true;
+        const int c_opp = (street == 2) ? c_flop_f3_opp : (street == 3) ? c_turn_f3_opp : c_river_f3_opp;
+        const int c_f3  = (street == 2) ? c_flop_f3     : (street == 3) ? c_turn_f3     : c_river_f3;
+        cnt[c_opp] = 1;
+        if (fold) cnt[c_f3] = 1;
+      }
+
       // Chance to open the betting
       if (bets == 0 && first_action && (check || bet)) {
         if (street == 4) {
@@ -400,7 +466,10 @@ inline std::vector<PlayerStats> Analyze(const hh::Hand &h) {
           if (bet) cnt[c_river_bet] = 1;
         }
         if (s == aggressor && cbet_chain_ok) {
-          if (street == 2) { cnt[c_flop_cbet_opp] = 1; if (bet) cnt[c_flop_cbet] = 1; }
+          if (street == 2) {
+            cnt[c_flop_cbet_opp] = 1; if (bet) cnt[c_flop_cbet] = 1;
+            if (pot3p) { cnt[c_flop_cbet_opp_p3p] = 1; if (bet) cnt[c_flop_cbet_p3p] = 1; }
+          }
           if (street == 3) { cnt[c_turn_cbet_opp] = 1; if (bet) cnt[c_turn_cbet] = 1; }
           if (bet) cbet_made[street] = true;
         }
@@ -410,6 +479,19 @@ inline std::vector<PlayerStats> Analyze(const hh::Hand &h) {
           // The aggressor has still to act: a bet now is a donk bet
           cnt[c_flop_donk_opp] = 1;
           if (bet) cnt[c_flop_donk] = 1;
+          if (pot3p) { cnt[c_flop_donk_opp_p3p] = 1; if (bet) cnt[c_flop_donk_p3p] = 1; }
+        }
+        // Float: the caller of the raise (in position) bets after the aggressor has checked
+        if (street == 2 && aggressor >= 0 && s != aggressor && checked[aggressor]) {
+          if (pre_raises == 1 && caller[s]) {
+            cnt[c_float_flop_opp] = 1;
+            if (bet) cnt[c_float_flop] = 1;
+          }
+          // ... in a 3-bet pot: the opener who called the 3-bet
+          if (pre_raises == 2 && called_3bet[s]) {
+            cnt[c_float3_flop_opp] = 1;
+            if (bet) cnt[c_float3_flop] = 1;
+          }
         }
       }
 
@@ -422,6 +504,7 @@ inline std::vector<PlayerStats> Analyze(const hh::Hand &h) {
             cnt[c_flop_cbet_faced] = 1;
             if (fold) cnt[c_flop_fold_cbet] = 1;
             if (raise) cnt[c_flop_raise_cbet] = 1;
+            if (pot3p) { cnt[c_flop_cbet_faced_p3p] = 1; if (fold) cnt[c_flop_fold_cbet_p3p] = 1; }
           } else if (street == 3) {
             cnt[c_turn_cbet_faced] = 1;
             if (fold) cnt[c_turn_fold_cbet] = 1;
@@ -431,11 +514,29 @@ inline std::vector<PlayerStats> Analyze(const hh::Hand &h) {
           }
           responded_cbet[s] = true;
         }
+        // ... the preflop aggressor who checked the flop faces a bet (float bet)
+        if (street == 2 && bets == 1 && s == aggressor && checked[s] && !responded_fd[s]) {
+          responded_fd[s] = true;
+          if (pre_raises == 1) {
+            cnt[c_fd_opp_sr] = 1;
+            if (call) cnt[c_fd_call_sr] = 1;
+          } else if (pre_raises >= 2) {
+            cnt[c_fd_opp_p3p] = 1;
+            if (fold) cnt[c_fd_fold_p3p] = 1;
+            if (pot3) {
+              cnt[c_fd_opp_p3] = 1;
+              if (call) cnt[c_fd_call_p3] = 1;
+              if (fold) cnt[c_fd_fold_p3] = 1;
+            }
+          }
+        }
         // ... after having checked: check-raise / check-call
         if (checked[s] && !responded_cr[s] && (street == 2 || street == 3)) {
           if (street == 2) {
             cnt[c_flop_cr_opp] = 1;
             if (raise) cnt[c_flop_cr] = 1;
+            if (pot3)  { cnt[c_flop_cr_opp_p3] = 1;  if (raise) cnt[c_flop_cr_p3] = 1; }
+            if (pot3p) { cnt[c_flop_cr_opp_p3p] = 1; if (raise) cnt[c_flop_cr_p3p] = 1; }
           } else {
             cnt[c_turn_cr_opp] = 1;
             if (raise) cnt[c_turn_cr] = 1;
@@ -445,6 +546,8 @@ inline std::vector<PlayerStats> Analyze(const hh::Hand &h) {
         }
       }
 
+      // A check-raise on the flop (raise of the first bet by a player who has checked)
+      if (street == 2 && raise && bets == 1 && checked[s] && s != first_bettor) cr_pending = true;
       if (first_action && check) checked[s] = true;
       acted_here[s] = true;
       if (bet) {

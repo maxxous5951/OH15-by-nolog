@@ -390,6 +390,152 @@ static void TestOpenSizesAndBbVsSb() {
   RemoveDb(path);
 }
 
+static void TestRemainingStats() {
+  printf("squeeze defence, 3bet pots, check-raise faced, 3bet on streets, floats, 4bet+ ratio\n");
+  std::vector<PlayerStats> p;
+
+  // --- defence against a squeeze: raiser (3) folds, caller (4) calls
+  HandBuilder sq("sq");
+  sq.Act(3, hh::kRaise, 1).Act(4, hh::kCall, 1).Act(5, hh::kRaise, 1)
+    .Act(0, hh::kFold, 1).Act(1, hh::kFold, 1).Act(2, hh::kFold, 1)
+    .Act(3, hh::kFold, 1).Act(4, hh::kCall, 1);
+  p = Analyze(sq.h);
+  CHECK(C(3, sq_def_opp_r) == 1 && C(3, sq_def_fold_r) == 1 && C(3, sq_def_opp_c) == 0);
+  CHECK(C(4, sq_def_opp_c) == 1 && C(4, sq_def_fold_c) == 0 && C(4, sq_def_opp_r) == 0);
+  CHECK(C(2, sq_def_opp_c) == 0 && C(2, sq_def_opp_r) == 0);           // BB had not called yet
+  CHECK(C(5, sq_def_opp_c) + C(5, sq_def_opp_r) == 0);                 // the squeezer
+
+  // --- 3bet pot: UTG opens, MP 3bets, UTG calls; flop: UTG checks, MP cbets, UTG folds
+  HandBuilder t("pot3");
+  t.Act(3, hh::kRaise, 1).Act(4, hh::kRaise, 1).Act(5, hh::kFold, 1).Act(0, hh::kFold, 1)
+   .Act(1, hh::kFold, 1).Act(2, hh::kFold, 1).Act(3, hh::kCall, 1)
+   .Board(3)
+   .Act(3, hh::kCheck, 2).Act(4, hh::kBet, 2).Act(3, hh::kFold, 2);
+  p = Analyze(t.h);
+  CHECK(C(4, flop_cbet_opp_p3p) == 1 && C(4, flop_cbet_p3p) == 1);
+  CHECK(C(3, flop_cbet_faced_p3p) == 1 && C(3, flop_fold_cbet_p3p) == 1);
+  CHECK(C(3, flop_cr_opp_p3) == 1 && C(3, flop_cr_p3) == 0 && C(3, flop_cr_opp_p3p) == 1);
+  CHECK(C(3, flop_donk_opp_p3p) == 1 && C(3, flop_donk_p3p) == 0);     // could have donked, checked
+  // not a 3bet pot: the same flop in a raised pot gives nothing for the 3bet-pot counters
+  HandBuilder r("raised");
+  r.Act(3, hh::kRaise, 1).Act(4, hh::kFold, 1).Act(5, hh::kFold, 1).Act(0, hh::kFold, 1)
+   .Act(1, hh::kFold, 1).Act(2, hh::kCall, 1).Board(3)
+   .Act(2, hh::kCheck, 2).Act(3, hh::kBet, 2).Act(2, hh::kFold, 2);
+  p = Analyze(r.h);
+  CHECK(C(3, flop_cbet) == 1 && C(3, flop_cbet_opp_p3p) == 0 && C(3, flop_cbet_p3p) == 0);
+  CHECK(C(2, flop_cbet_faced_p3p) == 0 && C(2, flop_cr_opp_p3) == 0);
+
+  // --- floats in the 3bet pot: the opener who called the 3bet bets when the 3bettor checks
+  HandBuilder f3("float3");
+  f3.Act(3, hh::kRaise, 1).Act(4, hh::kRaise, 1).Act(5, hh::kFold, 1).Act(0, hh::kFold, 1)
+    .Act(1, hh::kFold, 1).Act(2, hh::kFold, 1).Act(3, hh::kCall, 1)
+    .Board(3)
+    .Act(4, hh::kCheck, 2).Act(3, hh::kBet, 2).Act(4, hh::kFold, 2);
+  p = Analyze(f3.h);
+  CHECK(C(3, float3_flop_opp) == 1 && C(3, float3_flop) == 1);
+  CHECK(C(4, fd_opp_p3) == 1 && C(4, fd_fold_p3) == 1 && C(4, fd_call_p3) == 0);
+  CHECK(C(4, fd_opp_p3p) == 1 && C(4, fd_fold_p3p) == 1 && C(4, fd_opp_sr) == 0);
+
+  // --- float in a raised pot: BTN calls the CO, CO checks, BTN bets, CO calls
+  HandBuilder fl("float");
+  fl.Act(3, hh::kFold, 1).Act(4, hh::kFold, 1).Act(5, hh::kRaise, 1).Act(0, hh::kCall, 1)
+    .Act(1, hh::kFold, 1).Act(2, hh::kFold, 1)
+    .Board(3)
+    .Act(5, hh::kCheck, 2).Act(0, hh::kBet, 2).Act(5, hh::kCall, 2);
+  p = Analyze(fl.h);
+  CHECK(C(0, float_flop_opp) == 1 && C(0, float_flop) == 1 && C(0, float3_flop_opp) == 0);
+  CHECK(C(5, fd_opp_sr) == 1 && C(5, fd_call_sr) == 1 && C(5, fd_opp_p3) == 0);
+  // the caller does not bet when checked to: opportunity without float
+  HandBuilder nf("nofloat");
+  nf.Act(3, hh::kFold, 1).Act(4, hh::kFold, 1).Act(5, hh::kRaise, 1).Act(0, hh::kCall, 1)
+    .Act(1, hh::kFold, 1).Act(2, hh::kFold, 1).Board(3)
+    .Act(5, hh::kCheck, 2).Act(0, hh::kCheck, 2);
+  p = Analyze(nf.h);
+  CHECK(C(0, float_flop_opp) == 1 && C(0, float_flop) == 0 && C(5, fd_opp_sr) == 0);
+
+  // --- bettor facing a check-raise on the flop
+  HandBuilder cr("fcr");
+  cr.Act(3, hh::kFold, 1).Act(4, hh::kFold, 1).Act(5, hh::kRaise, 1)
+    .Act(0, hh::kFold, 1).Act(1, hh::kFold, 1).Act(2, hh::kCall, 1).Board(3)
+    .Act(2, hh::kCheck, 2).Act(5, hh::kBet, 2).Act(2, hh::kRaise, 2).Act(5, hh::kFold, 2);
+  p = Analyze(cr.h);
+  CHECK(C(5, flop_fcr_opp) == 1 && C(5, flop_fcr) == 1 && C(5, flop_fcr_opp_p3p) == 0);
+  CHECK(C(2, flop_cr) == 1);
+  HandBuilder cc("fcr-call");
+  cc.Act(3, hh::kFold, 1).Act(4, hh::kFold, 1).Act(5, hh::kRaise, 1)
+    .Act(0, hh::kFold, 1).Act(1, hh::kFold, 1).Act(2, hh::kCall, 1).Board(3)
+    .Act(2, hh::kCheck, 2).Act(5, hh::kBet, 2).Act(2, hh::kRaise, 2).Act(5, hh::kCall, 2);
+  p = Analyze(cc.h);
+  CHECK(C(5, flop_fcr_opp) == 1 && C(5, flop_fcr) == 0);
+  // an ordinary raise (no check before) is no check-raise
+  HandBuilder nr("no-cr");
+  nr.Act(3, hh::kFold, 1).Act(4, hh::kFold, 1).Act(5, hh::kRaise, 1)
+    .Act(0, hh::kFold, 1).Act(1, hh::kFold, 1).Act(2, hh::kCall, 1).Board(3)
+    .Act(2, hh::kBet, 2).Act(5, hh::kRaise, 2).Act(2, hh::kFold, 2);
+  p = Analyze(nr.h);
+  CHECK(C(2, flop_fcr_opp) == 0);                                      // CO's raise, but BB did not check first
+
+  // --- fold to a 3bet on the flop: bet, raise, 3bet, fold
+  HandBuilder f3b("flop3bet");
+  f3b.Act(3, hh::kFold, 1).Act(4, hh::kFold, 1).Act(5, hh::kRaise, 1)
+     .Act(0, hh::kFold, 1).Act(1, hh::kFold, 1).Act(2, hh::kCall, 1).Board(4)
+     .Act(2, hh::kBet, 2).Act(5, hh::kRaise, 2).Act(2, hh::kRaise, 2).Act(5, hh::kFold, 2);
+  p = Analyze(f3b.h);
+  CHECK(C(5, flop_f3_opp) == 1 && C(5, flop_f3) == 1 && C(5, turn_f3_opp) == 0);
+  CHECK(C(2, flop_f3_opp) == 0);
+
+  // --- DB: 4bet+ ratio, squeeze defence, float, fold to 3bet on the flop
+  std::string path = TempPath("rest.db");
+  RemoveDb(path);
+  Db db;
+  CHECK(db.Open(path));
+  for (int i = 0; i < 4; ++i) {
+    char id[16];
+    snprintf(id, sizeof(id), "r%d", i);
+    HandBuilder h(id, 4000000 + i);
+    if (i == 0) {          // UTG opens, MP 3bets, UTG 4bets
+      h.Act(3, hh::kRaise, 1).Act(4, hh::kRaise, 1).Act(5, hh::kFold, 1).Act(0, hh::kFold, 1)
+       .Act(1, hh::kFold, 1).Act(2, hh::kFold, 1).Act(3, hh::kRaise, 1).Act(4, hh::kFold, 1);
+    } else if (i == 1) {   // UTG opens, MP 3bets, UTG folds
+      h.Act(3, hh::kRaise, 1).Act(4, hh::kRaise, 1).Act(5, hh::kFold, 1).Act(0, hh::kFold, 1)
+       .Act(1, hh::kFold, 1).Act(2, hh::kFold, 1).Act(3, hh::kFold, 1);
+    } else {               // UTG folds
+      h.Act(3, hh::kFold, 1).Act(4, hh::kFold, 1).Act(5, hh::kFold, 1).Act(0, hh::kFold, 1)
+       .Act(1, hh::kFold, 1).Act(2, hh::kFold, 1);
+    }
+    CHECK(db.InsertHand(h.h, "x"));
+  }
+  StatFilter f;
+  f.site = "x";
+  double v = -1;
+  CHECK(db.GetStat("4bet_plus_ratio", "P3", f, &v));
+  CHECK_NEAR(v, 0.5 * 0.5);              // PFR 2/4 * (4bet of the opener 1/2)
+  CHECK(!db.GetStat("4bet_plus_ratio", "P0", f, &v));   // never had an opener 4bet spot
+  CHECK(db.SelfTest());
+  db.Close();
+  RemoveDb(path);
+
+  // --- DB: ratios of squeeze defence and fold to 3bet
+  path = TempPath("rest2.db");
+  RemoveDb(path);
+  CHECK(db.Open(path));
+  HandBuilder s1("sq1", 5000000);
+  s1.Act(3, hh::kRaise, 1).Act(4, hh::kCall, 1).Act(5, hh::kRaise, 1)
+    .Act(0, hh::kFold, 1).Act(1, hh::kFold, 1).Act(2, hh::kFold, 1).Act(3, hh::kFold, 1).Act(4, hh::kFold, 1);
+  HandBuilder s2("sq2", 5000001);
+  s2.Act(3, hh::kRaise, 1).Act(4, hh::kCall, 1).Act(5, hh::kRaise, 1)
+    .Act(0, hh::kFold, 1).Act(1, hh::kFold, 1).Act(2, hh::kFold, 1).Act(3, hh::kCall, 1).Act(4, hh::kFold, 1);
+  CHECK(db.InsertHand(s1.h, "x") && db.InsertHand(s2.h, "x"));
+  CHECK(db.GetStat("fold_to_squeeze_as_raiser", "P3", f, &v));  CHECK_NEAR(v, 0.5);
+  CHECK(db.GetStat("fold_to_squeeze_as_raiser_opp", "P3", f, &v)); CHECK_NEAR(v, 2);
+  CHECK(db.GetStat("fold_to_squeeze_as_caller", "P4", f, &v));  CHECK_NEAR(v, 1.0);
+  CHECK(db.GetStat("fold_to_pf_squeeze", "P4", f, &v));         CHECK_NEAR(v, 1.0);
+  CHECK(!db.GetStat("fold_to_squeeze_as_caller", "P3", f, &v));  // never a caller
+  CHECK(db.SelfTest());
+  db.Close();
+  RemoveDb(path);
+}
+
 //------------------------------------------------------------------------------
 // Database
 //------------------------------------------------------------------------------
@@ -574,6 +720,7 @@ int main(int argc, char **argv) {
   TestFourBetByOpener();
   TestAggressionFrequency();
   TestOpenSizesAndBbVsSb();
+  TestRemainingStats();
   TestDatabase();
   if (argc > 1) TestStatNamesMatchPokerTracker(argv[1]);
   printf("\n%d checks, %d failures\n", g_checks, g_failures);

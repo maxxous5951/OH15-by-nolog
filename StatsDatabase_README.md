@@ -36,7 +36,7 @@ pt_<N><période>_<stat><siège> pt_12months_3bet5   sur la période donnée
 
 Exemple de formule : `when pt_vpip_raischair > 0.45 and pt_hands_raischair >= 30 ...`
 
-## Stats disponibles (73)
+## Stats disponibles (99)
 
 Chaque stat = somme d'un compteur / somme d'un autre, sur les mains du joueur. Noms des compteurs = colonnes de `hand_player`.
 
@@ -158,6 +158,60 @@ Taille = *relance à* ÷ big blind : **2bb** = 1,75 à 2,25 · **2,5bb** = 2,25 
 
 Exemples : `pt_rfi_25bb4` (siège 4 ouvre-t-il à 2,5bb ?), `pt_bb_3bet_vs_sb_25bb2` (la BB du siège 2 3-bet-elle les opens 2,5bb de la SB ?), `pt_200hands_3bet_vs_3bb5`. Avec PokerTracker comme source ces symboles sont valides mais toujours indéfinis.
 
+### Squeeze et 4-bet de l'ouvreur
+
+| Symbole | Signification | Calcul |
+|---|---|---|
+| `pt_fold_to_pf_squeeze<siège>` | Se couche face à un squeeze préflop (ouvreur ou caller) | `SUM(sq_def_fold_r+sq_def_fold_c) / SUM(sq_def_opp_r+sq_def_opp_c)` |
+| `pt_fold_to_squeeze_as_raiser<siège>` | Idem, en tant qu'ouvreur initial | `SUM(sq_def_fold_r) / SUM(sq_def_opp_r)` |
+| `pt_fold_to_squeeze_as_caller<siège>` | Idem, en tant que caller de l'ouverture | `SUM(sq_def_fold_c) / SUM(sq_def_opp_c)` |
+| `pt_fold_to_squeeze_as_raiser_opp<siège>` | Nb de fois face à un squeeze en tant qu'ouvreur (compte) | `SUM(sq_def_opp_r)` |
+| `pt_4bet_plus_ratio<siège>` | PFR × fréquence de 4-bet de l'ouvreur (définition PT4) | `SUM(pfr)*SUM(four_bet_r) / SUM(pfr_opp)*SUM(four_bet_r_opp)` |
+
+Squeeze = relance après une ouverture et au moins un caller. Victimes = l'ouvreur et les joueurs qui ont payé avant le squeeze (les blinds qui n'avaient pas encore agi n'en font pas partie).
+
+### Pots 3-bet (flop)
+
+« Pot 3-bet+ » = au moins un 3-bet préflop (donc 3-bet, 4-bet…). « Pot 3-bet » = exactement un 3-bet. La définition est au niveau de la main, pas du joueur.
+
+| Symbole | Signification | Calcul |
+|---|---|---|
+| `pt_cbet_flop_in_3bet_pot<siège>` | C-bet flop en pot 3-bet+ | `SUM(flop_cbet_p3p) / SUM(flop_cbet_opp_p3p)` |
+| `pt_cbet_flop_opp_in_3bet_pot<siège>` | Nb d'occasions de c-bet en pot 3-bet+ (compte) | `SUM(flop_cbet_opp_p3p)` |
+| `pt_fold_to_f_cbet_in_3bet_pot<siège>` | Se couche face à une c-bet flop en pot 3-bet+ | `SUM(flop_fold_cbet_p3p) / SUM(flop_cbet_faced_p3p)` |
+| `pt_fold_to_f_cbet_in_3bet_plus_pot_opp<siège>` | Nb de fois face à une c-bet en pot 3-bet+ (compte) | `SUM(flop_cbet_faced_p3p)` |
+| `pt_donk_flop_in_3bet_plus_pot<siège>` | Donk bet flop en pot 3-bet+ | `SUM(flop_donk_p3p) / SUM(flop_donk_opp_p3p)` |
+| `pt_flop_check_raise_in_3bet_pot<siège>` | Check-raise flop en pot 3-bet | `SUM(flop_cr_p3) / SUM(flop_cr_opp_p3)` |
+| `pt_flop_check_raise_in_3bet_plus_pot<siège>` | Check-raise flop en pot 3-bet+ | `SUM(flop_cr_p3p) / SUM(flop_cr_opp_p3p)` |
+
+### Check-raise subi, 3-bet postflop
+
+| Symbole | Signification | Calcul |
+|---|---|---|
+| `pt_fold_to_f_check_raise<siège>` | Se couche face à un check-raise flop après avoir misé | `SUM(flop_fcr) / SUM(flop_fcr_opp)` |
+| `pt_fold_to_f_check_raise_3b_plus_pot<siège>` | Idem, en pot 3-bet+ | `SUM(flop_fcr_p3p) / SUM(flop_fcr_opp_p3p)` |
+| `pt_fold_to_f_check_raise_opp<siège>` | Nb de fois face à un check-raise flop (compte) | `SUM(flop_fcr_opp)` |
+| `pt_flop_fold_to_3bet<siège>` | Se couche face à un 3-bet au flop (mise, relance, re-relance) | `SUM(flop_f3) / SUM(flop_f3_opp)` |
+| `pt_turn_fold_to_3bet<siège>` | Idem au turn | `SUM(turn_f3) / SUM(turn_f3_opp)` |
+| `pt_river_fold_to_3bet<siège>` | Idem à la river | `SUM(river_f3) / SUM(river_f3_opp)` |
+| `pt_postflop_fold_to_3bet<siège>` | Idem toutes rues postflop | `SUM(flop_f3+turn_f3+river_f3) / SUM(flop_f3_opp+turn_f3_opp+river_f3_opp)` |
+
+Un 3-bet postflop = la 3ᵉ mise d'une rue (mise, relance, re-relance), quel que soit le joueur.
+
+### Float
+
+| Symbole | Signification | Calcul |
+|---|---|---|
+| `pt_float_flop<siège>` | Float flop : le caller (en position) mise quand l'agresseur préflop a checké, pot relancé une fois | `SUM(float_flop) / SUM(float_flop_opp)` |
+| `pt_flop_float<siège>` | Identique à `float_flop` | `SUM(float_flop) / SUM(float_flop_opp)` |
+| `pt_float_flop_in_3bet_pot<siège>` | Float en pot 3-bet : l'ouvreur qui a payé le 3-bet mise quand le 3-beteur checke | `SUM(float3_flop) / SUM(float3_flop_opp)` |
+| `pt_call_f_float_bet<siège>` | L'agresseur préflop (pot relancé une fois) a checké le flop, face à une mise : paye | `SUM(fd_call_sr) / SUM(fd_opp_sr)` |
+| `pt_call_f_float_bet_in_3b_pot<siège>` | Idem en pot 3-bet (agresseur = 3-beteur) : paye | `SUM(fd_call_p3) / SUM(fd_opp_p3)` |
+| `pt_fold_to_f_float_bet_in_3b_pot<siège>` | Idem en pot 3-bet : se couche | `SUM(fd_fold_p3) / SUM(fd_opp_p3)` |
+| `pt_fold_to_f_float_bet_in_3b_plus_pot<siège>` | Idem en pot 3-bet+ : se couche | `SUM(fd_fold_p3p) / SUM(fd_opp_p3p)` |
+
+Le float est détecté sur le comportement (mise du caller après check de l'agresseur) ; la mise n'est pas vérifiée comme étant « bluff ». Les stats « face à un float bet » comptent toute mise qui suit un check de l'agresseur, pas seulement les floats.
+
 ### Occasions (compteurs)
 
 | Symbole | Signification | Calcul |
@@ -182,14 +236,12 @@ Alignées sur le [Statistical Reference Guide de PokerTracker](https://www.poker
 
 ## Non couvert
 
-27 stats PokerTracker n'existent pas encore dans cette base (le symbole renvoie *indéfini*) : `4bet_plus_ratio`, `call_f_float_bet`, `call_f_float_bet_in_3b_pot`, `cbet_flop_in_3bet_pot`, `cbet_flop_opp_in_3bet_pot`, `donk_flop_in_3bet_plus_pot`, `float_flop`, `float_flop_in_3bet_pot`, `flop_check_raise_in_3bet_plus_pot`, `flop_check_raise_in_3bet_pot`, `flop_float`, `flop_fold_to_3bet`, `fold_to_f_cbet_in_3bet_plus_pot_opp`, `fold_to_f_cbet_in_3bet_pot`, `fold_to_f_check_raise`, `fold_to_f_check_raise_3b_plus_pot`, `fold_to_f_check_raise_opp`, `fold_to_f_float_bet_in_3b_plus_pot`, `fold_to_f_float_bet_in_3b_pot`, `fold_to_pf_squeeze`, `fold_to_squeeze_as_caller`, `fold_to_squeeze_as_raiser`, `fold_to_squeeze_as_raiser_opp`, `icon`, `postflop_fold_to_3bet`, `river_fold_to_3bet`, `turn_fold_to_3bet`.
-
-`icon` n'est pas supporté (désactivé aussi dans le code PokerTracker). Pas de filtres de limite, de taille de stack ni de type de tournoi. Les tailles d'ouverture ne sont pas disponibles pour les autres stats (squeeze, 4-bet…).
+Toutes les stats PokerTracker sont calculées **sauf `icon`** (icône d'auto-rate propriétaire de PokerTracker, désactivée aussi dans le code PT d'OpenHoldem) : son symbole renvoie *indéfini*. Pas de filtres de limite, de taille de stack ni de type de tournoi. Les tailles d'ouverture (2bb / 2,5bb / 3bb) existent seulement pour RFI, steal et 3-bet.
 
 ## Structure de la base
 
 - `hands` : une ligne par main (site, hand_id, date, table, blinds, board, pot, rake…). Clé unique `(site, hand_id)`, les doublons sont refusés.
-- `hand_player` : une ligne par joueur et main (pseudo, siège, position, stacks, cartes, gains) + 110 compteurs.
+- `hand_player` : une ligne par joueur et main (pseudo, siège, position, stacks, cartes, gains) + 147 compteurs.
 - `hand_actions` : toutes les actions de la main.
 - Version du schéma : `PRAGMA user_version` = 1. Une base créée par une version plus récente est refusée.
 - Seules les mains qui passent les contrôles de cohérence du générateur sont enregistrées.
@@ -197,7 +249,7 @@ Alignées sur le [Statistical Reference Guide de PokerTracker](https://www.poker
 ## Tests
 
 ```
-StatsDbTests/build_and_run.sh      # Linux / macOS, nécessite g++ ; 295 vérifications
+StatsDbTests/build_and_run.sh      # Linux / macOS, nécessite g++ ; 364 vérifications
 ```
 
 La partie Windows/MFC (préférences, branchement dans OpenHoldem) n'a pas été compilée dans l'environnement de test : compiler une fois sous Visual Studio.
