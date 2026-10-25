@@ -76,6 +76,8 @@
     <ClCompile Include="..\src\pt.cpp" />
     <ClCompile Include="..\src\runner.cpp" />
     <ClCompile Include="..\src\shanky.cpp" />
+    <ClCompile Include="..\src\versus.cpp" />
+    <ClCompile Include="..\src\versus_data.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\pokersim\brains.hpp" />
@@ -93,6 +95,7 @@
     <ClInclude Include="..\include\pokersim\pt.hpp" />
     <ClInclude Include="..\include\pokersim\rng.hpp" />
     <ClInclude Include="..\include\pokersim\runner.hpp" />
+    <ClInclude Include="..\include\pokersim\versus.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

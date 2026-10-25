@@ -13,7 +13,7 @@ find_package(Threads REQUIRED)
 add_library(pokersim_core STATIC
   src/cards.cpp src/equity.cpp src/config.cpp src/engine.cpp src/brains.cpp src/runner.cpp
   src/ohlang.cpp src/shanky.cpp src/pokerval.cpp src/handrank.cpp src/handrank_data.cpp src/prwin.cpp
-  src/ohsymbols_core.cpp src/ohsymbols_table.cpp src/ohbrain.cpp src/pt.cpp)
+  src/ohsymbols_core.cpp src/ohsymbols_table.cpp src/ohbrain.cpp src/pt.cpp src/versus.cpp src/versus_data.cpp)
 target_include_directories(pokersim_core PUBLIC include PRIVATE third_party)
 target_link_libraries(pokersim_core PUBLIC Threads::Threads)
 if(MSVC)
@@ -117,3 +117,7 @@ endif()
 add_executable(pt_tests tests/test_pt.cpp)
 target_link_libraries(pt_tests PRIVATE pokersim_core)
 add_test(NAME pt COMMAND pt_tests)
+
+add_executable(versus_tests tests/test_versus.cpp)
+target_link_libraries(versus_tests PRIVATE pokersim_core)
+add_test(NAME versus COMMAND versus_tests)

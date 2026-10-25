@@ -5,7 +5,7 @@ set "BIN=%~dp0bin\Release"
 set "ROOT=%~1"
 if "%ROOT%"=="" set "ROOT=%~dp0.."
 set FAIL=0
-for %%t in (test_core test_ohlang test_prwin test_pt) do (
+for %%t in (test_core test_ohlang test_prwin test_pt test_versus) do (
   echo === %%t
   "%BIN%\%%t.exe" || set FAIL=1
 )

@@ -1,0 +1,26 @@
+// Profil de démonstration OH-script : décisions fondées sur les symboles vs$ (équité exacte contre une GAMME de mains).
+// La liste list001 est la gamme supposée de nos adversaires quand ils misent ; vs$list001$prwin = mes chances contre cette gamme.
+##list001##
+AA KK QQ JJ TT 99 AKs AQs AJs KQs AKo AQo
+
+##list002##
+AA KK QQ JJ TT AKs AKo
+
+##f$call##
+// je paie si j'ai de quoi battre une gamme forte ; contre une relance je me fie à la gamme list001
+(vs$list001$prwin + vs$list001$prtie / 2 >= 0.40) ? 1 :
+(vs$prwin + vs$prtie / 2 >= 0.60) ? 1 : 0
+
+##f$rais##
+// je relance si je domine une gamme forte, ou si j'ai l'avantage contre une main aléatoire (puissance : plusieurs adversaires)
+(vs$list002$prwin + vs$list002$prtie / 2 >= 0.55) ? 1 :
+(vs$prwin >= 0.70) ? 1 : 0
+
+##f$alli##
+// all-in avec le meilleur de la gamme (équité >= 80 % contre list001), seulement face à un adversaire
+(nopponentsplaying == 1 && vs$list001$prwin + vs$list001$prtie / 2 >= 0.80) ? 1 : 0
+
+##f$check##
+1
+##f$fold##
+1

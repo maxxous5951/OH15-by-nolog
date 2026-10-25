@@ -15,6 +15,7 @@
 #include "pokersim/ohlang.hpp"
 #include "pokersim/pokerval.hpp"
 #include "pokersim/prwin.hpp"
+#include "pokersim/versus.hpp"
 
 namespace ps::oh {
 
@@ -118,6 +119,9 @@ public:
     PrwinResult prwinTriplet();
     NhandsResult nhands();
     HandrankValues handrank();
+    // vs$ : issue contre chaque main adverse (énumération exacte) et agrégats par liste de mains
+    const VersusResult& versus();
+    double versusList(const std::string& listName, int which);   // which : 0 prwin, 1 prtie, 2 prlos
     // mémoire me_*
     double memorySymbol(const std::string& name);
 
@@ -138,6 +142,8 @@ private:
     int depth_ = 0;
     std::map<std::string, long long> unknown_;
     // caches par état lié
+    bool vsOk_ = false;
+    std::unique_ptr<VersusResult> vs_;
     bool pvOk_ = false, csOk_ = false, noutsOk_ = false, prwOk_ = false, nhOk_ = false, hrOk_ = false, hiPrwinKnown_ = false, hiPrwin_ = false;
     PokerVal pv_; CardStats cs_; std::pair<int, int> nouts_; PrwinResult prw_; NhandsResult nh_; HandrankValues hr_;
 };

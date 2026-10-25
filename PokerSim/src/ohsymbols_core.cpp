@@ -65,7 +65,7 @@ void SymbolContext::bind(Game& g, int ch) {
     for (Card c : me->cards) if (c != kNoCard) hole.push_back(c);
     for (Card c : t->board) board.push_back(c);
     fnCache_.clear();
-    pvOk_ = csOk_ = noutsOk_ = prwOk_ = nhOk_ = hrOk_ = false;
+    pvOk_ = csOk_ = noutsOk_ = prwOk_ = nhOk_ = hrOk_ = vsOk_ = false;
 }
 
 void SymbolContext::newGame(Game& g) {
@@ -95,13 +95,13 @@ void SymbolContext::prepare(Game& g, int ch) {
         evaluateNamed("UpdateMemorySymbolsOnNewRound");
         evaluateNamed("f$ini_function_on_new_round");
         fnCache_.clear();
-        pvOk_ = csOk_ = noutsOk_ = prwOk_ = nhOk_ = hrOk_ = false;
+        pvOk_ = csOk_ = noutsOk_ = prwOk_ = nhOk_ = hrOk_ = vsOk_ = false;
     }
     beatRand = rng.uniform();
     evaluateNamed("f$ini_function_on_my_turn");
     evaluateNamed("f$ini_function_on_heartbeat");
     fnCache_.clear();
-    pvOk_ = csOk_ = noutsOk_ = prwOk_ = nhOk_ = hrOk_ = false;
+    pvOk_ = csOk_ = noutsOk_ = prwOk_ = nhOk_ = hrOk_ = vsOk_ = false;
     snapshotHistory();
 }
 
@@ -502,6 +502,39 @@ HandrankValues SymbolContext::handrank() {
     hrOk_ = true;
     hr_ = hole.size() >= 2 ? computeHandrank(toPe(hole[0]), toPe(hole[1]), nopponentsForPrwin()) : HandrankValues{};
     return hr_;
+}
+
+// ============================================================ vs$ (CSymbolEngineVersus)
+const VersusResult& SymbolContext::versus() {
+    if (!vs_) vs_ = std::make_unique<VersusResult>();
+    if (vsOk_) return *vs_;
+    vsOk_ = true;
+    if (hole.size() >= 2) {
+        const auto p = playing();
+        const int nOpp = static_cast<int>(p.size()) - (std::find(p.begin(), p.end(), chair) != p.end() ? 1 : 0);   // nopponentsplaying
+        computeVersus(toPe(hole[0]), toPe(hole[1]), maskOf(board), static_cast<int>(board.size()), nOpp, *vs_);
+    } else *vs_ = VersusResult{};
+    return *vs_;
+}
+
+double SymbolContext::versusList(const std::string& listName, int which) {
+    std::shared_ptr<OHFunction> f;
+    auto it = fc->functions.find(listName);
+    if (it != fc->functions.end()) f = it->second;
+    else { auto li = fc->lowerIndex.find(lowerS(listName)); if (li != fc->lowerIndex.end()) f = fc->functions.at(li->second); }
+    if (!f || !f->hands) return 0.0;                         // liste inconnue ou invalide : OpenHoldem renvoie 0
+    const VersusResult& R = versus();
+    if (!R.valid) return 0.0;
+    double nw = 0, nt = 0, nl = 0;
+    for (int i = 0; i < 51; ++i) for (int j = i + 1; j < 52; ++j) {
+        const uint32_t w = R.win[i][j], t = R.tie[i][j], l = R.loss[i][j];
+        if (w + t + l == 0) continue;                        // main impossible (cartes connues)
+        if (!f->hands->isOnList(i % 13 + 2, j % 13 + 2, i / 13 == j / 13, rng)) continue;
+        nw += w; nt += t; nl += l;
+    }
+    double total = nw + nt + nl;
+    if (total == 0) total = 1;
+    return (which == 0 ? nw : which == 1 ? nt : nl) / total;
 }
 
 // ============================================================ mémoire me_*

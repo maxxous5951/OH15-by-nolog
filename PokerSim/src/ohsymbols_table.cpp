@@ -349,7 +349,35 @@ SymbolContext::Native SymbolContext::resolveNative(const std::string& name) {
     }
     if (name.rfind("$", 0) == 0) return [name](Ctx& c) { return c.isHand(name); };
     if (startsLow("islist")) { std::string num = name.substr(6); return [num](Ctx& c) { return c.isList(num); }; }
-    if (startsLow("vs$")) return [](Ctx&) { return 0.0; };                       // TODO : listes versus (Python : approximation)
+    if (startsLow("vs$")) {
+        const std::string rest = low.substr(3);
+        auto post = [&](const char* p) { return rest.size() > 6 && rest.compare(rest.size() - 6, 6, p) == 0; };
+        const int which = post("$prwin") ? 0 : post("$prtie") ? 1 : post("$prlos") ? 2 : -1;
+        if (rest.rfind("multiplex$", 0) == 0 && which >= 0) {
+            const std::string infix = name.substr(13, name.size() - 13 - 6);
+            return [infix, which](Ctx& c) { const double d = c.symbol(names().intern(infix)); return c.versusList("list" + std::to_string(static_cast<int>(d + 0.5)), which); };
+        }
+        if (rest.rfind("list", 0) == 0 && which >= 0) {
+            const std::string listName = name.substr(3, name.size() - 9);
+            return [listName, which](Ctx& c) { return c.versusList(listName, which); };
+        }
+        // vs$nhands[hi|ti|lo][now], vs$prwin|prtie|prlos[hi|ti|lo][now]
+        static const std::regex re("^(nhands|prwin|prtie|prlos)(hi|ti|lo)?(now)?$");
+        std::smatch m;
+        if (std::regex_match(rest, m, re)) {
+            const std::string kind = m[1], grp = m[2], now = m[3];
+            return [kind, grp, now](Ctx& c) -> double {
+                const VersusResult& R = c.versus();
+                if (!R.valid) return 0.0;
+                const bool n = !now.empty();
+                const VersusGroup& g = grp.empty() ? R.all : grp == "hi" ? (n ? R.hiNow : R.hi) : grp == "ti" ? (n ? R.tiNow : R.ti) : (n ? R.loNow : R.lo);
+                if (kind == "nhands") return static_cast<double>(g.nhands);
+                if (grp.empty() && !n) return kind == "prwin" ? R.prwin : kind == "prtie" ? R.prtie : R.prlos;   // prwin élevé à la puissance du nombre d'adversaires
+                return kind == "prwin" ? g.prwin() : kind == "prtie" ? g.prtie() : g.prlos();
+            };
+        }
+        return [name](Ctx& c) { c.noteUnknown(name); return 0.0; };                 // vs$ inconnu ou ancien format : 0
+    }
     if (startsLow("hi_")) {
         static const std::regex re("^hi_(.*?)(\\d)$");
         std::smatch m;

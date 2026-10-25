@@ -63,6 +63,24 @@ jouées, avec les **définitions de PokerTracker 4** (colonnes `flg_*` / `cnt_*`
   OpenHoldem 15 rejette aussi : ils renvoient -1 et apparaissent dans la liste des symboles inconnus.
 - Dans l'interface : Configuration > PokerTracker simulé (base de départ, enregistrement) ; Résultats > tableau des statistiques de chaque joueur.
 
+## Symboles vs$ (équité exacte contre des gammes)
+
+Mes chances contre **chaque** main adverse possible, par énumération exacte des boards restants, comme OpenHoldem (`CSymbolEngineVersus`) :
+
+| Symbole | Sens |
+|---|---|
+| `vs$prwin`, `vs$prtie`, `vs$prlos` | contre toutes les mains adverses ; `prwin` est élevé à la puissance de `nopponentsplaying` (pas `prtie` ni `prlos`, comme OpenHoldem) |
+| `vs$nhands`, `vs$nhandshi/ti/lo` | nombre de mains adverses meilleures (`hi`), égales (`ti`) ou moins bonnes (`lo`) que la mienne, sur les runouts |
+| `vs$prwinhi`, `vs$prtielo`… | idem restreint à un groupe ; variantes `…now` (postflop) selon la valeur de main actuelle |
+| `vs$listNom$prwin` / `prtie` / `prlos` | contre les mains d'une liste (`##listNom##`, poids pris en compte) |
+| `vs$multiplex$f$fonction$prwin` | idem, la liste `list<N>` étant choisie par la valeur d'une fonction |
+
+- **Préflop** : table **exacte** de `versus.bin` d'OpenHoldem (1 712 304 boards par confrontation). Elle est fournie compactée (47 008 confrontations canoniques, `src/versus_data.cpp`,
+  générée par `tools/gen_versus_table.py` depuis `versus.bin/*.rar` du dépôt) : chacune des 1 624 350 entrées d'origine est retrouvée à l'identique.
+- **Postflop** : énumération exacte (flop ≈ 25 ms, turn ≈ 1 ms, river < 0,1 ms, par décision).
+- Vérifié par force brute (28 confrontations, 1,7 M boards chacune), contre l'énumérateur exact du cœur (flop/turn/river) et par la valeur classique AA contre KK = 81,95 %.
+- Exemple : `examples/vs_demo.ohf` (profil OH-script fondé sur `vs$`).
+
 ## Compiler sous Linux / macOS
 
     cmake -S . -B build -G Ninja && cmake --build build && ctest --test-dir build
@@ -99,7 +117,8 @@ Bots intégrés : `builtin:tag` (équité Monte-Carlo), `builtin:call`, `builtin
 3. **[fait]** Symboles natifs (698 noms testés) + bibliothèque OpenPPL + cerveau OpenHoldem : les profils jouent
 4. **[fait]** `prwin` / `nhands` / `handrank` / `pokerval` portés depuis l'original (validés par oracle)
 5. **[fait]** Interface graphique, historique complet des mains, **PokerTracker simulé** (`pt_*`)
-6. À faire : listes `vs$`, performances
+6. **[fait]** Symboles `vs$` (équité exacte contre une main, une liste ou une gamme)
+7. À faire : performances, statistiques PokerTracker plus rares
 
 ## Formules OpenHoldem (phase 2)
 
@@ -151,7 +170,7 @@ La CLI liste à la fin les **symboles inconnus** (évalués à 0) pour chaque pr
 
 ### Limites connues
 
-`vs$*` renvoie 0, pas de DLL utilisateur ni de `prw1326` alimenté par DLL,
+pas de DLL utilisateur ni de `prw1326` alimenté par DLL,
 No Limit Hold'em uniquement.
 
 ### Vérifications de l'interface
