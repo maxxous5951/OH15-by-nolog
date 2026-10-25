@@ -22,6 +22,7 @@
 #include "CLevDistance.h"
 #include "..\PokerTracker_Query_Definitions\pokertracker_query_definitions.h"
 #include "CPokerTrackerLookUp.h"
+#include "CStatsDatabase.h"
 
 #include "CSymbolEngineActiveDealtPlaying.h"
 #include "CSymbolEngineAutoplayer.h"
@@ -390,6 +391,19 @@ double UpdateStat(int m_chr, int stat)
 	double		result = kUndefined;
 	clock_t		updStart, updEnd;
 	int			  duration;
+
+	// Stats from the OpenHoldem database instead of PokerTracker:
+	// same symbols, same cache of the PokerTracker-DLL, other source.
+	if (CStatsDatabase::UseAsStatsSource())
+	{
+		assert(m_chr >= kFirstChair);
+		assert(m_chr <= kLastChair);
+		assert(stat >= 0);
+		assert(stat < PT_DLL_GetNumberOfStats());
+		double value = StatsDatabase()->GetStat(m_chr, stat);
+		PT_DLL_SetStat(stat, m_chr, value);
+		return value;
+	}
 
 	int sym_elapsed = p_engine_container->symbol_engine_time()->elapsed();
 

@@ -115,6 +115,9 @@ const char* k_registry_keys_for_numerical_values[k_prefs_last_numerical_value + 
   "handhistory_generator_enable",
   "handhistory_tournament",
   "handhistory_profile",
+  "stats_source",
+  "stats_db_record",
+  "stats_db_by_position",
   "simple_window_title",
   "table_positioner_always_keep_position",
   "block_screenshots",
@@ -175,6 +178,7 @@ const char* k_registry_keys_for_CStrings[k_prefs_last_CString_value + 1] = {
   "pt_dbname",
   "pt_user",
   "pt_pass",
+  "stats_db_path",
   "rebuy_script",
   "window_class_name",
   "mutex_name",
@@ -254,6 +258,10 @@ void CPreferences::InitDefaults(void) {
   prefs_numerical_values[k_prefs_table_positioner_options] = k_position_tables_cascaded;
   prefs_numerical_values[k_prefs_capture_method] = k_CaptureMethod_Original;
   prefs_numerical_values[k_prefs_advisor_enabled] = false;
+  // Stats database: PokerTracker stays the default, nothing is recorded
+  prefs_numerical_values[k_prefs_stats_source] = 0;
+  prefs_numerical_values[k_prefs_stats_db_record] = false;
+  prefs_numerical_values[k_prefs_stats_db_by_position] = false;
   prefs_numerical_values[k_prefs_advisor_corner] = 1;   // top right
   // Mouse: the fast reference mouse stays the default
   prefs_numerical_values[k_prefs_mouse_mode] = 0;
@@ -290,6 +298,9 @@ CString CPreferences::DefaultStringValues(int index) {
     return "pokertracker";
   case k_prefs_pt_pass:
     return "*** top secret ***";
+  case k_prefs_stats_db_path:
+    // Empty = default location (<OpenHoldem folder>\Hand_Histories\oh_stats.db)
+    return "";
   case k_prefs_rebuy_script:
     return "Tools\\RebuyDemo.exe";
   case k_prefs_window_class_name:

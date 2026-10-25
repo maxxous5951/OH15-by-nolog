@@ -43,9 +43,9 @@ void CHeartbeatDelay::FlexibleSleep() {
     // than "performance", usually single-tabling.
     sleeping_factor = MIN(sleeping_factor, 2);
   }
-  if (Preferences()->handhistory_generator_enable()
+  if ((Preferences()->handhistory_generator_enable() || Preferences()->stats_db_record())
       && p_autoconnector->IsConnectedToAnything()) {
-    // The handhistory-generator needs every action of every player.
+    // The handhistory-generator (and the stats database) needs every action of every player.
     // Slowing down while we are folded or while opponents think would make us
     // miss raises, calls and folds at fast tables, therefore never slower
     // than the delay from the preferences (but faster is still fine).

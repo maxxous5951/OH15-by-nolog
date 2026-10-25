@@ -135,6 +135,10 @@ enum {
   k_prefs_handhistory_generator_enable,
   k_prefs_handhistory_tournament,
   k_prefs_handhistory_profile,
+  // OpenHoldem's own stats database (alternative to PokerTracker)
+  k_prefs_stats_source,
+  k_prefs_stats_db_record,
+  k_prefs_stats_db_by_position,
   k_prefs_simple_window_title,
   k_prefs_table_positioner_always_keep_position,
   k_prefs_block_screenshots,
@@ -195,6 +199,7 @@ enum {
   k_prefs_pt_dbname,
   k_prefs_pt_user,
   k_prefs_pt_pass,
+  k_prefs_stats_db_path,
   k_prefs_rebuy_script,
   k_prefs_window_class_name,
   k_prefs_mutex_name,
@@ -346,6 +351,14 @@ public:
   // false = cash game (default), true = tournament
   const bool handhistory_tournament() { return prefs_numerical_values[k_prefs_handhistory_tournament]; }
   const bool handhistory_profile() { return prefs_numerical_values[k_prefs_handhistory_profile]; }
+  // Stats database: 0 = PokerTracker (default), 1 = OpenHoldem database
+  const int  stats_source() { return (int)prefs_numerical_values[k_prefs_stats_source]; }
+  // Hands are recorded if wanted, and always if the database is the source of the stats
+  const bool stats_db_record() { return prefs_numerical_values[k_prefs_stats_db_record] != 0 || prefs_numerical_values[k_prefs_stats_source] == 1; }
+  // Stats of a player at his current position (like the PokerTracker-queries)
+  const bool stats_db_by_position() { return prefs_numerical_values[k_prefs_stats_db_by_position] != 0; }
+  // Empty = default location, <OpenHoldem folder>\Hand_Histories\oh_stats.db
+  LPCSTR stats_db_path() { return NonEmptyStringValueElseDefault(k_prefs_stats_db_path); }
   // Table Positioner
   const int table_positioner_options() { return prefs_numerical_values[k_prefs_table_positioner_options]; }
   const bool table_positioner_always_keep_position() { return prefs_numerical_values[k_prefs_table_positioner_always_keep_position]; }

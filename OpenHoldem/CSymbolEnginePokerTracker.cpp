@@ -21,6 +21,7 @@
 #include "CParseTreeTerminalNodeEndOfFunction.h"
 #include "..\PokerTracker_Query_Definitions\pokertracker_query_definitions.h"
 #include "CPokerTrackerThread.h"
+#include "CStatsDatabase.h"
 
 #include "CSymbolEngineCallers.h"
 #include "CSymbolEngineChairs.h"
@@ -52,6 +53,11 @@ void CSymbolEnginePokerTracker::InitOnStartup() {
 
 void CSymbolEnginePokerTracker::UpdateOnConnection() {
 	ClearAllStats();
+	if (CStatsDatabase::UseAsStatsSource()) {
+		// OpenHoldem's own database: nothing to connect to, just open the file
+		StatsDatabase()->Open();
+		return;
+	}
 	if (!p_pokertracker_thread->_connected) {
 		p_pokertracker_thread->Connect();
 	}
@@ -112,6 +118,9 @@ void CSymbolEnginePokerTracker::ClearSeatStats(int chair, bool clearNameAndFound
 	write_log(Preferences()->debug_pokertracker(), "[CSymbolEnginePokerTracker] ClearSeatStats() for chair %i\n", chair);
 	PT_DLL_ClearPlayerStats(chair);
 	if (clearNameAndFound) {
+		StatsDatabase()->ClearChair(chair);
+	}
+	if (clearNameAndFound) {
 		_player_data[chair].found = false;
 		memset(_player_data[chair].pt_name, 0, kMaxLengthOfPlayername);
 		memset(_player_data[chair].scraped_name, 0, kMaxLengthOfPlayername);
@@ -123,7 +132,10 @@ void CSymbolEnginePokerTracker::ClearAllStatsOfChangedPlayers() {
 	write_log(Preferences()->debug_pokertracker(), "[CSymbolEnginePokerTracker] Executing ClearAllStatsOfChangedPlayers()\n");
 	for (int i=0; i<kMaxNumberOfPlayers; i++)
 	{
-		if (p_pokertracker_thread->CheckIfNameHasChanged(i))
+		const bool changed = CStatsDatabase::UseAsStatsSource()
+			? StatsDatabase()->NameHasChanged(i)
+			: p_pokertracker_thread->CheckIfNameHasChanged(i);
+		if (changed)
 		{
 			ClearSeatStats(i, true);
 		}
@@ -182,7 +194,11 @@ bool CSymbolEnginePokerTracker::EvaluateSymbol(const CString name, double *resul
 		return true;
 	}
 	int chair = 0;
-	if (!p_pokertracker_thread->IsConnected()) 	{
+	const bool use_oh_database = CStatsDatabase::UseAsStatsSource();
+	const bool database_connected = use_oh_database
+		? StatsDatabase()->IsConnected()
+		: p_pokertracker_thread->IsConnected();
+	if (!database_connected) 	{
 		if (!p_engine_container->symbol_engine_userchair()->userchair_confirmed() || p_formula_parser->IsParsing()) {
 			// We are not yet seated or formula is getting parsed.
 			// Symbol-lookup happens, because of Formula-validation.
@@ -199,8 +215,11 @@ bool CSymbolEnginePokerTracker::EvaluateSymbol(const CString name, double *resul
         // Lots of people will use it without a DB
       } else {
         // Serious problem: PT-usage in user-code
-        MessageBox_Error_Warning("Not connected to PokerTracker database.\n"
-          "Can't use PokerTracker symbols.");
+        MessageBox_Error_Warning(use_oh_database
+          ? "Can't open the OpenHoldem stats database.\n"
+            "Can't use PokerTracker symbols (see Preferences / Stats)."
+          : "Not connected to PokerTracker database.\n"
+            "Can't use PokerTracker symbols.");
       }
 		}
 		*result = kUndefined;

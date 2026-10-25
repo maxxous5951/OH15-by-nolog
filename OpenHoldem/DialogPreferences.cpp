@@ -22,10 +22,12 @@
 #include "CHandHistoryWriter.h"
 #include "COpenHoldemTitle.h"
 #include "CPokerTrackerThread.h"
+#include "CStatsDatabase.h"
 #include "MainFrm.h"
 #include "OpenHoldem.h"
 #include "ModernUI/ModernGfx.h"
 #include "..\DLLs\Globals_DLL\globals.h"
+#include "..\PokerTracker_Query_Definitions\pokertracker_query_definitions.h"
 #include "..\DLLs\Preferences_DLL\Preferences.h"
 #include "..\DLLs\WindowFunctions_DLL\window_functions.h"
 
@@ -319,6 +321,18 @@ void TestPokerTrackerConnection(CDlgPreferences* dialog) {
     MessageBox_Interactive(e.GetString(), "ERROR", MB_OK);
     PQfinish(pgconn);
   }
+}
+
+// -- Stats database: test the file --
+void TestStatsDatabase(CDlgPreferences* dialog) {
+  CString path = dialog->TextOf("stats_db_path");
+  path.Trim();
+  if (path.IsEmpty()) {
+    path = CStatsDatabase::DefaultPath();
+  }
+  CString message;
+  const bool ok = CStatsDatabase::TestPath(path, &message);
+  MessageBox_Interactive(message.GetString(), ok ? "Success" : "ERROR", MB_OK);
 }
 
 }  // namespace
@@ -704,6 +718,36 @@ void CDlgPreferences::BuildPages() {
     lines.set_text = &SaveUnwantedScrape;
     lines.validate_text = &ValidateUnwantedScrape;
     p.items.push_back(lines);
+  }
+
+  // ----- Stats Database (OpenHoldem's own, alternative to PokerTracker) -----
+  {
+    PrefsPage& p = NewPage(&_pages, "Stats Database");
+    p.items.push_back(Heading("Source of the pt_-symbols (pt_vpip3, pt_pfr_raischair, ...)"));
+    PrefsItem source = Radio({ "PokerTracker v4 (PostgreSQL, see page \"Poker Tracker v4\")",
+                               "OpenHoldem database (built from the hands of the handhistory generator)" },
+      []() -> int { return Preferences()->stats_source() == kStatsSourceOpenHoldemDb ? 1 : 0; },
+      [](int index) { SetNumber(k_prefs_stats_source, index == 1 ? kStatsSourceOpenHoldemDb : kStatsSourcePokerTracker); });
+    source.after_apply = []() {
+      // Values of the old source must not be used any more
+      PT_DLL_ClearAllPlayerStats();
+    };
+    p.items.push_back(source);
+    p.items.push_back(Note("The symbols and formulas stay the same, only the source of the numbers changes. "
+      "No PokerTracker and no PostgreSQL needed for the OpenHoldem database: "
+      "it is a single file that grows with every hand you play or observe."));
+    p.items.push_back(Heading("OpenHoldem database"));
+    p.items.push_back(PREF_CHECK("Record hands (always on if the OpenHoldem database is the source)",
+      stats_db_record, k_prefs_stats_db_record));
+    p.items.push_back(PREF_CHECK("Stats of a player at his current position only (needs many hands per player)",
+      stats_db_by_position, k_prefs_stats_db_by_position));
+    p.items.push_back(PREF_TEXT("Database file (empty = default)", "stats_db_path",
+      stats_db_path, k_prefs_stats_db_path));
+    p.items.push_back(Button("Test", &TestStatsDatabase, false));
+    p.items.push_back(Note("Default file: Hand_Histories\\oh_stats.db in the OpenHoldem folder. "
+      "Hands are recorded by the handhistory generator: choose cash game or tournament on the page "
+      "\"Handhistory Generator\" (the generator itself does not have to be enabled). "
+      "Only hands that pass the consistency checks are stored."));
   }
 
   // ----- Stealth -----

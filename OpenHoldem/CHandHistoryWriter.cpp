@@ -31,6 +31,7 @@
 #include "CHandHistoryUncontested.h"
 #include "CAutoplayerTrace.h"
 #include "CScraper.h"
+#include "CStatsDatabase.h"
 #include "CSessionCounter.h"
 #include "CSymbolEngineDealerchair.h"
 #include "CSymbolEngineIsTournament.h"
@@ -136,7 +137,10 @@ void CHandHistoryWriter::UpdateOnMyTurn() {
 }
 
 void CHandHistoryWriter::UpdateOnHeartbeat() {
-  if (!Preferences()->handhistory_generator_enable()) {
+  // The hands are also needed to fill the stats database,
+  // even if no hand-history files are wanted.
+  if (!Preferences()->handhistory_generator_enable()
+      && !Preferences()->stats_db_record()) {
     return;
   }
   _reconstructor.Feed(BuildSnapshot());
@@ -312,29 +316,42 @@ void CHandHistoryWriter::WriteHand(hh::Hand hand) {
     }
   }
 
-  CString directory = OutputDirectory();
+  // hand-history files (if enabled) and / or the stats database (if enabled)
+  const bool write_files = Preferences()->handhistory_generator_enable();
+  CString directory;
+  if (write_files) {
+    directory = OutputDirectory();
+  }
   CString path;
   if (hand.valid()) {
-    path.Format("%s\\%s_%s.txt", directory.GetString(), tournament ? "HH_Tournament" : "HH", day);
-    AppendToFile(path, hh::FormatPokerStars(hand, _format_options));
-    if (Preferences()->handhistory_profile()) {
-      // Same hand with the formula line behind every action of the bot,
-      // in a separate folder
-      AttachNotes(&hand);
-      hh::FormatOptions profile_options = _format_options;
-      profile_options.show_notes = true;
-      CString profile_directory = directory + "\\Profile";
-      SHCreateDirectoryEx(NULL, profile_directory.GetString(), NULL);
-      CString profile_path;
-      profile_path.Format("%s\\%s_%s.txt", profile_directory.GetString(),
-        tournament ? "HH_Profile_Tournament" : "HH_Profile", day);
-      AppendToFile(profile_path, hh::FormatPokerStars(hand, profile_options));
+    if (write_files) {
+      path.Format("%s\\%s_%s.txt", directory.GetString(), tournament ? "HH_Tournament" : "HH", day);
+      AppendToFile(path, hh::FormatPokerStars(hand, _format_options));
+      if (Preferences()->handhistory_profile()) {
+        // Same hand with the formula line behind every action of the bot,
+        // in a separate folder
+        AttachNotes(&hand);
+        hh::FormatOptions profile_options = _format_options;
+        profile_options.show_notes = true;
+        CString profile_directory = directory + "\\Profile";
+        SHCreateDirectoryEx(NULL, profile_directory.GetString(), NULL);
+        CString profile_path;
+        profile_path.Format("%s\\%s_%s.txt", profile_directory.GetString(),
+          tournament ? "HH_Profile_Tournament" : "HH_Profile", day);
+        AppendToFile(profile_path, hh::FormatPokerStars(hand, profile_options));
+      }
+    }
+    if (Preferences()->stats_db_record()) {
+      // Only reliable hands go into the database
+      StatsDatabase()->RecordHand(hand);
     }
     write_log(Preferences()->debug_handhistory(), 
       "[HandHistory] hand %s written\n", id);
   } else {
-    path.Format("%s\\rejected_%s.log", directory.GetString(), day);
-    AppendToFile(path, hh::FormatRejected(hand, _format_options));
+    if (write_files) {
+      path.Format("%s\\rejected_%s.log", directory.GetString(), day);
+      AppendToFile(path, hh::FormatRejected(hand, _format_options));
+    }
     write_log(Preferences()->debug_handhistory(), 
       "[HandHistory] hand %s rejected (%s)\n", id,
       hand.problems.empty() ? "" : hand.problems[0].c_str());

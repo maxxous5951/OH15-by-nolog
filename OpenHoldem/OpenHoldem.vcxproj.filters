@@ -22,6 +22,9 @@
     <ClCompile Include="CHandHistoryShowdown.cpp" />
     <ClCompile Include="CHandHistoryUncontested.cpp" />
     <ClCompile Include="CHandHistoryWriter.cpp" />
+    <ClCompile Include="CStatsDatabase.cpp" />
+    <ClCompile Include="StatsDb.cpp" />
+    <ClCompile Include="..\sqlite\sqlite3.c" />
     <ClCompile Include="CHandresetDetector.cpp" />
     <ClCompile Include="CHeartbeatDelay.cpp" />
     <ClCompile Include="CHeartbeatThread.cpp" />
@@ -239,6 +242,10 @@
     <ClInclude Include="CHandHistoryShowdown.h" />
     <ClInclude Include="CHandHistoryUncontested.h" />
     <ClInclude Include="CHandHistoryWriter.h" />
+    <ClInclude Include="CStatsDatabase.h" />
+    <ClInclude Include="StatsCore.h" />
+    <ClInclude Include="StatsDb.h" />
+    <ClInclude Include="..\sqlite\sqlite3.h" />
     <ClInclude Include="HandHistoryCore.h" />
     <ClInclude Include="HandHistoryFormat.h" />
     <ClInclude Include="CHandresetDetector.h" />
