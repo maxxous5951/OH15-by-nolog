@@ -37,7 +37,7 @@ struct sqlite3;
 
 namespace ohstats {
 
-const int kSchemaVersion = 1;
+const int kSchemaVersion = 2;
 
 // Which hands are used for a statistic
 struct StatFilter {
@@ -48,6 +48,57 @@ struct StatFilter {
   int         position;       // only hands in this position (enum Position), -1 = all
   StatFilter() : tournament(false), nb_hands(0), since(0), position(-1) {}
 };
+
+// ---- Queries of the explorer (player table, hand list, hand) ----
+
+// One row of the player table
+struct PlayerRow {
+  std::string         name;
+  long long           hands;
+  double              won;        // net result (money or chips)
+  std::vector<double> values;     // one value per requested statistic, NaN = undefined
+  PlayerRow() : hands(0), won(0) {}
+};
+
+struct PlayerQuery {
+  StatFilter               filter;
+  bool                     any_game_type;   // cash games and tournaments together
+  std::string              name_contains;   // "" = all players
+  int                      min_hands;
+  std::vector<std::string> stats;           // names of the statistics (columns)
+  int                      limit;
+  PlayerQuery() : any_game_type(false), min_hands(1), limit(1000) {}
+};
+
+struct HandQuery {
+  std::string site;            // "" = all
+  int         game_type;       // -1 = all, 0 = cash, 1 = tournament
+  long long   since;           // 0 = all
+  std::string player;          // only hands of this player (exact name), "" = all
+  int         limit, offset;
+  HandQuery() : game_type(-1), since(0), limit(200), offset(0) {}
+};
+
+// One line of the hand list. The "player" columns belong to the selected
+// player, else to the hero (the user), if he took part.
+struct HandRow {
+  long long   pk;
+  std::string site, hand_id, table_name, board;
+  long long   played_at;
+  bool        tournament, showdown;
+  double      sblind, bblind, pot;
+  int         n_players;
+  bool        has_player, player_folded;
+  std::string player_name, player_hole;
+  int         player_position;
+  double      player_net;
+  HandRow() : pk(0), played_at(0), tournament(false), showdown(false), sblind(0), bblind(0),
+              pot(0), n_players(0), has_player(false), player_folded(false),
+              player_position(-1), player_net(0) {}
+};
+
+// "2026/10/25 19:24:00" in local time (like the hand histories)
+std::string FormatTimestamp(long long seconds_since_1970);
 
 class Db {
  public:
@@ -79,6 +130,18 @@ class Db {
   bool GetStat(const std::string &stat_name, const std::string &player,
                const StatFilter &filter, double *value);
 
+  // Player table: one row per player with the requested statistics
+  bool PlayerTable(const PlayerQuery &query, std::vector<PlayerRow> *rows, std::string *error = NULL);
+  // Hand list, newest first. total = number of hands that match (ignoring limit / offset).
+  bool ListHands(const HandQuery &query, std::vector<HandRow> *rows, long long *total = NULL,
+                 std::string *error = NULL);
+  // Rebuilds a stored hand (for the hand text and the replayer)
+  bool LoadHand(long long pk, hh::Hand *hand, std::string *site = NULL, std::string *error = NULL);
+  // Sites that occur in the database (lower case)
+  std::vector<std::string> Sites();
+  // Names of the players of the database that contain the text
+  std::vector<std::string> FindPlayers(const std::string &contains, int limit = 50);
+
   // Checks that the file is healthy and that the SQL of all statistics is valid
   bool SelfTest(std::string *error = NULL);
 
@@ -89,6 +152,7 @@ class Db {
  private:
   bool Exec(const char *sql, std::string *error);
   bool CreateSchema(std::string *error);
+  bool EnsureColumn(const char *table, const char *column, const char *type, std::string *error);
   void SetError(std::string *error, const std::string &message);
 
   sqlite3    *db_;

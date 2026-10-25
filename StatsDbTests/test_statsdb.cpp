@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include "StatsDb.h"
+#include "HandHistoryFormat.h"
 
 using namespace ohstats;
 
@@ -711,6 +712,148 @@ static void TestStatNamesMatchPokerTracker(const char *header_path) {
   }
 }
 
+static void TestExplorerQueries() {
+  printf("explorer queries (player table, hand list, rebuilding hands)\n");
+  std::string path = TempPath("explorer.db");
+  RemoveDb(path);
+  Db db;
+  std::string error;
+  CHECK(db.Open(path, &error));
+
+  // A complete hand: hero P0 raises, Villain (seat 5) 3-bets, bet on the flop, uncalled part
+  HandBuilder b("full", 1700000000);
+  b.h.hero = 0;
+  b.h.table_name = "Table 7"; b.h.nseats = 6;
+  b.h.hole[0][0] = "As"; b.h.hole[0][1] = "Kd";
+  b.h.hole[5][0] = "Qh"; b.h.hole[5][1] = "Qc";
+  b.h.name[5] = "Villain";
+  b.Act(3, hh::kFold, 1).Act(4, hh::kFold, 1);
+  b.Act(5, hh::kRaise, 1, 3);
+  b.h.actions.back().raise_by = 2; b.h.actions.back().amount = 3;
+  b.Act(0, hh::kCall, 1, 3);
+  b.Act(1, hh::kFold, 1).Act(2, hh::kFold, 1);
+  b.h.board[0] = "2c"; b.h.board[1] = "7d"; b.h.board[2] = "Jh"; b.h.board_count = 3;
+  b.Act(0, hh::kCheck, 2).Act(5, hh::kBet, 2, 4);
+  b.h.actions.back().amount = 4;
+  b.Act(0, hh::kFold, 2);
+  b.h.folded[0] = true;
+  b.h.last_street = 2;
+  b.h.uncalled = 4; b.h.uncalled_seat = 5;
+  b.h.total_pot = 7.5; b.h.rake = 0.5;
+  b.h.collected[5] = 7;
+  b.h.contrib[0] = 3; b.h.contrib[5] = 3;
+  b.h.start_stack[5] = 100; b.h.end_stack[5] = 104;
+  b.h.end_stack[0] = 97;
+  b.h.timestamp = FormatTimestamp(b.h.start_time);
+  CHECK(db.InsertHand(b.h, "stars", &error));
+  for (int i = 0; i < 4; ++i) AddVillainHand(db, 400 + i, i % 2 == 0, 1700000100 + i, "stars", false);
+  AddVillainHand(db, 410, true, 1700000200, "party", false);
+  AddVillainHand(db, 411, true, 1700000300, "stars", true);
+
+  // Rebuilding: the hand text must be identical
+  long long pk = 0;
+  {
+    std::vector<HandRow> rows; long long total = 0;
+    HandQuery q;
+    q.site = "stars"; q.game_type = 0; q.player = "Villain"; q.limit = 3;
+    CHECK(db.ListHands(q, &rows, &total, &error));
+    CHECK(total == 5);                       // full + 4 villain hands (cash, stars)
+    CHECK(rows.size() == 3);
+    CHECK(rows.size() > 0 && rows[0].hand_id == "403");   // newest first
+    CHECK(rows.size() > 0 && rows[0].has_player && rows[0].player_name == "Villain");
+    q.offset = 3; q.limit = 10;
+    CHECK(db.ListHands(q, &rows, &total, &error));
+    CHECK(rows.size() == 2);
+    for (size_t i = 0; i < rows.size(); ++i) if (rows[i].hand_id == "full") pk = rows[i].pk;
+    CHECK(pk != 0);
+  }
+  hh::Hand loaded;
+  std::string site;
+  CHECK(db.LoadHand(pk, &loaded, &site, &error));
+  CHECK(site == "stars");
+  CHECK(hh::FormatPokerStars(loaded) == hh::FormatPokerStars(b.h));
+  if (hh::FormatPokerStars(loaded) != hh::FormatPokerStars(b.h)) {
+    printf("--- expected\n%s\n--- got\n%s\n", hh::FormatPokerStars(b.h).c_str(),
+           hh::FormatPokerStars(loaded).c_str());
+  }
+  CHECK(loaded.actions.size() == b.h.actions.size());
+  CHECK(!db.LoadHand(999999, &loaded, NULL, &error));
+
+  // Hero column (no player selected)
+  {
+    std::vector<HandRow> rows;
+    HandQuery q;
+    q.site = "stars"; q.game_type = 0;
+    CHECK(db.ListHands(q, &rows, NULL, &error));
+    bool found = false;
+    for (size_t i = 0; i < rows.size(); ++i) {
+      if (rows[i].hand_id == "full") {
+        found = true;
+        CHECK(rows[i].has_player && rows[i].player_name == "P0" && rows[i].player_hole == "AsKd");
+        CHECK(rows[i].player_folded && rows[i].board == "2c 7d Jh");
+        CHECK_NEAR(rows[i].player_net, -3);
+      } else {
+        CHECK(!rows[i].has_player);          // hero seat -1 in the other hands
+      }
+    }
+    CHECK(found);
+  }
+
+  // Player table
+  {
+    PlayerQuery q;
+    q.filter.site = "stars";
+    q.stats.push_back("hands"); q.stats.push_back("vpip"); q.stats.push_back("pfr");
+    std::vector<PlayerRow> rows;
+    CHECK(db.PlayerTable(q, &rows, &error));
+    CHECK(rows.size() == 6);                       // P0..P4 and Villain
+    CHECK(rows.size() > 0 && rows[0].hands == 5);   // all players are in all 5 hands: order by name
+    CHECK(rows.size() == 6 && rows[5].name == "Villain" && rows[5].values.size() == 3);
+    CHECK(rows.size() == 6 && rows[5].values[0] == 5);
+    q.filter.nb_hands = 2;                         // last 2 hands of each player
+    CHECK(db.PlayerTable(q, &rows, &error));
+    CHECK(rows.size() > 0 && rows[0].hands == 2);
+    q.filter.nb_hands = 0;
+    q.min_hands = 5;
+    CHECK(db.PlayerTable(q, &rows, &error));
+    CHECK(rows.size() == 6);
+    q.min_hands = 6;
+    CHECK(db.PlayerTable(q, &rows, &error));
+    CHECK(rows.empty());
+    q.min_hands = 5;
+    q.name_contains = "vill";
+    CHECK(db.PlayerTable(q, &rows, &error));
+    CHECK(rows.size() == 1 && rows[0].name == "Villain");
+    q.name_contains = "";
+    q.any_game_type = true;
+    q.min_hands = 1;
+    CHECK(db.PlayerTable(q, &rows, &error));
+    CHECK(rows.size() > 0 && rows[0].hands == 6);  // + tournament hand
+    q.stats.push_back("does_not_exist");
+    CHECK(!db.PlayerTable(q, &rows, &error));
+    // wildcard characters in the search are literal
+    q.stats.pop_back();
+    q.name_contains = "%";
+    CHECK(db.PlayerTable(q, &rows, &error));
+    CHECK(rows.empty());
+  }
+  CHECK(db.Sites().size() == 2);
+  CHECK(db.FindPlayers("illa").size() == 1);
+
+  // Version 1 database is upgraded
+  db.Close();
+  std::string old_path = TempPath("v1.db");
+  RemoveDb(old_path);
+  CHECK(db.Open(old_path, &error));
+  CHECK(db.InsertHand(b.h, "stars", &error));
+  db.Close();
+  CHECK(db.Open(old_path, &error));              // opening again must not fail (columns exist)
+  CHECK(db.CountHands() == 1);
+  db.Close();
+  RemoveDb(path);
+  RemoveDb(old_path);
+}
+
 int main(int argc, char **argv) {
   TestHelpers();
   TestPositions();
@@ -722,6 +865,7 @@ int main(int argc, char **argv) {
   TestOpenSizesAndBbVsSb();
   TestRemainingStats();
   TestDatabase();
+  TestExplorerQueries();
   if (argc > 1) TestStatNamesMatchPokerTracker(argv[1]);
   printf("\n%d checks, %d failures\n", g_checks, g_failures);
   return g_failures ? 1 : 0;
