@@ -178,7 +178,7 @@ std::string BuildStatSql(const StatDef &def, const StatFilter &filter) {
       << ") * 1.0 / (" << def.den << ") END FROM ("
       << "SELECT * FROM hand_player WHERE name = ?";
   if (!filter.site.empty()) sql << " AND site = ?";
-  sql << " AND is_tournament = ?";
+  if (!filter.any_game_type) sql << " AND is_tournament = ?";
   if (filter.since > 0)     sql << " AND played_at >= ?";
   if (filter.position >= 0) sql << " AND position = ?";
   sql << " ORDER BY played_at DESC, id DESC";
@@ -621,7 +621,7 @@ bool Db::GetStat(const std::string &stat_name, const std::string &player,
   int k = 1;
   sqlite3_bind_text(s, k++, player.c_str(), -1, SQLITE_TRANSIENT);
   if (!filter.site.empty()) sqlite3_bind_text(s, k++, filter.site.c_str(), -1, SQLITE_TRANSIENT);
-  sqlite3_bind_int(s, k++, filter.tournament ? 1 : 0);
+  if (!filter.any_game_type) sqlite3_bind_int(s, k++, filter.tournament ? 1 : 0);
   if (filter.since > 0)     sqlite3_bind_int64(s, k++, filter.since);
   if (filter.position >= 0) sqlite3_bind_int(s, k++, filter.position);
   if (filter.nb_hands > 0)  sqlite3_bind_int(s, k++, filter.nb_hands);
@@ -741,7 +741,8 @@ bool Db::PlayerTable(const PlayerQuery &query, std::vector<PlayerRow> *rows, std
   }
   sql << " FROM hand_player WHERE 1=1";
   if (!f.site.empty())       sql << " AND site = ?";
-  if (!query.any_game_type)  sql << " AND is_tournament = ?";
+  const bool any_type = query.any_game_type || f.any_game_type;
+  if (!any_type)  sql << " AND is_tournament = ?";
   if (f.since > 0)           sql << " AND played_at >= ?";
   if (f.position >= 0)       sql << " AND position = ?";
   if (!query.name_contains.empty()) sql << " AND name LIKE ? ESCAPE '\\'";
@@ -756,7 +757,7 @@ bool Db::PlayerTable(const PlayerQuery &query, std::vector<PlayerRow> *rows, std
   sqlite3_stmt *s = stmt.get();
   int k = 1;
   if (!f.site.empty())       sqlite3_bind_text(s, k++, f.site.c_str(), -1, SQLITE_TRANSIENT);
-  if (!query.any_game_type)  sqlite3_bind_int(s, k++, f.tournament ? 1 : 0);
+  if (!any_type)  sqlite3_bind_int(s, k++, f.tournament ? 1 : 0);
   if (f.since > 0)           sqlite3_bind_int64(s, k++, f.since);
   if (f.position >= 0)       sqlite3_bind_int(s, k++, f.position);
   if (!query.name_contains.empty()) {

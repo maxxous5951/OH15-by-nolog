@@ -43,10 +43,11 @@ const int kSchemaVersion = 2;
 struct StatFilter {
   std::string site;           // lower-case site name, "" = all sites
   bool        tournament;     // cash game or tournament hands
+  bool        any_game_type;  // cash games and tournaments together (ignores "tournament")
   int         nb_hands;       // only the last N hands of the player, 0 = all
   long long   since;          // only hands since this time (seconds since 1970), 0 = all
   int         position;       // only hands in this position (enum Position), -1 = all
-  StatFilter() : tournament(false), nb_hands(0), since(0), position(-1) {}
+  StatFilter() : tournament(false), any_game_type(false), nb_hands(0), since(0), position(-1) {}
 };
 
 // ---- Queries of the explorer (player table, hand list, hand) ----

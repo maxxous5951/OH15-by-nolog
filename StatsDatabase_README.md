@@ -253,3 +253,7 @@ StatsDbTests/build_and_run.sh      # Linux / macOS, nécessite g++ ; 364 vérifi
 ```
 
 La partie Windows/MFC (préférences, branchement dans OpenHoldem) n'a pas été compilée dans l'environnement de test : compiler une fois sous Visual Studio.
+
+## Explorateur
+
+Un programme graphique (Dear ImGui, C++) pour parcourir la base est dans `StatsExplorer/` (voir `StatsExplorer/README.md`).
