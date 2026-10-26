@@ -17,6 +17,7 @@
 #include <string>
 
 #include "demo_data.h"
+#include "ui_panels.h"
 
 namespace explorer {
 
@@ -97,6 +98,23 @@ void DrawMenu(Explorer &ex, UiState &ui) {
       ui.open_demo_popup = true;
     }
     ImGui::Separator();
+    if (ImGui::MenuItem("Import hand histories...", NULL, false, ex.IsOpen())) {
+      ui.import_message.clear();
+      ui.open_import_popup = true;
+    }
+    struct ExportItem { const char *label; int kind; const char *file; };
+    static const ExportItem exports[] = { { "Export players table (CSV)...", 1, "players.csv" },
+      { "Export current report (CSV)...", 2, "report.csv" }, { "Export hand list (CSV)...", 3, "hands.csv" },
+      { "Export hands (text)...", 4, "hands.txt" } };
+    for (size_t i = 0; i < 4; ++i) {
+      if (ImGui::MenuItem(exports[i].label, NULL, false, ex.IsOpen())) {
+        ui.export_kind = exports[i].kind;
+        snprintf(ui.export_path, sizeof(ui.export_path), "%s", exports[i].file);
+        ui.export_message.clear();
+        ui.open_export_popup = true;
+      }
+    }
+    ImGui::Separator();
     if (ImGui::MenuItem("Quit")) ui.quit_requested = true;
     ImGui::EndMenu();
   }
@@ -113,8 +131,10 @@ void DrawPopups(Explorer &ex, UiState &ui) {
   if (ui.open_demo_popup)    { ImGui::OpenPopup("Demo database");   ui.open_demo_popup = false; }
   if (ui.open_columns_popup) { ImGui::OpenPopup("Columns");         ui.open_columns_popup = false; }
 
+  DrawPanelPopups(ex, ui);
   ImGui::SetNextWindowSize(ImVec2(560, 0), ImGuiCond_Appearing);
   if (ImGui::BeginPopupModal("Open database", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && ImGui::IsKeyPressed(ImGuiKey_Escape)) ImGui::CloseCurrentPopup();
     ImGui::TextUnformatted("Path of the stats database (oh_stats.db, created by OpenHoldem):");
     ImGui::SetNextItemWidth(-1);
     bool enter = ImGui::InputText("##path", ui.path_buffer, sizeof(ui.path_buffer),
@@ -132,6 +152,7 @@ void DrawPopups(Explorer &ex, UiState &ui) {
 
   ImGui::SetNextWindowSize(ImVec2(560, 0), ImGuiCond_Appearing);
   if (ImGui::BeginPopupModal("Demo database", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && ImGui::IsKeyPressed(ImGuiKey_Escape)) ImGui::CloseCurrentPopup();
     ImGui::TextWrapped("Creates a database with random sample hands (6-max cash games, 7 opponents "
                        "with different styles) to try the explorer. Choose a NEW file name.");
     ImGui::SetNextItemWidth(-1);
@@ -156,6 +177,7 @@ void DrawPopups(Explorer &ex, UiState &ui) {
 
   ImGui::SetNextWindowSize(ImVec2(620, 520), ImGuiCond_Appearing);
   if (ImGui::BeginPopupModal("Columns", NULL, 0)) {
+    if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && ImGui::IsKeyPressed(ImGuiKey_Escape)) ImGui::CloseCurrentPopup();
     ImGui::TextUnformatted("Presets:");
     const std::vector<std::string> &presets = PresetNames();
     for (size_t i = 0; i < presets.size(); ++i) {
@@ -243,7 +265,7 @@ void DrawStatusBar(Explorer &ex) {
 
 void DrawPlayers(Explorer &ex, UiState &ui) {
   ui.has_player_row = false;
-  const int n_columns = 3 + (int)ex.columns.size();
+  const int n_columns = 4 + (int)ex.columns.size();
   ImGuiTableFlags flags = ImGuiTableFlags_Resizable | ImGuiTableFlags_Hideable | ImGuiTableFlags_Sortable |
                           ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg |
                           ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingFixedFit |
@@ -254,6 +276,7 @@ void DrawPlayers(Explorer &ex, UiState &ui) {
   ImGui::TableSetupColumn("Hands", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_PreferSortDescending |
                                    ImGuiTableColumnFlags_DefaultSort, 56, 2);
   ImGui::TableSetupColumn("Won", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_PreferSortDescending, 70, 3);
+  ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoSort, 100, 4);
   for (size_t i = 0; i < ex.columns.size(); ++i) {
     ImGui::TableSetupColumn(StatLabel(ex.columns[i]).c_str(),
       ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_PreferSortDescending, 0.0f, 100 + (ImGuiID)i);
@@ -263,7 +286,7 @@ void DrawPlayers(Explorer &ex, UiState &ui) {
   if (ImGuiTableSortSpecs *specs = ImGui::TableGetSortSpecs()) {
     if (specs->SpecsDirty && specs->SpecsCount > 0) {
       ImGuiID id = specs->Specs[0].ColumnUserID;
-      ex.sort_column = id == 1 ? -2 : id == 2 ? -1 : id == 3 ? -3 : (int)id - 100;
+      ex.sort_column = id == 1 ? -2 : id == 2 ? -1 : id == 3 ? -3 : (id >= 100 ? (int)id - 100 : -1);
       ex.sort_descending = specs->Specs[0].SortDirection == ImGuiSortDirection_Descending;
       ex.SortPlayers();
       specs->SpecsDirty = false;
@@ -294,11 +317,23 @@ void DrawPlayers(Explorer &ex, UiState &ui) {
       ImGui::Text("%lld", p.hands);
       ImGui::TableSetColumnIndex(2);
       ImGui::TextColored(p.won >= 0 ? kGreen : kRed, "%.2f", p.won);
+      ImGui::TableSetColumnIndex(3);
+      {
+        const PlayerType type = ex.TypeOf(p.name);
+        ImGui::TextColored(TypeColor(type), "%s", PlayerTypeName(type));
+      }
       for (size_t c = 0; c < ex.columns.size() && c < p.values.size(); ++c) {
-        ImGui::TableSetColumnIndex(3 + (int)c);
+        ImGui::TableSetColumnIndex(4 + (int)c);
         const std::string text = FormatStat(ex.columns[c], p.values[c]);
         if (IsUndefined(p.values[c])) ImGui::TextColored(kGrey, "%s", text.c_str());
         else ImGui::TextUnformatted(text.c_str());
+        if (ImGui::IsItemHovered() && !IsUndefined(p.values[c]) && c < p.opportunities.size() &&
+            HasConfidenceInterval(ex.columns[c]) && p.opportunities[c] > 0) {
+          double lo, hi;
+          WilsonInterval(p.values[c] * p.opportunities[c], p.opportunities[c], &lo, &hi);
+          ImGui::SetTooltip("%s of %s\n%.0f opportunities\n95%% confidence interval: %.1f - %.1f",
+                            StatLabel(ex.columns[c]).c_str(), p.name.c_str(), p.opportunities[c], lo * 100, hi * 100);
+        }
       }
     }
   }
@@ -317,6 +352,8 @@ void DrawPlayerSheet(Explorer &ex) {
   ImGui::Text("%s", ex.selected_player.c_str());
   ImGui::SameLine();
   ImGui::TextColored(kGrey, "  (filters of the table apply)");
+  DrawHud(ex);
+  DrawLeaks(ex);
   const std::vector<Section> &sections = Sections();
   for (size_t s = 0; s < sections.size(); ++s) {
     if (sections[s].stats.empty()) continue;
@@ -339,6 +376,16 @@ void DrawPlayerSheet(Explorer &ex) {
         const std::string text = FormatStat(stat, value);
         if (IsUndefined(value)) ImGui::TextColored(kGrey, "%s", text.c_str());
         else ImGui::TextUnformatted(text.c_str());
+        double num = 0, den = 0;
+        if (!IsUndefined(value) && HasConfidenceInterval(stat) && ex.SheetFraction(stat, &num, &den) && den > 0) {
+          ImGui::SameLine();
+          ImGui::TextColored(kGrey, "(%.0f)", den);
+          if (ImGui::IsItemHovered()) {
+            double lo, hi;
+            WilsonInterval(num, den, &lo, &hi);
+            ImGui::SetTooltip("%.0f opportunities\n95%% confidence interval: %.1f - %.1f", den, lo * 100, hi * 100);
+          }
+        }
       }
       ImGui::EndTable();
     }
@@ -352,6 +399,7 @@ void DrawPlayerSheet(Explorer &ex) {
 
 void DrawHandList(Explorer &ex, UiState &ui) {
   ui.has_hand_row = false;
+  DrawFilterBar(ex, ui);
   if (ex.selected_player.empty()) ImGui::Text("Hands (cards and result: hero)");
   else ImGui::Text("Hands of %s", ex.selected_player.c_str());
   ImGui::SameLine();
@@ -385,7 +433,7 @@ void DrawHandList(Explorer &ex, UiState &ui) {
       ImGui::TableSetColumnIndex(0);
       ImGui::PushID(row);
       char label[64];
-      snprintf(label, sizeof(label), "%s", FormatDate(h.played_at).c_str());
+      snprintf(label, sizeof(label), "%s%s", h.marked ? "* " : "", FormatDate(h.played_at).c_str());
       if (ImGui::Selectable(label, h.pk == ex.selected_hand,
                             ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap)) {
         if (ex.SelectHand(h.pk)) ui.tab_request = 3;
@@ -458,6 +506,12 @@ void DrawReplayTable(Explorer &ex, const ReplayFrame &frame, float height) {
     dl->AddText(ImVec2(tl.x + 6, tl.y + 4), text_color, h.name[seat].c_str());
     dl->AddText(ImVec2(tl.x + 6, tl.y + 24), IM_COL32(150, 220, 160, folded ? 120 : 255),
                 FormatAmount(frame.stack[seat], h.tournament).c_str());
+    if (!IsUndefined(ex.equity[seat]) && !folded) {
+      char eq[24];
+      snprintf(eq, sizeof(eq), "%.0f%%", ex.equity[seat] * 100.0);
+      const ImVec2 es = ImGui::CalcTextSize(eq);
+      dl->AddText(ImVec2(br.x - es.x - 6, br.y - es.y - 5), IM_COL32(255, 220, 120, 255), eq);
+    }
     // Hole cards (known cards only; hidden: nothing for folded players)
     if (!folded) {
       const ImVec2 small(22, 30);
@@ -500,8 +554,12 @@ void DrawHand(Explorer &ex, UiState &ui) {
     if (ex.replay_step < last) { ++ex.replay_step; ui.last_step_time = ImGui::GetTime(); }
     else ui.playing = false;
   }
+  if (ui.eq_hand != ex.selected_hand || ui.eq_step != ex.replay_step) {
+    ex.UpdateEquity();
+    ui.eq_hand = ex.selected_hand; ui.eq_step = ex.replay_step;
+  }
   const float avail = ImGui::GetContentRegionAvail().y;
-  DrawReplayTable(ex, ex.replay[ex.replay_step], avail > 520 ? 300.0f : avail * 0.5f);
+  DrawReplayTable(ex, ex.replay[ex.replay_step], avail > 560 ? 300.0f : avail * 0.45f);
 
   // Controls
   if (ImGui::Button("|<")) { ex.replay_step = 0; ui.playing = false; }
@@ -522,6 +580,21 @@ void DrawHand(Explorer &ex, UiState &ui) {
   if (ImGui::SliderInt("##step", &ex.replay_step, 0, last, "step %d")) ui.playing = false;
   const std::string &text = ex.replay[ex.replay_step].text;
   ImGui::TextColored(ImVec4(1.0f, 0.9f, 0.5f, 1.0f), "%s", text.empty() ? "Start of the hand" : text.c_str());
+  if (!ex.pot_odds_text.empty()) ImGui::TextColored(kGrey, "Next: %s", ex.pot_odds_text.c_str());
+  else ImGui::TextColored(kGrey, " ");
+
+  // Star, tags and note of the hand
+  {
+    bool save = false;
+    if (ImGui::Checkbox("Star", &ex.note_marked)) save = true;
+    ImGui::SameLine();
+    if (InputString("##tags", &ex.note_tags, "tags, comma separated", 200)) {}
+    if (ImGui::IsItemDeactivatedAfterEdit()) save = true;
+    ImGui::SameLine();
+    if (InputString("##note", &ex.note_text, "note", -1)) {}
+    if (ImGui::IsItemDeactivatedAfterEdit()) save = true;
+    if (save) ex.SaveNote();
+  }
 
   ImGui::Separator();
   if (ImGui::SmallButton("Copy hand text")) ImGui::SetClipboardText(ex.hand_text.c_str());
@@ -536,15 +609,23 @@ void DrawHand(Explorer &ex, UiState &ui) {
 void DrawDetails(Explorer &ex, UiState &ui) {
   if (!ImGui::BeginTabBar("details")) return;
   struct TabDef { const char *label; int id; };
-  static const TabDef tabs[] = { { "Player", 1 }, { "Hands", 2 }, { "Hand", 3 } };
-  for (int i = 0; i < 3; ++i) {
+  static const TabDef tabs[] = { { "Player", kTabPlayer }, { "Graph", kTabGraph }, { "Reports", kTabReports },
+                                 { "Sessions", kTabSessions }, { "Tournaments", kTabTournaments },
+                                 { "Hands", kTabHands }, { "Hand", kTabHand } };
+  for (int i = 0; i < 7; ++i) {
     ImGuiTabItemFlags flags = (ui.tab_request == tabs[i].id) ? ImGuiTabItemFlags_SetSelected : 0;
     if (ImGui::BeginTabItem(tabs[i].label, NULL, flags)) {
       ui.active_tab = tabs[i].id;
-      ImGui::BeginChild("##tabcontent", ImVec2(0, 0), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar * (tabs[i].id == 2));
-      if (tabs[i].id == 1) DrawPlayerSheet(ex);
-      else if (tabs[i].id == 2) DrawHandList(ex, ui);
-      else DrawHand(ex, ui);
+      ImGui::BeginChild("##tabcontent", ImVec2(0, 0), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar * (tabs[i].id == kTabHands || tabs[i].id == kTabGraph || tabs[i].id == kTabReports));
+      switch (tabs[i].id) {
+        case kTabPlayer:      DrawPlayerSheet(ex); break;
+        case kTabGraph:       DrawGraphTab(ex, ui); break;
+        case kTabReports:     DrawReportsTab(ex, ui); break;
+        case kTabSessions:    DrawSessionsTab(ex, ui); break;
+        case kTabTournaments: DrawTournamentsTab(ex, ui); break;
+        case kTabHands:       DrawHandList(ex, ui); break;
+        default:              DrawHand(ex, ui); break;
+      }
       ImGui::EndChild();
       ImGui::EndTabItem();
     }
@@ -560,6 +641,11 @@ UiState::UiState()
       last_check(0), playing(false), last_step_time(0), quit_requested(false), tab_request(0),
       has_player_row(false), has_hand_row(false), player_row_min(0, 0), player_row_max(0, 0),
       hand_row_min(0, 0), hand_row_max(0, 0), active_tab(1) {
+  export_kind = 1; open_export_popup = open_import_popup = open_filter_popup = false;
+  graph_split = false; graph_cone = true; note_hand = 0; eq_hand = 0; eq_step = -1;
+  export_path[0] = 0;
+  import_path[0] = 0;
+  snprintf(import_site, sizeof(import_site), "stars");
   path_buffer[0] = 0;
   snprintf(demo_path_buffer, sizeof(demo_path_buffer), "oh_stats_demo.db");
   name_buffer[0] = 0;

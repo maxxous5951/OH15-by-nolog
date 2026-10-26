@@ -17,6 +17,7 @@
 #include <string.h>
 #include <time.h>
 #include <algorithm>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 
@@ -390,6 +391,28 @@ bool ImportFile(ohstats::Db *db, const std::string &path, const std::string &sit
   std::stringstream buffer;
   buffer << file.rdbuf();
   return ImportText(db, buffer.str(), site, result);
+}
+
+bool ImportPath(ohstats::Db *db, const std::string &path, const std::string &site, ImportResult *result) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  if (!fs::is_directory(fs::path(path), ec)) return ImportFile(db, path, site, result);
+  bool any = false;
+  for (fs::recursive_directory_iterator it(fs::path(path), fs::directory_options::skip_permission_denied, ec), end;
+       !ec && it != end; it.increment(ec)) {
+    if (!it->is_regular_file(ec)) continue;
+    std::string extension = it->path().extension().string();
+    for (size_t i = 0; i < extension.size(); ++i) extension[i] = (char)tolower((unsigned char)extension[i]);
+    if (extension != ".txt") continue;
+    ImportResult one;
+    ImportFile(db, it->path().string(), site, &one);
+    result->hands_found += one.hands_found; result->imported += one.imported;
+    result->duplicates += one.duplicates; result->failed += one.failed;
+    for (size_t i = 0; i < one.errors.size() && result->errors.size() < 50; ++i) result->errors.push_back(one.errors[i]);
+    any = true;
+  }
+  if (!any) result->errors.push_back("no .txt files in " + path);
+  return any;
 }
 
 }  // namespace explorer

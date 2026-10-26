@@ -17,6 +17,8 @@
 #include <string>
 #include <vector>
 #include "StatsDb.h"
+#include "equity.h"
+#include "reports.h"
 
 namespace explorer {
 
@@ -117,6 +119,23 @@ class Explorer {
   bool   DatabaseChanged();
 
   ohstats::StatFilter MakeStatFilter() const;
+  // The hands that are analysed (graph, reports): the selected player, else the hero
+  Scope MakeScope() const;
+  // Analyses (recomputed when the scope or the data changed)
+  void UpdateGraph();
+  void UpdateReport();
+  void UpdateSessions();
+  void UpdateTournaments();
+  void UpdateLeaks();
+  // Sample size of a statistic of the selected player: opportunities
+  bool SheetFraction(const std::string &stat, double *num, double *den);
+  PlayerType TypeOf(const std::string &player) const;
+  // Notes of the selected hand
+  void SaveNote();
+  // Equity of the players in the current replay frame (NaN = unknown cards)
+  void UpdateEquity();
+  // Clears all hand filters
+  void ClearHandFilter();
   long long Since() const;
 
   ohstats::Db                    db;
@@ -139,8 +158,31 @@ class Explorer {
   std::vector<ReplayFrame>       replay;
   int                            replay_step;
   long long                      total_hands_in_db;
+  // Hand filters (hand list, graph, reports)
+  ohstats::HandFilter            hand_filter;
+  // Analyses
+  Graph                          graph;
+  ReportKind                     report_kind;
+  std::vector<ReportRow>         report;
+  HandMatrix                     matrix;
+  bool                           report_as_matrix;
+  std::vector<Session>           sessions;
+  int                            session_gap_minutes;
+  std::vector<TournamentRow>     tournaments;
+  std::vector<LeakRow>           leaks;
+  std::map<std::string, PlayerType> player_types;
+  // Notes of the selected hand
+  bool                           note_marked;
+  std::string                    note_tags, note_text;
+  // Equity of the current replay frame, per seat (NaN: unknown)
+  double                         equity[hh::kMaxSeats];
+  bool                           equity_exact;
+  std::string                    pot_odds_text;
   bool                           players_dirty, hands_dirty;
  private:
+  std::string                    analysis_key_[5];
+  std::string                    equity_key_;
+  std::map<std::string, std::pair<double,double> > fraction_cache_;
   std::string                    sheet_key_;
   std::map<std::string, double>  sheet_cache_;
 };

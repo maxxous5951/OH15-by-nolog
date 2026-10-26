@@ -36,6 +36,15 @@ Le dossier `fonts/` (police avec accents) est copié à côté de l'exécutable.
 - **Onglet Hands** : mains du joueur sélectionné (sinon celles du hero : cartes, position, résultat), 100 par page. Clic = ouvre la main.
 - **Onglet Hand** : replayer (table, cartes, mises, pot ; boutons, curseur, lecture automatique) et texte de la main
   au format PokerStars (copiable).
+- **Hand filters...** (onglets Graph / Hands / Reports) : position, cartes (`AKs, QQ, T9o`), board, type de pot
+  (limp / raisé / 3bet / 4bet+), résultat, showdown, pot et stack effectif en bb, mains marquées, tag, note.
+- **Onglet Graph** : courbe de gains en bb (total / showdown / sans showdown), cône de confiance 95 %, bb/100 ± IC.
+- **Onglet Reports** : par position, matrice des mains, stakes, table, heure, jour, type de pot, profondeur de stack.
+- **Onglet Sessions** et **Tournaments** : regroupement des mains (pas d'ITM/ROI : pas de buy-in/prix dans les données).
+- **Onglet Player** : types de joueur (Nit, TAG, LAG, Maniac, Calling station...), leaks vs plages de référence
+  (NLHE 6-max cash), intervalles de confiance de Wilson (survol) et ligne HUD compacte copiable.
+- **Onglet Hand** : replayer avec équité (énumération / Monte Carlo) et pot odds, étoile, tags et note.
+- **File** : import de mains PokerStars (.txt), export CSV / texte. Pas de HUD superposé à la table (voir les symboles `pt_*`).
 - **File > Create demo database** : crée une base de mains aléatoires pour essayer (jamais sur un fichier existant).
 - La base est rechargée toute seule quand OpenHoldem enregistre de nouvelles mains (View > Reload automatically).
   Le programme ne modifie jamais les mains ; la base est ouverte en WAL, OpenHoldem peut continuer à écrire.
@@ -45,9 +54,8 @@ Le dossier `fonts/` (police avec accents) est copié à côté de l'exécutable.
 `./build_and_test.sh [dossier-imgui]` compile (g++/gcc seulement) et lance `tests/headless_render.cpp` : base de démo,
 filtres, tris, chargement de 100 mains (conservation des jetons, replayer), puis l'interface rendue par un rasteriseur
 logiciel (sans fenêtre) avec clics simulés ; les captures `.ppm` sont écrites dans le dossier de build.
-Avec CMake : `ctest`. 537 vérifications.
+Avec CMake : `ctest`. 1426 + 547 vérifications (logic_tests + headless_render).
 
 ## Base de données
 
-Le schéma est passé à la version 2 (colonnes `uncalled`, `uncalled_seat`, `sb_seat`, `bb_seat`, `raise_by`) pour pouvoir
-reconstruire les mains ; les bases version 1 sont migrées à l'ouverture (anciennes mains : sans la ligne « Uncalled bet »).
+Le schéma est en version 3 (v2 : colonnes `uncalled`, `uncalled_seat`, `sb_seat`, `bb_seat`, `raise_by`) pour reconstruire les mains ; v3 : `pot_type`, `eff_bb`, `hole_class`, table `hand_notes`) ; les bases v1/v2 sont migrées à l'ouverture (anciennes mains : sans la ligne « Uncalled bet »).

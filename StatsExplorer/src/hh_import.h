@@ -33,6 +33,8 @@ struct ImportResult {
 
 // Parses and stores the hands; `site` is the lower-case site name stored with them
 bool ImportText(ohstats::Db *db, const std::string &text, const std::string &site, ImportResult *result);
+// A file, or a folder (all .txt files in it and below)
+bool ImportPath(ohstats::Db *db, const std::string &path, const std::string &site, ImportResult *result);
 bool ImportFile(ohstats::Db *db, const std::string &path, const std::string &site, ImportResult *result);
 
 }  // namespace explorer

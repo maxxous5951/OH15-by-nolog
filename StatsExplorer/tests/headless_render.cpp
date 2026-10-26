@@ -258,6 +258,73 @@ int main(int argc, char **argv) {
   Frames(ui_ex, ui, 3);
   CHECK(ui_ex.players.size() == 1 && ui_ex.players[0].name == "Nit");
 
+  // New tabs: each one is drawn, its data is computed
+  ui_ex.filters.name.clear(); ui_ex.players_dirty = true;
+  ui_ex.SelectPlayer("");
+  ui.tab_request = 4; Frames(ui_ex, ui, 3);
+  CHECK(ui.active_tab == 4 && ui_ex.graph.hands > 1000);
+  Frame(ui_ex, ui, (out + "6_graph.ppm").c_str());
+  ui.graph_split = true;
+  Frames(ui_ex, ui, 2);
+  Frame(ui_ex, ui, (out + "6b_graph_split.ppm").c_str());
+  // hover the graph: no crash, tooltip
+  io.AddMousePosEvent(900, 450); Frames(ui_ex, ui, 3);
+
+  ui.tab_request = 5; Frames(ui_ex, ui, 3);
+  CHECK(ui.active_tab == 5 && ui_ex.report.size() == 5);
+  Frame(ui_ex, ui, (out + "7_reports_position.ppm").c_str());
+  ui_ex.report_kind = kReportStartingHand; ui_ex.report_as_matrix = true;
+  Frames(ui_ex, ui, 3);
+  CHECK(ui_ex.report.size() > 100);
+  Frame(ui_ex, ui, (out + "8_matrix.ppm").c_str());
+  ui_ex.report_as_matrix = false; ui_ex.report_kind = kReportPosition;
+  ui.tab_request = 6; Frames(ui_ex, ui, 3);
+  CHECK(ui.active_tab == 6 && ui_ex.sessions.size() == 1);
+  Frame(ui_ex, ui, (out + "9_sessions.ppm").c_str());
+  ui.tab_request = 7; Frames(ui_ex, ui, 3);
+  CHECK(ui.active_tab == 7 && ui_ex.tournaments.size() == 1);
+  Frame(ui_ex, ui, (out + "10_tournaments.ppm").c_str());
+
+  // player sheet with HUD, sample sizes and leaks
+  ui_ex.SelectPlayer("Maniac");
+  ui.tab_request = 1; Frames(ui_ex, ui, 3);
+  Frame(ui_ex, ui, (out + "11_player_hud.ppm").c_str());
+  CHECK(ui_ex.TypeOf("Maniac") == kTypeManiac);
+
+  // filter popup, import popup, export popup
+  ui.open_filter_popup = true; Frames(ui_ex, ui, 3);
+  Frame(ui_ex, ui, (out + "12_filters.ppm").c_str());
+  ImGui::GetIO().AddKeyEvent(ImGuiKey_Escape, true); Frames(ui_ex, ui, 2);
+  ImGui::GetIO().AddKeyEvent(ImGuiKey_Escape, false); Frames(ui_ex, ui, 2);
+  ui_ex.hand_filter.pot_type = 3;
+  ui_ex.hands_dirty = true;
+  ui.tab_request = 2; Frames(ui_ex, ui, 3);
+  CHECK(ui.active_tab == 2 && ui_ex.hands_total > 0);
+  Frame(ui_ex, ui, (out + "13_hands_filtered.ppm").c_str());
+  ui_ex.ClearHandFilter();
+  ui.open_import_popup = true; Frames(ui_ex, ui, 3);
+  Frame(ui_ex, ui, (out + "14_import.ppm").c_str());
+  ImGui::GetIO().AddKeyEvent(ImGuiKey_Escape, true); Frames(ui_ex, ui, 2);
+  ImGui::GetIO().AddKeyEvent(ImGuiKey_Escape, false); Frames(ui_ex, ui, 2);
+
+  // replay with equity: a hand that went to showdown with known cards
+  {
+    ui_ex.SelectPlayer("");
+    ui_ex.hand_filter.showdown = 1;
+    ui_ex.hands_dirty = true; Frames(ui_ex, ui, 2);
+    CHECK(!ui_ex.hands.empty());
+    if (!ui_ex.hands.empty()) {
+      CHECK(ui_ex.SelectHand(ui_ex.hands[0].pk));
+      ui_ex.replay_step = std::max(0, (int)ui_ex.replay.size() - 3);
+      ui.tab_request = 3; Frames(ui_ex, ui, 3);
+      bool any = false;
+      for (int i = 0; i < hh::kMaxSeats; ++i) any |= !IsUndefined(ui_ex.equity[i]);
+      CHECK(any);
+      Frame(ui_ex, ui, (out + "15_replay_equity.ppm").c_str());
+    }
+    ui_ex.ClearHandFilter();
+  }
+
   printf("\n%d checks, %d failures\n", g_checks, g_failures);
   ImGui::DestroyContext();
   return g_failures ? 1 : 0;

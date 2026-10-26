@@ -140,6 +140,11 @@
     <ClCompile Include="src\explorer_model.cpp" />
     <ClCompile Include="src\explorer_ui.cpp" />
     <ClCompile Include="src\demo_data.cpp" />
+    <ClCompile Include="src\ui_panels.cpp" />
+    <ClCompile Include="src\reports.cpp" />
+    <ClCompile Include="src\equity.cpp" />
+    <ClCompile Include="src\hh_import.cpp" />
+    <ClCompile Include="src\export.cpp" />
     <ClCompile Include="..\OpenHoldem\StatsDb.cpp" />
     <ClCompile Include="third_party\imgui\imgui.cpp" />
     <ClCompile Include="third_party\imgui\imgui_draw.cpp" />
@@ -157,6 +162,11 @@
     <ClInclude Include="src\explorer_model.h" />
     <ClInclude Include="src\explorer_ui.h" />
     <ClInclude Include="src\demo_data.h" />
+    <ClInclude Include="src\ui_panels.h" />
+    <ClInclude Include="src\reports.h" />
+    <ClInclude Include="src\equity.h" />
+    <ClInclude Include="src\hh_import.h" />
+    <ClInclude Include="src\export.h" />
     <ClInclude Include="..\OpenHoldem\StatsDb.h" />
     <ClInclude Include="..\OpenHoldem\StatsCore.h" />
   </ItemGroup>

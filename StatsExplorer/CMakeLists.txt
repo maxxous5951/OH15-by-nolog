@@ -4,7 +4,7 @@
 #   cmake -S . -B build -DIMGUI_DIR=/path/to/imgui -DGLFW_DIR=/path/to/glfw
 cmake_minimum_required(VERSION 3.14)
 project(StatsExplorer CXX C)
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(FetchContent)
@@ -40,7 +40,8 @@ target_link_libraries(imgui PUBLIC glfw OpenGL::GL)
 
 # The part without GUI: database + model + interface (shared by the program and the test)
 add_library(explorer_core STATIC
-  ${OH}/OpenHoldem/StatsDb.cpp src/explorer_model.cpp src/explorer_ui.cpp src/demo_data.cpp)
+  ${OH}/OpenHoldem/StatsDb.cpp src/explorer_model.cpp src/explorer_ui.cpp src/ui_panels.cpp src/demo_data.cpp
+  src/reports.cpp src/equity.cpp src/hh_import.cpp src/export.cpp)
 target_include_directories(explorer_core PUBLIC src ${OH}/OpenHoldem)
 target_link_libraries(explorer_core PUBLIC sqlite3 imgui)
 

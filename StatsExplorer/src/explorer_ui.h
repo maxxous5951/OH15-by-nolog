@@ -34,6 +34,19 @@ struct UiState {
   double      last_step_time;
   bool        quit_requested;
   int         tab_request;            // 1 = player, 2 = hands, 3 = hand, 0 = none
+  // Export / import dialogs
+  int         export_kind;            // 1 players, 2 report, 3 hand list, 4 hands text
+  char        export_path[512];
+  std::string export_message;
+  bool        open_export_popup, open_import_popup, open_filter_popup;
+  char        import_path[512];
+  char        import_site[32];
+  std::string import_message;
+  // Graph options, notes, replay
+  bool        graph_split, graph_cone;
+  long long   note_hand;              // hand whose note is in the buffers
+  long long   eq_hand;
+  int         eq_step;
   // Hit-test information for the automatic tests (screen coordinates)
   bool   has_player_row, has_hand_row;
   ImVec2 player_row_min, player_row_max;

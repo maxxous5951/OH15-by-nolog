@@ -301,8 +301,10 @@ long long PeriodSeconds(int index) {
 
 Explorer::Explorer()
     : sort_column(-1), sort_descending(true), hands_total(0), hands_page(0), selected_hand(0),
-      replay_step(0), total_hands_in_db(0), players_dirty(false), hands_dirty(false) {
+      replay_step(0), total_hands_in_db(0), report_kind(kReportPosition), report_as_matrix(false),
+      session_gap_minutes(30), note_marked(false), equity_exact(false), players_dirty(false), hands_dirty(false) {
   columns = DefaultColumns();
+  for (int i = 0; i < hh::kMaxSeats; ++i) equity[i] = std::numeric_limits<double>::quiet_NaN();
 }
 
 bool Explorer::Open(const std::string &new_path, std::string *err) {
@@ -353,13 +355,25 @@ void Explorer::RefreshPlayers() {
   q.name_contains = filters.name;
   q.min_hands = filters.min_hands < 1 ? 1 : filters.min_hands;
   q.stats = columns;
+  q.stats.push_back("vpip");     // hidden columns for the player types
+  q.stats.push_back("pfr");
   q.limit = 5000;
   std::string message;
+  player_types.clear();
   if (!db.PlayerTable(q, &players, &message)) {
     players.clear();
     error = message;
   } else {
     error.clear();
+    const size_t n = columns.size();
+    for (size_t i = 0; i < players.size(); ++i) {
+      ohstats::PlayerRow &p = players[i];
+      if (p.values.size() == n + 2) {
+        player_types[p.name] = ClassifyPlayer(p.values[n], p.values[n + 1], p.hands);
+        p.values.resize(n);
+        p.opportunities.resize(n);
+      }
+    }
   }
   SortPlayers();
 }
@@ -409,6 +423,7 @@ void Explorer::RefreshHands() {
   q.game_type = filters.game_type == 2 ? -1 : filters.game_type;
   q.since = Since();
   q.player = selected_player;
+  q.filter = hand_filter;
   q.limit = kHandsPerPage;
   long long total = 0;
   long long last_page = 0;
@@ -449,6 +464,9 @@ bool Explorer::SelectHand(long long pk) {
   hand_text = hh::FormatPokerStars(hand, options);
   replay = BuildReplay(hand);
   replay_step = 0;
+  db.GetNote(pk, &note_marked, &note_tags, &note_text);
+  equity_key_.clear();
+  UpdateEquity();
   return true;
 }
 
@@ -467,6 +485,175 @@ double Explorer::SheetValue(const std::string &stat) {
   if (!db.GetStat(stat, selected_player, MakeStatFilter(), &value)) value = kNaN;
   sheet_cache_[stat] = value;
   return value;
+}
+
+Scope Explorer::MakeScope() const {
+  Scope s;
+  s.player = selected_player;
+  if (filters.site_index > 0 && filters.site_index <= (int)sites.size()) s.site = sites[filters.site_index - 1];
+  s.game_type = filters.game_type == 2 ? -1 : filters.game_type;
+  s.since = Since();
+  s.filter = hand_filter;
+  return s;
+}
+
+static std::string FilterKey(const ohstats::HandFilter &f) {
+  char b[512];
+  snprintf(b, sizeof(b), "%d|%s|%s|%g|%g|%g|%g|%d|%d|%d|%d|%s|%s", f.position, f.hole_class.c_str(),
+           f.board_has.c_str(), f.min_pot_bb, f.max_pot_bb, f.min_eff_bb, f.max_eff_bb, f.result, f.pot_type,
+           f.showdown, f.marked_only ? 1 : 0, f.tag.c_str(), f.text.c_str());
+  return b;
+}
+
+// true if the analysis must be recomputed
+static bool Changed(std::string *stored, const std::string &key) {
+  if (*stored == key) return false;
+  *stored = key;
+  return true;
+}
+
+void Explorer::ClearHandFilter() {
+  hand_filter = ohstats::HandFilter();
+  hands_dirty = true;
+}
+
+void Explorer::UpdateGraph() {
+  char key[600];
+  const Scope s = MakeScope();
+  snprintf(key, sizeof(key), "%s|%s|%d|%lld|%s|%lld", s.player.c_str(), s.site.c_str(), s.game_type, s.since,
+           FilterKey(s.filter).c_str(), total_hands_in_db);
+  if (!Changed(&analysis_key_[0], key)) return;
+  std::string message;
+  if (!BuildGraph(&db, s, &graph, &message)) { graph = Graph(); error = message; }
+}
+
+void Explorer::UpdateReport() {
+  char key[700];
+  const Scope s = MakeScope();
+  snprintf(key, sizeof(key), "%s|%s|%d|%lld|%s|%lld|%d", s.player.c_str(), s.site.c_str(), s.game_type, s.since,
+           FilterKey(s.filter).c_str(), total_hands_in_db, (int)report_kind);
+  if (!Changed(&analysis_key_[1], key)) return;
+  std::string message;
+  if (!BuildReport(&db, s, report_kind, &report, &message)) { report.clear(); error = message; }
+  if (report_kind == kReportStartingHand && !BuildHandMatrix(&db, s, &matrix, &message)) error = message;
+}
+
+void Explorer::UpdateSessions() {
+  char key[700];
+  const Scope s = MakeScope();
+  snprintf(key, sizeof(key), "%s|%s|%d|%lld|%s|%lld|%d", s.player.c_str(), s.site.c_str(), s.game_type, s.since,
+           FilterKey(s.filter).c_str(), total_hands_in_db, session_gap_minutes);
+  if (!Changed(&analysis_key_[2], key)) return;
+  std::string message;
+  if (!BuildSessions(&db, s, (long long)std::max(1, session_gap_minutes) * 60, &sessions, &message)) {
+    sessions.clear(); error = message;
+  }
+}
+
+void Explorer::UpdateTournaments() {
+  char key[700];
+  const Scope s = MakeScope();
+  snprintf(key, sizeof(key), "%s|%s|%lld|%s|%lld", s.player.c_str(), s.site.c_str(), s.since,
+           FilterKey(s.filter).c_str(), total_hands_in_db);
+  if (!Changed(&analysis_key_[3], key)) return;
+  std::string message;
+  if (!BuildTournaments(&db, s, &tournaments, &message)) { tournaments.clear(); error = message; }
+}
+
+void Explorer::UpdateLeaks() {
+  char key[700];
+  snprintf(key, sizeof(key), "%s|%d|%d|%d|%d|%d|%lld", selected_player.c_str(), filters.site_index,
+           filters.game_type, filters.last_hands, filters.period_index, filters.position, total_hands_in_db);
+  if (!Changed(&analysis_key_[4], key)) return;
+  leaks.clear();
+  if (selected_player.empty()) return;
+  std::string message;
+  if (!BuildLeaks(&db, selected_player, MakeStatFilter(), &leaks, &message)) leaks.clear();
+}
+
+bool Explorer::SheetFraction(const std::string &stat, double *num, double *den) {
+  if (selected_player.empty()) return false;
+  SheetValue("hands");        // makes sure the caches belong to the current filters
+  const std::string key = sheet_key_ + "#" + stat;
+  std::map<std::string, std::pair<double, double> >::const_iterator it = fraction_cache_.find(key);
+  if (it == fraction_cache_.end()) {
+    if (fraction_cache_.size() > 2000) fraction_cache_.clear();
+    double n = 0, d = 0;
+    if (!db.GetStatFraction(stat, selected_player, MakeStatFilter(), &n, &d)) { n = 0; d = -1; }
+    it = fraction_cache_.insert(std::make_pair(key, std::make_pair(n, d))).first;
+  }
+  if (it->second.second < 0) return false;
+  *num = it->second.first; *den = it->second.second;
+  return true;
+}
+
+PlayerType Explorer::TypeOf(const std::string &player) const {
+  std::map<std::string, PlayerType>::const_iterator it = player_types.find(player);
+  return it == player_types.end() ? kTypeUnknown : it->second;
+}
+
+void Explorer::SaveNote() {
+  if (selected_hand == 0) return;
+  std::string message;
+  if (!db.SetNote(selected_hand, note_marked, note_tags, note_text, &message)) error = message;
+  hands_dirty = true;
+}
+
+void Explorer::UpdateEquity() {
+  const double kNaN = std::numeric_limits<double>::quiet_NaN();
+  for (int i = 0; i < hh::kMaxSeats; ++i) equity[i] = kNaN;
+  pot_odds_text.clear();
+  if (replay.empty()) return;
+  if (replay_step < 0) replay_step = 0;
+  if (replay_step >= (int)replay.size()) replay_step = (int)replay.size() - 1;
+  const ReplayFrame &frame = replay[replay_step];
+  char key[64];
+  snprintf(key, sizeof(key), "%lld|%d", selected_hand, replay_step);
+  const bool same = (equity_key_ == key);
+  equity_key_ = key;
+  (void)same;
+
+  // Equity: the players who are still in; unknown hands are random
+  std::vector<PlayerCards> players;
+  std::vector<int> seats;
+  for (int s = 0; s < hh::kMaxSeats; ++s) {
+    if (!hand.in_hand[s] || frame.folded[s]) continue;
+    seats.push_back(s);
+    if (!hand.hole[s][0].empty() && !hand.hole[s][1].empty()) players.push_back(PlayerCards(hand.hole[s][0], hand.hole[s][1]));
+    else players.push_back(PlayerCards());
+  }
+  bool any_known = false;
+  for (size_t i = 0; i < players.size(); ++i) any_known |= players[i].known;
+  if (players.size() >= 2 && any_known) {
+    std::vector<std::string> board;
+    for (int i = 0; i < frame.board_cards && i < hand.board_count; ++i) board.push_back(hand.board[i]);
+    std::vector<double> eq;
+    bool exact = false;
+    if (ComputeEquity(players, board, 6000, &eq, &exact)) {
+      equity_exact = exact;
+      for (size_t i = 0; i < seats.size(); ++i) if (players[i].known) equity[seats[i]] = eq[i];
+    }
+  }
+
+  // Pot odds of the next action
+  if (replay_step < (int)hand.actions.size()) {
+    const hh::Action &next = hand.actions[replay_step];
+    double highest = 0;
+    for (int s = 0; s < hh::kMaxSeats; ++s) highest = std::max(highest, frame.bet[s]);
+    double bet_here = (next.seat >= 0 && next.seat < hh::kMaxSeats) ? frame.bet[next.seat] : 0;
+    // after a new street the bets are zero in the frame
+    if (next.street != frame.street) highest = bet_here = 0;
+    const double to_call = highest - bet_here;
+    if (to_call > hh::kEps && next.type != hh::kPostSmallBlind && next.type != hh::kPostBigBlind &&
+        next.type != hh::kPostAnte) {
+      const double odds = PotOdds(frame.pot, to_call);
+      char b[160];
+      snprintf(b, sizeof(b), "%s faces %s into a pot of %s: needs %.1f%% equity",
+               SeatName(hand, next.seat).c_str(), FormatAmount(to_call, hand.tournament).c_str(),
+               FormatAmount(frame.pot, hand.tournament).c_str(), odds * 100.0);
+      pot_odds_text = b;
+    }
+  }
 }
 
 bool Explorer::HasColumn(const std::string &stat) const {

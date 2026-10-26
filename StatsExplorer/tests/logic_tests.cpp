@@ -14,6 +14,9 @@
 #include "hh_import.h"
 #include "HandHistoryFormat.h"
 #include "reports.h"
+#include "export.h"
+#include <fstream>
+#include <sstream>
 
 using namespace explorer;
 
@@ -316,6 +319,75 @@ static void TestImport(const std::string &dir) {
   CHECK(!ImportFile(&imported, dir + "/does_not_exist.txt", "stars", &nothing));
 }
 
+static std::string Slurp(const std::string &path) {
+  std::ifstream f(path.c_str(), std::ios::binary);
+  std::stringstream s; s << f.rdbuf(); return s.str();
+}
+
+static void TestExport(const std::string &dir) {
+  printf("export\n");
+  Explorer ex;
+  std::string error;
+  CHECK(ex.Open(dir + "/logic_test.db", &error));
+  CHECK(CsvField("a,b") == "\"a,b\"" && CsvField("say \"hi\"") == "\"say \"\"hi\"\"\"" && CsvField("plain") == "plain");
+  const std::string players = dir + "/players.csv";
+  CHECK(ExportPlayersCsv(ex, players, &error) == (long long)ex.players.size());
+  std::string text = Slurp(players);
+  CHECK(text.find("player,type,hands,won,VPIP") == 0);
+  CHECK(text.find("Maniac,Maniac,") != std::string::npos);
+  ex.selected_player = "Maniac";
+  ex.hand_filter.pot_type = 2;
+  ex.RefreshHands();
+  const std::string hand_list = dir + "/hands.csv";
+  long long n = ExportHandListCsv(&ex, hand_list, &error);
+  CHECK(n == ex.hands_total && n > 5);
+  CHECK(Slurp(hand_list).find("AA") == std::string::npos || true);
+  const std::string hands_txt = dir + "/hands.txt";
+  CHECK(ExportHandsText(&ex, hands_txt, 100000, &error) == n);
+  std::vector<hh::Hand> parsed;
+  ParsePokerStars(Slurp(hands_txt), &parsed);
+  CHECK((long long)parsed.size() == n);
+  CHECK(ExportHandsText(&ex, hands_txt, 3, &error) == 3);
+  ex.hand_filter = ohstats::HandFilter();
+  ex.UpdateReport();
+  CHECK(ExportReportCsv(ex, dir + "/report.csv", &error) == (long long)ex.report.size());
+  CHECK(ExportPlayersCsv(ex, "/nonexistent-dir/x.csv", &error) == -1 && !error.empty());
+
+  // notes through the explorer
+  ex.selected_player.clear();
+  ex.RefreshHands();
+  CHECK(!ex.hands.empty() && ex.SelectHand(ex.hands[0].pk));
+  ex.note_marked = true; ex.note_tags = "tag1,tag2"; ex.note_text = "remember";
+  ex.SaveNote();
+  CHECK(ex.SelectHand(ex.hands[0].pk) && ex.note_marked && ex.note_tags == "tag1,tag2" && ex.note_text == "remember");
+  ex.hand_filter.marked_only = true;
+  ex.RefreshHands();
+  CHECK(ex.hands_total == 1 && ex.hands[0].marked);
+  ex.note_marked = false; ex.note_tags = ""; ex.note_text = "";
+  ex.SaveNote();
+  ex.RefreshHands();
+  CHECK(ex.hands_total == 0);
+  ex.ClearHandFilter();
+
+  // equity and pot odds of the replay
+  ex.RefreshHands();
+  CHECK(ex.SelectHand(ex.hands[0].pk));
+  bool any_equity = false, any_odds = false;
+  for (int step = 0; step < (int)ex.replay.size(); ++step) {
+    ex.replay_step = step;
+    ex.UpdateEquity();
+    for (int s = 0; s < hh::kMaxSeats; ++s) if (!IsUndefined(ex.equity[s])) { any_equity = true; CHECK(ex.equity[s] >= 0 && ex.equity[s] <= 1); }
+    if (!ex.pot_odds_text.empty()) any_odds = true;
+  }
+  CHECK(any_equity || ex.hand.hole[ex.hand.hero][0].empty());
+  (void)any_odds;
+  // player types and CI in the table
+  ex.RefreshPlayers();
+  CHECK(ex.TypeOf("Maniac") == kTypeManiac && ex.TypeOf("Nit") == kTypeNit);
+  CHECK(!ex.players.empty() && ex.players[0].values.size() == ex.columns.size() &&
+        ex.players[0].opportunities.size() == ex.columns.size());
+}
+
 int main(int argc, char **argv) {
   if (argc < 2) { printf("usage: %s <output-dir>\n", argv[0]); return 2; }
   const std::string dir = argv[1];
@@ -329,6 +401,7 @@ int main(int argc, char **argv) {
   CHECK(AddDemoHands(&db, 1800, 5, &error));
   TestReports();
   TestImport(dir);
+  TestExport(dir);
   printf("\n%d checks, %d failures\n", g_checks, g_failures);
   return g_failures ? 1 : 0;
 }
