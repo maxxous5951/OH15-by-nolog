@@ -3,7 +3,15 @@
 Programme C++ (Dear ImGui) pour explorer la base `oh_stats.db` créée par OpenHoldem
 (voir `../StatsDatabase_README.md`) : liste des joueurs avec leurs stats, fiche joueur, liste des mains, replayer.
 
-## Compiler (Windows / Linux / macOS)
+## Compiler sous Windows (Visual Studio, le plus simple)
+
+Ouvrir `StatsExplorer\StatsExplorer.sln` dans Visual Studio 2022 (charge de travail « Développement Desktop en C++ »),
+choisir `Release | x64`, Générer. Rien à télécharger : Dear ImGui est dans `third_party/imgui`, l'affichage utilise
+DirectX 11 (inclus dans Windows). Résultat : `bin\x64\Release\StatsExplorer.exe` (le dossier `fonts` est copié à côté).
+Lancer : `StatsExplorer.exe chemin\vers\oh_stats.db` ; sans argument, il cherche `Hand_Histories\oh_stats.db` puis
+`oh_stats.db` à côté du programme.
+
+## Compiler avec CMake (Windows / Linux / macOS)
 
 Prérequis : CMake ≥ 3.14, un compilateur C++14, OpenGL. Dear ImGui 1.91.9 et GLFW 3.4 sont téléchargés par CMake.
 Linux : paquets de développement X11 (`libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev`).
