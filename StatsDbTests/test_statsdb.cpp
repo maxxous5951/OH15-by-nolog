@@ -1,5 +1,6 @@
 // Tests of the OpenHoldem stats database (StatsCore.h / StatsDb.cpp).
 // Build and run: see build_and_run.sh
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
@@ -839,6 +840,78 @@ static void TestExplorerQueries() {
   }
   CHECK(db.Sites().size() == 2);
   CHECK(db.FindPlayers("illa").size() == 1);
+
+  // Filters, notes, free queries, migration (version 2 -> 3)
+  {
+    CHECK(HoleClass("As", "Kd") == "AKo" && HoleClass("Kd", "As") == "AKo" && HoleClass("7h", "7c") == "77");
+    CHECK(HoleClass("Th", "9h") == "T9s" && HoleClass("", "9h") == "");
+    HandQuery q;
+    q.filter.hole_class = "QQ";
+    std::vector<HandRow> rows; long long total = 0;
+    q.player = "Villain";
+    CHECK(db.ListHands(q, &rows, &total, &error));
+    CHECK(total == 1 && rows.size() == 1 && rows[0].hand_id == "full");
+    q.filter = HandFilter();
+    q.filter.pot_type = 2;                     // single raised pot: only "full" + raise hands
+    CHECK(db.ListHands(q, &rows, &total, &error));
+    CHECK(total >= 3);
+    q.filter = HandFilter();
+    q.filter.board_has = "Jh 7d";
+    CHECK(db.ListHands(q, &rows, &total, &error));
+    CHECK(total == 1);
+    q.filter.board_has = "Ah";
+    CHECK(db.ListHands(q, &rows, &total, &error));
+    CHECK(total == 0);
+    q.filter = HandFilter();
+    q.filter.result = 1;                       // Villain won "full" (+4)
+    CHECK(db.ListHands(q, &rows, &total, &error));
+    CHECK(total >= 1);
+    q.filter = HandFilter();
+    q.filter.min_pot_bb = 7; q.filter.max_pot_bb = 8; q.filter.showdown = 2;
+    CHECK(db.ListHands(q, &rows, &total, &error));
+    CHECK(total == 1);
+    q.filter = HandFilter();
+    q.filter.min_eff_bb = 150;
+    CHECK(db.ListHands(q, &rows, &total, &error));
+    CHECK(total == 0);
+
+    // Notes
+    CHECK(db.SetNote(pk, true, "bluff,river", "Check this one", &error));
+    bool marked = false; std::string tags, note;
+    CHECK(db.GetNote(pk, &marked, &tags, &note) && marked && tags == "bluff,river" && note == "Check this one");
+    q.filter = HandFilter();
+    q.filter.marked_only = true;
+    CHECK(db.ListHands(q, &rows, &total, &error));
+    CHECK(total == 1 && rows.size() == 1 && rows[0].marked);
+    q.filter = HandFilter(); q.filter.tag = "river";
+    CHECK(db.ListHands(q, &rows, &total, &error) && total == 1);
+    q.filter.tag = "riv";                      // whole tags only
+    CHECK(db.ListHands(q, &rows, &total, &error) && total == 0);
+    q.filter = HandFilter(); q.filter.text = "this ONE";
+    CHECK(db.ListHands(q, &rows, &total, &error) && total == 1);
+    CHECK(db.SetNote(pk, false, "", "", &error));
+    CHECK(!db.GetNote(pk, &marked, &tags, &note));
+
+    // Free queries are read only
+    std::vector<Row> result;
+    CHECK(db.Select("SELECT COUNT(*), MAX(total_pot) FROM hands WHERE site = ?;",
+                    std::vector<Cell>(1, Cell::Text("stars")), &result, &error));
+    CHECK(result.size() == 1 && result[0][0].AsInt() >= 5 && result[0][1].AsDouble() >= 7.4);
+    CHECK(!db.Select("DELETE FROM hands;", std::vector<Cell>(), &result, &error));
+    CHECK(db.CountHands() > 0);
+
+    // Migration: forget the new values, pretend to be version 2
+    CHECK(db.Execute("UPDATE hands SET pot_type = NULL, eff_bb = NULL;", std::vector<Cell>(), &error));
+    CHECK(db.Execute("UPDATE hand_player SET hole_class = NULL;", std::vector<Cell>(), &error));
+    CHECK(db.Execute("PRAGMA user_version = 2;", std::vector<Cell>(), &error));
+    db.Close();
+    CHECK(db.Open(path, &error));
+    CHECK(db.Select("SELECT pot_type, eff_bb FROM hands WHERE hand_id = 'full';", std::vector<Cell>(), &result, &error));
+    CHECK(result.size() == 1 && result[0][0].AsInt() == 2 && fabs(result[0][1].AsDouble() - 100) < 1e-6);
+    CHECK(db.Select("SELECT hole_class FROM hand_player WHERE name = 'Villain' AND hole <> '';", std::vector<Cell>(), &result, &error));
+    CHECK(result.size() == 1 && result[0][0].AsText() == "QQ");
+    CHECK(db.Select("PRAGMA user_version;", std::vector<Cell>(), &result, &error) && result[0][0].AsInt() == 3);
+  }
 
   // Version 1 database is upgraded
   db.Close();

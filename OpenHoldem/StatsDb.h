@@ -37,7 +37,7 @@ struct sqlite3;
 
 namespace ohstats {
 
-const int kSchemaVersion = 2;
+const int kSchemaVersion = 3;
 
 // Which hands are used for a statistic
 struct StatFilter {
@@ -58,6 +58,7 @@ struct PlayerRow {
   long long           hands;
   double              won;        // net result (money or chips)
   std::vector<double> values;     // one value per requested statistic, NaN = undefined
+  std::vector<double> opportunities;   // denominators of these values (for confidence intervals)
   PlayerRow() : hands(0), won(0) {}
 };
 
@@ -71,11 +72,50 @@ struct PlayerQuery {
   PlayerQuery() : any_game_type(false), min_hands(1), limit(1000) {}
 };
 
+// ---- Generic access (reports of the explorer) ----
+
+struct Cell {
+  enum Type { kNull, kInt, kReal, kText };
+  Type        type;
+  long long   i;
+  double      d;
+  std::string s;
+  Cell() : type(kNull), i(0), d(0) {}
+  static Cell Int(long long v)              { Cell c; c.type = kInt;  c.i = v; return c; }
+  static Cell Real(double v)                { Cell c; c.type = kReal; c.d = v; return c; }
+  static Cell Text(const std::string &v)    { Cell c; c.type = kText; c.s = v; return c; }
+  bool        IsNull() const { return type == kNull; }
+  double      AsDouble() const { return type == kInt ? (double)i : type == kReal ? d : 0.0; }
+  long long   AsInt() const    { return type == kInt ? i : type == kReal ? (long long)d : 0; }
+  std::string AsText() const;
+};
+typedef std::vector<Cell> Row;
+
+// Filters on hands. They apply to "p" (the hand_player row of the selected player or
+// of the hero), "h" (hands) and "n" (hand_notes), see HandFromSql / HandFilterSql.
+struct HandFilter {
+  int         position;        // -1 = all (enum Position)
+  std::string hole_class;      // "AKs", "QQ", "T9o" ... "" = all
+  std::string board_has;       // cards / ranks that must be on the board, e.g. "Ah" or "A K"
+  double      min_pot_bb, max_pot_bb;   // final pot in big blinds, 0 = no limit
+  double      min_eff_bb, max_eff_bb;   // effective stack in big blinds, 0 = no limit
+  int         result;          // 0 = all, 1 = won, 2 = lost
+  int         pot_type;        // 0 = all, 1 = limped, 2 = single raised, 3 = 3-bet, 4 = 4-bet or more
+  int         showdown;        // 0 = all, 1 = went to showdown, 2 = no showdown
+  bool        marked_only;
+  std::string tag;             // hands with this tag
+  std::string text;            // hands whose note contains this text
+  HandFilter() : position(-1), min_pot_bb(0), max_pot_bb(0), min_eff_bb(0), max_eff_bb(0),
+                 result(0), pot_type(0), showdown(0), marked_only(false) {}
+  bool Active() const;
+};
+
 struct HandQuery {
   std::string site;            // "" = all
   int         game_type;       // -1 = all, 0 = cash, 1 = tournament
   long long   since;           // 0 = all
   std::string player;          // only hands of this player (exact name), "" = all
+  HandFilter  filter;
   int         limit, offset;
   HandQuery() : game_type(-1), since(0), limit(200), offset(0) {}
 };
@@ -89,14 +129,21 @@ struct HandRow {
   bool        tournament, showdown;
   double      sblind, bblind, pot;
   int         n_players;
-  bool        has_player, player_folded;
+  bool        has_player, player_folded, marked;
   std::string player_name, player_hole;
   int         player_position;
   double      player_net;
   HandRow() : pk(0), played_at(0), tournament(false), showdown(false), sblind(0), bblind(0),
-              pot(0), n_players(0), has_player(false), player_folded(false),
+              pot(0), n_players(0), has_player(false), player_folded(false), marked(false),
               player_position(-1), player_net(0) {}
 };
+
+// "AKs", "QQ", "T9o" from the two hole cards ("" if unknown)
+std::string HoleClass(const std::string &card1, const std::string &card2);
+// FROM clause with the aliases h, p, n and " AND ..." conditions for the filter
+// (binds are appended in the order of the placeholders)
+std::string HandFromSql(bool by_player);       // first placeholder: player name, if by_player
+std::string HandFilterSql(const HandFilter &filter, std::vector<Cell> *binds);
 
 // "2026/10/25 19:24:00" in local time (like the hand histories)
 std::string FormatTimestamp(long long seconds_since_1970);
@@ -131,6 +178,10 @@ class Db {
   bool GetStat(const std::string &stat_name, const std::string &player,
                const StatFilter &filter, double *value);
 
+  // Numerator and denominator of a statistic (value = num / den), same filters as GetStat.
+  bool GetStatFraction(const std::string &stat_name, const std::string &player,
+                       const StatFilter &filter, double *num, double *den);
+
   // Player table: one row per player with the requested statistics
   bool PlayerTable(const PlayerQuery &query, std::vector<PlayerRow> *rows, std::string *error = NULL);
   // Hand list, newest first. total = number of hands that match (ignoring limit / offset).
@@ -138,6 +189,16 @@ class Db {
                  std::string *error = NULL);
   // Rebuilds a stored hand (for the hand text and the replayer)
   bool LoadHand(long long pk, hh::Hand *hand, std::string *site = NULL, std::string *error = NULL);
+  // Free queries for reports (read only: the statement must not change data) and
+  // changes of the explorer's own data (notes). The database is locked meanwhile.
+  bool Select(const std::string &sql, const std::vector<Cell> &binds, std::vector<Row> *rows,
+              std::string *error = NULL);
+  bool Execute(const std::string &sql, const std::vector<Cell> &binds, std::string *error = NULL);
+  // Notes, stars and tags of hands (tags: comma separated)
+  bool GetNote(long long hand_pk, bool *marked, std::string *tags, std::string *note);
+  bool SetNote(long long hand_pk, bool marked, const std::string &tags, const std::string &note,
+               std::string *error = NULL);
+
   // Sites that occur in the database (lower case)
   std::vector<std::string> Sites();
   // Names of the players of the database that contain the text
@@ -153,6 +214,7 @@ class Db {
  private:
   bool Exec(const char *sql, std::string *error);
   bool CreateSchema(std::string *error);
+  bool Backfill(std::string *error);
   bool EnsureColumn(const char *table, const char *column, const char *type, std::string *error);
   void SetError(std::string *error, const std::string &message);
 

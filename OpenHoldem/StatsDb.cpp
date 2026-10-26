@@ -14,6 +14,7 @@
 #include "StatsDb.h"
 
 #include <ctype.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -297,6 +298,44 @@ bool Db::EnsureColumn(const char *table, const char *column, const char *type, s
   return Exec((std::string("ALTER TABLE ") + table + " ADD COLUMN " + column + " " + type + ";").c_str(), error);
 }
 
+bool Db::Backfill(std::string *error) {
+  std::string message;
+  if (!Exec("BEGIN IMMEDIATE;", &message)) { SetError(error, message); return false; }
+  bool ok = Exec(
+    "UPDATE hands SET pot_type = CASE (SELECT COUNT(*) FROM hand_actions a WHERE a.hand_pk = hands.id"
+    " AND a.street = 1 AND a.type = 'raise') WHEN 0 THEN 1 WHEN 1 THEN 2 WHEN 2 THEN 3 ELSE 4 END"
+    " WHERE pot_type IS NULL;"
+    "UPDATE hands SET eff_bb = (SELECT p.start_stack FROM hand_player p WHERE p.hand_pk = hands.id"
+    " ORDER BY p.start_stack DESC LIMIT 1 OFFSET 1) / NULLIF(bblind, 0) WHERE eff_bb IS NULL;", &message);
+  if (ok) {
+    std::vector<std::pair<long long, std::string> > classes;
+    {
+      Stmt stmt(db_, "SELECT id, hole FROM hand_player WHERE hole_class IS NULL AND length(hole) >= 4;");
+      if (stmt.ok()) {
+        while (sqlite3_step(stmt.get()) == SQLITE_ROW) {
+          std::string hole = (const char *)sqlite3_column_text(stmt.get(), 1);
+          classes.push_back(std::make_pair((long long)sqlite3_column_int64(stmt.get(), 0),
+            HoleClass(hole.substr(0, hole.size() / 2), hole.substr(hole.size() / 2))));
+        }
+      }
+    }
+    Stmt update(db_, "UPDATE hand_player SET hole_class = ? WHERE id = ?;");
+    ok = update.ok();
+    for (size_t i = 0; ok && i < classes.size(); ++i) {
+      sqlite3_reset(update.get());
+      sqlite3_bind_text(update.get(), 1, classes[i].second.c_str(), -1, SQLITE_TRANSIENT);
+      sqlite3_bind_int64(update.get(), 2, classes[i].first);
+      ok = sqlite3_step(update.get()) == SQLITE_DONE;
+      if (!ok) message = sqlite3_errmsg(db_);
+    }
+  }
+  std::string ignored;
+  if (ok && Exec("COMMIT;", &message)) return true;
+  Exec("ROLLBACK;", &ignored);
+  SetError(error, message);
+  return false;
+}
+
 bool Db::CreateSchema(std::string *error) {
   std::ostringstream counters;
   for (int i = 0; i < kNumCounters; ++i) {
@@ -342,14 +381,23 @@ bool Db::CreateSchema(std::string *error) {
     " seq INTEGER NOT NULL,"
     " seat INTEGER, street INTEGER, type TEXT,"
     " amount REAL, to_amount REAL, allin INTEGER, raise_by REAL,"
-    " PRIMARY KEY(hand_pk, seq));";
+    " PRIMARY KEY(hand_pk, seq));"
+    "CREATE TABLE IF NOT EXISTS hand_notes ("
+    " hand_pk INTEGER PRIMARY KEY REFERENCES hands(id) ON DELETE CASCADE,"
+    " marked INTEGER NOT NULL DEFAULT 0,"
+    " tags TEXT NOT NULL DEFAULT '',"
+    " note TEXT NOT NULL DEFAULT '');";
   if (!Exec(sql.str().c_str(), error)) return false;
   // Version 1 -> 2: columns for rebuilding hands (hand text, replayer)
   if (!EnsureColumn("hands", "uncalled", "REAL", error) ||
       !EnsureColumn("hands", "uncalled_seat", "INTEGER", error) ||
       !EnsureColumn("hands", "sb_seat", "INTEGER", error) ||
       !EnsureColumn("hands", "bb_seat", "INTEGER", error) ||
-      !EnsureColumn("hand_actions", "raise_by", "REAL", error)) return false;
+      !EnsureColumn("hand_actions", "raise_by", "REAL", error) ||
+      // Version 2 -> 3: values for the filters of the explorer
+      !EnsureColumn("hands", "pot_type", "INTEGER", error) ||
+      !EnsureColumn("hands", "eff_bb", "REAL", error) ||
+      !EnsureColumn("hand_player", "hole_class", "TEXT", error)) return false;
   std::ostringstream version;
   version << "PRAGMA user_version=" << kSchemaVersion << ";";
   return Exec(version.str().c_str(), error);
@@ -379,10 +427,12 @@ bool Db::Open(const std::string &path, std::string *error) {
   Exec("PRAGMA journal_mode=WAL;", &ignored);
   Exec("PRAGMA synchronous=NORMAL;", &ignored);
   // A database of a newer version must not be touched
+  int old_version = 0;
   {
     Stmt stmt(db_, "PRAGMA user_version;");
     if (stmt.ok() && sqlite3_step(stmt.get()) == SQLITE_ROW) {
       int version = sqlite3_column_int(stmt.get(), 0);
+      old_version = version;
       if (version > kSchemaVersion) {
         SetError(error, "database was created by a newer version of OpenHoldem");
         sqlite3_close(db_);
@@ -391,7 +441,7 @@ bool Db::Open(const std::string &path, std::string *error) {
       }
     }
   }
-  if (!CreateSchema(error)) {
+  if (!CreateSchema(error) || (old_version > 0 && old_version < 3 && !Backfill(error))) {
     sqlite3_close(db_);
     db_ = NULL;
     return false;
@@ -434,8 +484,9 @@ bool Db::InsertHand(const hh::Hand &hand, const std::string &site, std::string *
       Stmt stmt(db_,
         "INSERT OR IGNORE INTO hands(site, hand_id, played_at, table_name, is_tournament,"
         " tournament_id, level, nseats, n_players, dealer, hero, sblind, bblind, ante,"
-        " board, showdown, last_street, total_pot, rake, uncalled, uncalled_seat, sb_seat, bb_seat)"
-        " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);");
+        " board, showdown, last_street, total_pot, rake, uncalled, uncalled_seat, sb_seat, bb_seat,"
+        " pot_type, eff_bb)"
+        " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);");
       if (!stmt.ok()) { SetError(error, sqlite3_errmsg(db_)); break; }
       sqlite3_stmt *s = stmt.get();
       int k = 1;
@@ -462,6 +513,22 @@ bool Db::InsertHand(const hh::Hand &hand, const std::string &site, std::string *
       sqlite3_bind_int(s, k++, hand.uncalled_seat);
       sqlite3_bind_int(s, k++, hand.sb_seat);
       sqlite3_bind_int(s, k++, hand.bb_seat);
+      {
+        int raises = 0;
+        for (size_t a = 0; a < hand.actions.size(); ++a) {
+          if (hand.actions[a].street == 1 && hand.actions[a].type == hh::kRaise) ++raises;
+        }
+        sqlite3_bind_int(s, k++, raises == 0 ? 1 : raises == 1 ? 2 : raises == 2 ? 3 : 4);
+        // effective stack: the second biggest stack
+        double biggest = 0, second = 0;
+        for (int i = 0; i < hh::kMaxSeats; ++i) {
+          if (!hand.in_hand[i]) continue;
+          if (hand.start_stack[i] > biggest) { second = biggest; biggest = hand.start_stack[i]; }
+          else if (hand.start_stack[i] > second) second = hand.start_stack[i];
+        }
+        if (hand.bblind > 0) sqlite3_bind_double(s, k++, second / hand.bblind);
+        else sqlite3_bind_null(s, k++);
+      }
       if (sqlite3_step(s) != SQLITE_DONE) { SetError(error, sqlite3_errmsg(db_)); break; }
       if (sqlite3_changes(db_) == 0) {
         SetError(error, "duplicate hand");
@@ -478,8 +545,8 @@ bool Db::InsertHand(const hh::Hand &hand, const std::string &site, std::string *
     }
     std::string player_sql =
       "INSERT INTO hand_player(hand_pk, site, is_tournament, played_at, seat, name, position,"
-      " is_hero, start_stack, end_stack, hole, contrib, collected, folded" + columns.str() +
-      ") VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?" + marks.str() + ");";
+      " is_hero, start_stack, end_stack, hole, contrib, collected, folded, hole_class" + columns.str() +
+      ") VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?" + marks.str() + ");";
     bool players_ok = true;
     {
       Stmt stmt(db_, player_sql);
@@ -505,6 +572,11 @@ bool Db::InsertHand(const hh::Hand &hand, const std::string &site, std::string *
         sqlite3_bind_double(s, k++, hand.contrib[p.seat]);
         sqlite3_bind_double(s, k++, hand.collected[p.seat]);
         sqlite3_bind_int(s, k++, hand.folded[p.seat] ? 1 : 0);
+        {
+          std::string cls = HoleClass(hand.hole[p.seat][0], hand.hole[p.seat][1]);
+          if (cls.empty()) sqlite3_bind_null(s, k++);
+          else sqlite3_bind_text(s, k++, cls.c_str(), -1, SQLITE_TRANSIENT);
+        }
         for (int c = 0; c < kNumCounters; ++c) sqlite3_bind_int(s, k++, p.counters[c]);
         if (sqlite3_step(s) != SQLITE_DONE) {
           SetError(error, sqlite3_errmsg(db_));
@@ -631,6 +703,35 @@ bool Db::GetStat(const std::string &stat_name, const std::string &player,
   return true;
 }
 
+bool Db::GetStatFraction(const std::string &stat_name, const std::string &player,
+                        const StatFilter &filter, double *num, double *den) {
+  const StatDef *def = FindStat(stat_name);
+  if (!def || player.empty()) return false;
+  StatDef fraction = { def->name, def->num, def->den };
+  std::string sql = BuildStatSql(fraction, filter);
+  // Same rows, but both parts of the ratio
+  const std::string head = std::string("SELECT CASE WHEN (") + def->den + ") > 0 THEN (" + def->num +
+                           ") * 1.0 / (" + def->den + ") END FROM (";
+  if (sql.compare(0, head.size(), head) != 0) return false;
+  sql = std::string("SELECT (") + def->num + ") * 1.0, (" + def->den + ") * 1.0 FROM (" + sql.substr(head.size());
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (!db_) return false;
+  Stmt stmt(db_, sql);
+  if (!stmt.ok()) return false;
+  sqlite3_stmt *s = stmt.get();
+  int k = 1;
+  sqlite3_bind_text(s, k++, player.c_str(), -1, SQLITE_TRANSIENT);
+  if (!filter.site.empty()) sqlite3_bind_text(s, k++, filter.site.c_str(), -1, SQLITE_TRANSIENT);
+  if (!filter.any_game_type) sqlite3_bind_int(s, k++, filter.tournament ? 1 : 0);
+  if (filter.since > 0)     sqlite3_bind_int64(s, k++, filter.since);
+  if (filter.position >= 0) sqlite3_bind_int(s, k++, filter.position);
+  if (filter.nb_hands > 0)  sqlite3_bind_int(s, k++, filter.nb_hands);
+  if (sqlite3_step(s) != SQLITE_ROW) return false;
+  if (num) *num = sqlite3_column_type(s, 0) == SQLITE_NULL ? 0 : sqlite3_column_double(s, 0);
+  if (den) *den = sqlite3_column_type(s, 1) == SQLITE_NULL ? 0 : sqlite3_column_double(s, 1);
+  return true;
+}
+
 bool Db::SelfTest(std::string *error) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!db_) { SetError(error, "database not open"); return false; }
@@ -733,7 +834,7 @@ bool Db::PlayerTable(const PlayerQuery &query, std::vector<PlayerRow> *rows, std
   sql << "SELECT name, COUNT(*), SUM(end_stack - start_stack)";
   for (size_t i = 0; i < defs.size(); ++i) {
     sql << ", CASE WHEN (" << defs[i]->den << ") > 0 THEN (" << defs[i]->num
-        << ") * 1.0 / (" << defs[i]->den << ") END";
+        << ") * 1.0 / (" << defs[i]->den << ") END, (" << defs[i]->den << ") * 1.0";
   }
   sql << " FROM (SELECT *";
   if (f.nb_hands > 0) {
@@ -774,9 +875,11 @@ bool Db::PlayerTable(const PlayerQuery &query, std::vector<PlayerRow> *rows, std
     row.hands = sqlite3_column_int64(s, 1);
     row.won = sqlite3_column_double(s, 2);
     for (size_t i = 0; i < defs.size(); ++i) {
-      int column = 3 + (int)i;
+      int column = 3 + 2 * (int)i;
       row.values.push_back(sqlite3_column_type(s, column) == SQLITE_NULL
         ? std::numeric_limits<double>::quiet_NaN() : sqlite3_column_double(s, column));
+      row.opportunities.push_back(sqlite3_column_type(s, column + 1) == SQLITE_NULL
+        ? 0.0 : sqlite3_column_double(s, column + 1));
     }
     rows->push_back(row);
   }
@@ -784,47 +887,128 @@ bool Db::PlayerTable(const PlayerQuery &query, std::vector<PlayerRow> *rows, std
   return true;
 }
 
+std::string Cell::AsText() const {
+  char buffer[48];
+  switch (type) {
+    case kInt:  snprintf(buffer, sizeof(buffer), "%lld", i); return buffer;
+    case kReal: snprintf(buffer, sizeof(buffer), "%g", d);   return buffer;
+    case kText: return s;
+    default:    return "";
+  }
+}
+
+bool HandFilter::Active() const {
+  return position >= 0 || !hole_class.empty() || !board_has.empty() || min_pot_bb > 0 || max_pot_bb > 0 ||
+         min_eff_bb > 0 || max_eff_bb > 0 || result != 0 || pot_type != 0 || showdown != 0 ||
+         marked_only || !tag.empty() || !text.empty();
+}
+
+std::string HoleClass(const std::string &card1, const std::string &card2) {
+  if (card1.size() < 2 || card2.size() < 2) return "";
+  static const char kRanks[] = "23456789TJQKA";
+  const char *r1 = strchr(kRanks, card1[0]), *r2 = strchr(kRanks, card2[0]);
+  if (!r1 || !r2) return "";
+  char hi = card1[0], lo = card2[0];
+  if (r2 > r1) { hi = card2[0]; lo = card1[0]; }
+  std::string out;
+  out += hi; out += lo;
+  if (hi != lo) out += (card1[1] == card2[1]) ? 's' : 'o';
+  return out;
+}
+
+std::string HandFromSql(bool by_player) {
+  return std::string(" FROM hands h ") + (by_player ? "JOIN" : "LEFT JOIN") +
+         " hand_player p ON p.hand_pk = h.id AND " + (by_player ? "p.name = ?" : "p.is_hero = 1") +
+         " LEFT JOIN hand_notes n ON n.hand_pk = h.id";
+}
+
+static std::string LikeAround(const std::string &text) {
+  std::string pattern = "%";
+  for (size_t i = 0; i < text.size(); ++i) {
+    if (text[i] == '%' || text[i] == '_' || text[i] == '\\') pattern += '\\';
+    pattern += text[i];
+  }
+  return pattern + "%";
+}
+
+std::string HandFilterSql(const HandFilter &f, std::vector<Cell> *binds) {
+  std::string sql;
+  if (f.position >= 0) { sql += " AND p.position = ?"; binds->push_back(Cell::Int(f.position)); }
+  if (!f.hole_class.empty()) { sql += " AND p.hole_class = ?"; binds->push_back(Cell::Text(f.hole_class)); }
+  {
+    std::istringstream cards(f.board_has);
+    std::string card;
+    while (cards >> card) {
+      sql += " AND h.board LIKE ? ESCAPE '\\'";
+      binds->push_back(Cell::Text(LikeAround(card)));
+    }
+  }
+  if (f.min_pot_bb > 0) { sql += " AND h.bblind > 0 AND h.total_pot / h.bblind >= ?"; binds->push_back(Cell::Real(f.min_pot_bb)); }
+  if (f.max_pot_bb > 0) { sql += " AND h.bblind > 0 AND h.total_pot / h.bblind <= ?"; binds->push_back(Cell::Real(f.max_pot_bb)); }
+  if (f.min_eff_bb > 0) { sql += " AND h.eff_bb >= ?"; binds->push_back(Cell::Real(f.min_eff_bb)); }
+  if (f.max_eff_bb > 0) { sql += " AND h.eff_bb <= ?"; binds->push_back(Cell::Real(f.max_eff_bb)); }
+  if (f.result == 1) sql += " AND p.end_stack - p.start_stack > 0.001";
+  if (f.result == 2) sql += " AND p.end_stack - p.start_stack < -0.001";
+  if (f.pot_type > 0) { sql += " AND h.pot_type = ?"; binds->push_back(Cell::Int(f.pot_type)); }
+  if (f.showdown == 1) sql += " AND h.showdown = 1";
+  if (f.showdown == 2) sql += " AND h.showdown = 0";
+  if (f.marked_only) sql += " AND n.marked = 1";
+  if (!f.tag.empty()) {
+    sql += " AND (',' || n.tags || ',') LIKE ? ESCAPE '\\'";
+    binds->push_back(Cell::Text(LikeAround("," + f.tag + ",")));
+  }
+  if (!f.text.empty()) { sql += " AND n.note LIKE ? ESCAPE '\\'"; binds->push_back(Cell::Text(LikeAround(f.text))); }
+  return sql;
+}
+
+namespace {
+
+void BindCells(sqlite3_stmt *s, const std::vector<Cell> &binds, int *k) {
+  for (size_t i = 0; i < binds.size(); ++i) {
+    const Cell &c = binds[i];
+    switch (c.type) {
+      case Cell::kInt:  sqlite3_bind_int64(s, (*k)++, c.i); break;
+      case Cell::kReal: sqlite3_bind_double(s, (*k)++, c.d); break;
+      case Cell::kText: sqlite3_bind_text(s, (*k)++, c.s.c_str(), -1, SQLITE_TRANSIENT); break;
+      default:          sqlite3_bind_null(s, (*k)++); break;
+    }
+  }
+}
+
+}  // namespace
+
 bool Db::ListHands(const HandQuery &q, std::vector<HandRow> *rows, long long *total, std::string *error) {
   if (!rows) return false;
   rows->clear();
   const bool by_player = !q.player.empty();
-  std::ostringstream from, where;
-  from << " FROM hands h " << (by_player ? "JOIN" : "LEFT JOIN")
-       << " hand_player p ON p.hand_pk = h.id AND "
-       << (by_player ? "p.name = ?" : "p.is_hero = 1");
-  where << " WHERE 1=1";
-  if (!q.site.empty())  where << " AND h.site = ?";
-  if (q.game_type >= 0) where << " AND h.is_tournament = ?";
-  if (q.since > 0)      where << " AND h.played_at >= ?";
-  struct Binder {
-    const HandQuery &q; bool by_player;
-    void Bind(sqlite3_stmt *s, int *k) const {
-      if (by_player) sqlite3_bind_text(s, (*k)++, q.player.c_str(), -1, SQLITE_TRANSIENT);
-      if (!q.site.empty())  sqlite3_bind_text(s, (*k)++, q.site.c_str(), -1, SQLITE_TRANSIENT);
-      if (q.game_type >= 0) sqlite3_bind_int(s, (*k)++, q.game_type);
-      if (q.since > 0)      sqlite3_bind_int64(s, (*k)++, q.since);
-    }
-  } binder = { q, by_player };
+  std::vector<Cell> binds;
+  if (by_player) binds.push_back(Cell::Text(q.player));
+  std::string where = " WHERE 1=1";
+  if (!q.site.empty())  { where += " AND h.site = ?"; binds.push_back(Cell::Text(q.site)); }
+  if (q.game_type >= 0) { where += " AND h.is_tournament = ?"; binds.push_back(Cell::Int(q.game_type)); }
+  if (q.since > 0)      { where += " AND h.played_at >= ?"; binds.push_back(Cell::Int(q.since)); }
+  where += HandFilterSql(q.filter, &binds);
+  const std::string from = HandFromSql(by_player);
 
   std::lock_guard<std::mutex> lock(mutex_);
   if (!db_) { SetError(error, "database not open"); return false; }
   if (total) {
     *total = 0;
-    Stmt stmt(db_, "SELECT COUNT(*)" + from.str() + where.str() + ";");
+    Stmt stmt(db_, "SELECT COUNT(*)" + from + where + ";");
     if (!stmt.ok()) { SetError(error, sqlite3_errmsg(db_)); return false; }
     int k = 1;
-    binder.Bind(stmt.get(), &k);
+    BindCells(stmt.get(), binds, &k);
     if (sqlite3_step(stmt.get()) == SQLITE_ROW) *total = sqlite3_column_int64(stmt.get(), 0);
   }
   Stmt stmt(db_,
     "SELECT h.id, h.site, h.hand_id, h.table_name, h.board, h.played_at, h.is_tournament,"
     " h.showdown, h.sblind, h.bblind, h.total_pot, h.n_players,"
-    " p.id, p.name, p.hole, p.position, p.folded, p.end_stack - p.start_stack" +
-    from.str() + where.str() + " ORDER BY h.played_at DESC, h.id DESC LIMIT ? OFFSET ?;");
+    " p.id, p.name, p.hole, p.position, p.folded, p.end_stack - p.start_stack, COALESCE(n.marked, 0)" +
+    from + where + " ORDER BY h.played_at DESC, h.id DESC LIMIT ? OFFSET ?;");
   if (!stmt.ok()) { SetError(error, sqlite3_errmsg(db_)); return false; }
   sqlite3_stmt *s = stmt.get();
   int k = 1;
-  binder.Bind(s, &k);
+  BindCells(s, binds, &k);
   sqlite3_bind_int(s, k++, q.limit > 0 ? q.limit : -1);
   sqlite3_bind_int(s, k++, q.offset > 0 ? q.offset : 0);
   int rc;
@@ -850,10 +1034,81 @@ bool Db::ListHands(const HandQuery &q, std::vector<HandRow> *rows, long long *to
       r.player_folded = sqlite3_column_int(s, 16) != 0;
       r.player_net = sqlite3_column_double(s, 17);
     }
+    r.marked = sqlite3_column_int(s, 18) != 0;
     rows->push_back(r);
   }
   if (rc != SQLITE_DONE) { SetError(error, sqlite3_errmsg(db_)); return false; }
   return true;
+}
+
+bool Db::Select(const std::string &sql, const std::vector<Cell> &binds, std::vector<Row> *rows,
+                std::string *error) {
+  if (!rows) return false;
+  rows->clear();
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (!db_) { SetError(error, "database not open"); return false; }
+  Stmt stmt(db_, sql);
+  if (!stmt.ok()) { SetError(error, sqlite3_errmsg(db_)); return false; }
+  if (!sqlite3_stmt_readonly(stmt.get())) { SetError(error, "Select: statement changes data"); return false; }
+  sqlite3_stmt *s = stmt.get();
+  int k = 1;
+  BindCells(s, binds, &k);
+  const int columns = sqlite3_column_count(s);
+  int rc;
+  while ((rc = sqlite3_step(s)) == SQLITE_ROW) {
+    Row row;
+    for (int c = 0; c < columns; ++c) {
+      switch (sqlite3_column_type(s, c)) {
+        case SQLITE_INTEGER: row.push_back(Cell::Int(sqlite3_column_int64(s, c))); break;
+        case SQLITE_FLOAT:   row.push_back(Cell::Real(sqlite3_column_double(s, c))); break;
+        case SQLITE_NULL:    row.push_back(Cell()); break;
+        default:             row.push_back(Cell::Text(ColumnText(s, c))); break;
+      }
+    }
+    rows->push_back(row);
+  }
+  if (rc != SQLITE_DONE) { SetError(error, sqlite3_errmsg(db_)); return false; }
+  return true;
+}
+
+bool Db::Execute(const std::string &sql, const std::vector<Cell> &binds, std::string *error) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (!db_) { SetError(error, "database not open"); return false; }
+  Stmt stmt(db_, sql);
+  if (!stmt.ok()) { SetError(error, sqlite3_errmsg(db_)); return false; }
+  int k = 1;
+  BindCells(stmt.get(), binds, &k);
+  if (sqlite3_step(stmt.get()) != SQLITE_DONE) { SetError(error, sqlite3_errmsg(db_)); return false; }
+  return true;
+}
+
+bool Db::GetNote(long long hand_pk, bool *marked, std::string *tags, std::string *note) {
+  std::vector<Row> rows;
+  std::vector<Cell> binds(1, Cell::Int(hand_pk));
+  if (marked) *marked = false;
+  if (tags) tags->clear();
+  if (note) note->clear();
+  if (!Select("SELECT marked, tags, note FROM hand_notes WHERE hand_pk = ?;", binds, &rows) || rows.empty()) return false;
+  if (marked) *marked = rows[0][0].AsInt() != 0;
+  if (tags) *tags = rows[0][1].AsText();
+  if (note) *note = rows[0][2].AsText();
+  return true;
+}
+
+bool Db::SetNote(long long hand_pk, bool marked, const std::string &tags, const std::string &note,
+                 std::string *error) {
+  std::vector<Cell> binds;
+  if (!marked && tags.empty() && note.empty()) {
+    binds.push_back(Cell::Int(hand_pk));
+    return Execute("DELETE FROM hand_notes WHERE hand_pk = ?;", binds, error);
+  }
+  binds.push_back(Cell::Int(hand_pk));
+  binds.push_back(Cell::Int(marked ? 1 : 0));
+  binds.push_back(Cell::Text(tags));
+  binds.push_back(Cell::Text(note));
+  return Execute("INSERT INTO hand_notes(hand_pk, marked, tags, note) VALUES(?,?,?,?)"
+                 " ON CONFLICT(hand_pk) DO UPDATE SET marked = excluded.marked, tags = excluded.tags,"
+                 " note = excluded.note;", binds, error);
 }
 
 bool Db::LoadHand(long long pk, hh::Hand *hand, std::string *site, std::string *error) {
