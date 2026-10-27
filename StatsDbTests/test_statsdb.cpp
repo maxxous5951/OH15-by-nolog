@@ -80,12 +80,12 @@ static void TestPositions() {
   CHECK(pos[3] == kPositionEP);
   CHECK(pos[4] == kPositionEP);
   CHECK(pos[5] == kPositionCO);
-  // Heads-up: the button is the small blind, button wins like in the PT-DLL
+  // Heads-up: the button is the small blind and stays SB (reported by the user: BTN column was filled, SB empty)
   HandBuilder hu("hu");
   for (int i = 2; i < 6; ++i) hu.h.in_hand[i] = false;
   hu.h.dealer = 1; hu.h.sb_seat = 1; hu.h.bb_seat = 0;
   pos = ComputePositions(hu.h);
-  CHECK(pos[1] == kPositionBTN);
+  CHECK(pos[1] == kPositionSB);
   CHECK(pos[0] == kPositionBB);
   CHECK(pos[2] == kPositionUnknown);
 }
@@ -910,7 +910,7 @@ static void TestExplorerQueries() {
     CHECK(result.size() == 1 && result[0][0].AsInt() == 2 && fabs(result[0][1].AsDouble() - 100) < 1e-6);
     CHECK(db.Select("SELECT hole_class FROM hand_player WHERE name = 'Villain' AND hole <> '';", std::vector<Cell>(), &result, &error));
     CHECK(result.size() == 1 && result[0][0].AsText() == "QQ");
-    CHECK(db.Select("PRAGMA user_version;", std::vector<Cell>(), &result, &error) && result[0][0].AsInt() == 3);
+    CHECK(db.Select("PRAGMA user_version;", std::vector<Cell>(), &result, &error) && result[0][0].AsInt() == 4);
   }
 
   // Version 1 database is upgraded

@@ -441,7 +441,11 @@ bool Db::Open(const std::string &path, std::string *error) {
       }
     }
   }
-  if (!CreateSchema(error) || (old_version > 0 && old_version < 3 && !Backfill(error))) {
+  if (!CreateSchema(error) || (old_version > 0 && old_version < 3 && !Backfill(error)) ||
+      (old_version > 0 && old_version < 4 &&
+       !Exec("UPDATE hand_player SET position = 3 WHERE position = 2 AND EXISTS (SELECT 1 FROM hands h"
+             " WHERE h.id = hand_player.hand_pk AND h.sb_seat = hand_player.seat AND h.dealer = hand_player.seat);",
+             error))) {
     sqlite3_close(db_);
     db_ = NULL;
     return false;

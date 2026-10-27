@@ -37,7 +37,7 @@ struct sqlite3;
 
 namespace ohstats {
 
-const int kSchemaVersion = 3;
+const int kSchemaVersion = 4;
 
 // Which hands are used for a statistic
 struct StatFilter {

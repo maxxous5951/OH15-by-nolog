@@ -166,7 +166,8 @@ inline std::vector<int> ComputePositions(const hh::Hand &h) {
       pos[seat] = kPositionCO;
       break;
     }
-    if (h.in_hand[h.dealer]) pos[h.dealer] = kPositionBTN;
+    // Heads-up: the button is also the small blind; keep it as SB (the BB-vs-SB stats rely on it)
+    if (h.in_hand[h.dealer] && h.dealer != h.sb_seat) pos[h.dealer] = kPositionBTN;
   }
   return pos;
 }
