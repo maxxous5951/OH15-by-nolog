@@ -750,6 +750,31 @@ void CDlgPreferences::BuildPages() {
       "Only hands that pass the consistency checks are stored."));
   }
 
+  // ----- HUD (advisor mode): stats above the balance of the players -----
+  {
+    PrefsPage& p = NewPage(&_pages, "HUD");
+    p.items.push_back(Heading("Statistics on the table (advisor mode)"));
+    p.items.push_back(PREF_CHECK("Show the HUD (needs the advisor mode to be enabled)", hud_enabled, k_prefs_hud_enabled));
+    p.items.push_back(PREF_CHECK("Show the names of the statistics (VPIP 92 PFR 71 ...) instead of 92/71/...",
+      hud_show_names, k_prefs_hud_show_names));
+    p.items.push_back(Note("A small label above the balance of every opponent shows the statistics of the list "
+      "of the current betround. The statistics come from the OpenHoldem stats database "
+      "(file of the page \"Stats Database\"), also if PokerTracker is the source of the pt_-symbols. "
+      "The number in brackets is the number of hands. The colour shows the type of the player "
+      "(blue nit, green TAG, orange LAG, red maniac, yellow fish / calling station, purple passive, "
+      "grey unknown or too few hands). \"new\" = player not yet in the database."));
+    p.items.push_back(Heading("Statistics per betround"));
+    p.items.push_back(PREF_TEXT("Preflop", "hud_stats_preflop", hud_stats_preflop, k_prefs_hud_stats_preflop));
+    p.items.push_back(PREF_TEXT("Flop", "hud_stats_flop", hud_stats_flop, k_prefs_hud_stats_flop));
+    p.items.push_back(PREF_TEXT("Turn", "hud_stats_turn", hud_stats_turn, k_prefs_hud_stats_turn));
+    p.items.push_back(PREF_TEXT("River", "hud_stats_river", hud_stats_river, k_prefs_hud_stats_river));
+    p.items.push_back(Note("Names of statistics separated by spaces, at most 6 per betround, e.g. \"vpip pfr 3bet\". "
+      "Same names as the pt_-symbols without the prefix and the chair "
+      "(vpip, pfr, 3bet, fold_to_3bet, flop_cbet, flop_fold_to_cbet, turn_cbet, flop_af, turn_af, wtsd, wssd, "
+      "steal_attempt, ...; see StatsDatabase_README.md). Aggression factors (..._af) are shown with one decimal, "
+      "everything else as a percentage. An empty field restores the default."));
+  }
+
   // ----- Stealth -----
   {
     PrefsPage& p = NewPage(&_pages, "Stealth");

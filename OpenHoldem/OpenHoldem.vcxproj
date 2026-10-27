@@ -388,6 +388,7 @@
     <ClCompile Include="CVersionInfo.cpp" />
     <ClCompile Include="BringKeyboard.cpp" />
     <ClCompile Include="CAdvisor.cpp" />
+    <ClCompile Include="CAdvisorHud.cpp" />
     <ClCompile Include="CAutoplayer.cpp" />
     <ClCompile Include="CAutoplayerFunctions.cpp" />
     <ClCompile Include="CCasinoInterface.cpp" />
@@ -699,6 +700,8 @@
     <ClInclude Include="CPokerTrackerThread.h" />
     <ClInclude Include="BringKeyboard.h" />
     <ClInclude Include="CAdvisor.h" />
+    <ClInclude Include="CAdvisorHud.h" />
+    <ClInclude Include="HudFormat.h" />
     <ClInclude Include="CAutoplayer.h" />
     <ClInclude Include="CAutoplayerFunctions.h" />
     <ClInclude Include="CCasinoInterface.h" />

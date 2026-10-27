@@ -69,9 +69,13 @@ class CStatsDatabase {
   void   ClearChair(int chair);
   // kUndefined if the player or the statistic is unknown or has no data yet
   double GetStat(int chair, int stat_index);
+  // By name ("vpip", "flop_cbet", ...), for the HUD; kUndefined if unknown or no data
+  double GetStatByName(int chair, const std::string &stat_name);
  private:
   CString SiteName();
   int     CurrentPosition(int chair);
+  double  GetStatFiltered(int chair, const std::string &stat_name,
+                          ohstats::StatFilter filter, const CString &period_filter);
   bool    OpenLocked(CString *error);
   void    ClearStatCache();
  private:

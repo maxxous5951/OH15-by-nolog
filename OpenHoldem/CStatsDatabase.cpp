@@ -300,6 +300,23 @@ double CStatsDatabase::GetStat(int chair, int stat_index) {
       if (filter.since < 1) filter.since = 1;
     }
   }
+  return GetStatFiltered(chair, stat_name, filter, period_filter);
+}
+
+// For the HUD: a statistic by name, without hand-count or period filter.
+// Must not use the variables of the PokerTracker-DLL (the symbol engine uses them).
+double CStatsDatabase::GetStatByName(int chair, const std::string &stat_name) {
+  if (chair < kFirstChair || chair > kLastChair) return kUndefined;
+  if (!ohstats::Db::IsSupportedStat(stat_name)) return kUndefined;
+  if (!NameExists(chair)) return kUndefined;
+  ohstats::StatFilter filter;
+  filter.site = ToStd(SiteName());
+  filter.tournament = p_engine_container->symbol_engine_istournament()->istournament();
+  return GetStatFiltered(chair, stat_name, filter, CString());
+}
+
+double CStatsDatabase::GetStatFiltered(int chair, const std::string &stat_name,
+                                       ohstats::StatFilter filter, const CString &period_filter) {
   if (Preferences()->stats_db_by_position()) {
     // Like the PokerTracker-queries: the stats of the player at his current position
     filter.position = CurrentPosition(chair);

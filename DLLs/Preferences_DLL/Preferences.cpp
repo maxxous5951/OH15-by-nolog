@@ -147,6 +147,8 @@ const char* k_registry_keys_for_numerical_values[k_prefs_last_numerical_value + 
   "capture_method",
   "advisor_enabled",
   "advisor_corner",
+  "hud_enabled",
+  "hud_show_names",
   "mouse_mode",
   "mouse_speed_percent",
   "mouse_curvature_percent",
@@ -183,6 +185,10 @@ const char* k_registry_keys_for_CStrings[k_prefs_last_CString_value + 1] = {
   "window_class_name",
   "mutex_name",
   "unwanted_scrape",
+  "hud_stats_preflop",
+  "hud_stats_flop",
+  "hud_stats_turn",
+  "hud_stats_river",
   // Finally an empty string
   // This correspondents to k_prefs_last_numerical_value (unused)
   // It will cause an assertion if used
@@ -263,6 +269,8 @@ void CPreferences::InitDefaults(void) {
   prefs_numerical_values[k_prefs_stats_db_record] = false;
   prefs_numerical_values[k_prefs_stats_db_by_position] = false;
   prefs_numerical_values[k_prefs_advisor_corner] = 1;   // top right
+  prefs_numerical_values[k_prefs_hud_enabled] = false;
+  prefs_numerical_values[k_prefs_hud_show_names] = false;
   // Mouse: the fast reference mouse stays the default
   prefs_numerical_values[k_prefs_mouse_mode] = 0;
   prefs_numerical_values[k_prefs_mouse_speed_percent] = 100;
@@ -309,6 +317,14 @@ CString CPreferences::DefaultStringValues(int index) {
     return "OHAntiColl";
   case k_prefs_unwanted_scrape:
 	  return "fold|~|check|~|call|~|raise|~|raiseto|~|bet|~|all-in|~|allin|~|time:|~|";
+  case k_prefs_hud_stats_preflop:
+    return "vpip pfr 3bet";
+  case k_prefs_hud_stats_flop:
+    return "flop_cbet flop_fold_to_cbet";
+  case k_prefs_hud_stats_turn:
+    return "turn_af turn_cbet";
+  case k_prefs_hud_stats_river:
+    return "wtsd wssd";
   default:
     assert(kThisMustNotHappen);
     return "Error in CPreferences::DefaultStringValues()";

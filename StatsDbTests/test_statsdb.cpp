@@ -9,6 +9,7 @@
 
 #include "StatsDb.h"
 #include "HandHistoryFormat.h"
+#include "HudFormat.h"
 
 using namespace ohstats;
 
@@ -941,6 +942,50 @@ static void TestExplorerQueries() {
   RemoveDb(old_path);
 }
 
+
+static void TestHud() {
+  printf("HUD text and colours\n");
+  // Parsing of the lists of the preferences
+  std::vector<std::string> l = ParseHudStatList("VPIP  pfr,3bet;");
+  CHECK(l.size() == 3 && l[0] == "vpip" && l[1] == "pfr" && l[2] == "3bet");
+  CHECK(ParseHudStatList("").empty());
+  CHECK(ParseHudStatList(" - ").empty());
+  CHECK(ParseHudStatList("a b c d e f g h").size() == (size_t)kHudMaxStats);
+  // The default lists of the preferences only contain stats that exist
+  const char *defaults[] = { "vpip pfr 3bet", "flop_cbet flop_fold_to_cbet", "turn_af turn_cbet", "wtsd wssd" };
+  for (size_t i = 0; i < 4; ++i) {
+    std::vector<std::string> d = ParseHudStatList(defaults[i]);
+    CHECK(!d.empty());
+    for (size_t k = 0; k < d.size(); ++k) CHECK(Db::IsSupportedStat(d[k]));
+  }
+  // Values
+  CHECK(FormatHudValue("vpip", 0.924) == "92");
+  CHECK(FormatHudValue("pfr", 0.0) == "0");
+  CHECK(FormatHudValue("turn_af", 2.46) == "2.5");
+  CHECK(FormatHudValue("flop_afq", 0.64) == "64");        // frequency, not factor
+  CHECK(FormatHudValue("hands", 119.0) == "119");
+  CHECK(FormatHudValue("vpip", -1.0) == "-");
+  CHECK(FormatHudValue("vpip", NAN) == "-");
+  // Lines
+  std::vector<std::string> st = ParseHudStatList("vpip pfr 3bet");
+  std::vector<double> v;
+  v.push_back(0.924); v.push_back(0.71); v.push_back(-1.0);
+  CHECK(BuildHudLine(st, v, 119, false) == "92/71/- (119)");
+  CHECK(BuildHudLine(st, v, 119, true) == "VPIP 92 PFR 71 3B - (119)");
+  CHECK(BuildHudLine(st, v, -1, false) == "92/71/-");
+  CHECK(BuildHudLine(std::vector<std::string>(), std::vector<double>(), 7, false) == "(7)");
+  CHECK(HudShortName("some_new_stat") == "SOME_N");
+  // Player types (same rules as the explorer)
+  CHECK(ClassifyHudPlayer(0.924, 0.71, 119) == kHudTypeManiac);
+  CHECK(ClassifyHudPlayer(0.924, 0.71, 10) == kHudTypeUnknown);   // too few hands
+  CHECK(ClassifyHudPlayer(-1, -1, 500) == kHudTypeUnknown);
+  CHECK(ClassifyHudPlayer(0.11, 0.08, 200) == kHudTypeNit);
+  CHECK(ClassifyHudPlayer(0.22, 0.17, 200) == kHudTypeTag);
+  CHECK(ClassifyHudPlayer(0.32, 0.26, 200) == kHudTypeLag);
+  CHECK(ClassifyHudPlayer(0.40, 0.06, 200) == kHudTypeCallingStation);
+  CHECK(HudTypeColor(kHudTypeManiac) != HudTypeColor(kHudTypeTag));
+}
+
 int main(int argc, char **argv) {
   TestHelpers();
   TestPositions();
@@ -953,6 +998,7 @@ int main(int argc, char **argv) {
   TestRemainingStats();
   TestDatabase();
   TestExplorerQueries();
+  TestHud();
   if (argc > 1) TestStatNamesMatchPokerTracker(argv[1]);
   printf("\n%d checks, %d failures\n", g_checks, g_failures);
   return g_failures ? 1 : 0;

@@ -28,6 +28,7 @@
 #define INC_CADVISOR_H
 
 #include "..\Shared\CCritSec\CCritSec.h"
+#include "CAdvisorHud.h"
 
 // The kinds of actions, used for texts, colours and for comparing
 // the recommendation with the real action.
@@ -111,6 +112,7 @@ class CAdvisor : public CWnd {
   bool TableClientRectOnScreen(CRect* rect);
  private:
   // shared between the threads
+  CAdvisorHud _hud;               // stats above the balance of the players
   CCritSec    _data_critsec;
   AdvisorData _data;
  private:

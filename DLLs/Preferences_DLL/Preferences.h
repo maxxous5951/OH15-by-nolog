@@ -169,6 +169,9 @@ enum {
   // Advisor mode (suggestions window, no automatic play)
   k_prefs_advisor_enabled,
   k_prefs_advisor_corner,        // 0 = top left, 1 = top right, 2 = bottom left, 3 = bottom right
+  // HUD: stats above the balance of every player (advisor mode)
+  k_prefs_hud_enabled,
+  k_prefs_hud_show_names,
   // Mouse (0 = fast reference mouse, 1 = human mouse; see mousedll.h)
   k_prefs_mouse_mode,
   k_prefs_mouse_speed_percent,
@@ -204,6 +207,11 @@ enum {
   k_prefs_window_class_name,
   k_prefs_mutex_name,
   k_prefs_unwanted_scrape,
+  // HUD: stat names for every betround, separated by spaces
+  k_prefs_hud_stats_preflop,
+  k_prefs_hud_stats_flop,
+  k_prefs_hud_stats_turn,
+  k_prefs_hud_stats_river,
   // leave this always at the last position
   k_prefs_last_CString_value,
 };
@@ -370,6 +378,12 @@ public:
   // Advisor
   const bool advisor_enabled() { return prefs_numerical_values[k_prefs_advisor_enabled] != 0; }
   const int advisor_corner() { return (int)prefs_numerical_values[k_prefs_advisor_corner]; }
+  const bool hud_enabled() { return prefs_numerical_values[k_prefs_hud_enabled] != 0; }
+  const bool hud_show_names() { return prefs_numerical_values[k_prefs_hud_show_names] != 0; }
+  LPCSTR hud_stats_preflop() { return NonEmptyStringValueElseDefault(k_prefs_hud_stats_preflop); }
+  LPCSTR hud_stats_flop() { return NonEmptyStringValueElseDefault(k_prefs_hud_stats_flop); }
+  LPCSTR hud_stats_turn() { return NonEmptyStringValueElseDefault(k_prefs_hud_stats_turn); }
+  LPCSTR hud_stats_river() { return NonEmptyStringValueElseDefault(k_prefs_hud_stats_river); }
   // Mouse
   const int mouse_mode() { return (int)prefs_numerical_values[k_prefs_mouse_mode]; }
   const int mouse_speed_percent() { return (int)prefs_numerical_values[k_prefs_mouse_speed_percent]; }

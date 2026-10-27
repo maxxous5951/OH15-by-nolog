@@ -13,6 +13,7 @@
 
 #include "stdafx.h"
 #include "CAdvisor.h"
+#include "CAdvisorHud.h"
 
 #include <math.h>
 #include "AllinAdjustment.h"
@@ -147,6 +148,7 @@ void CAdvisor::RefreshFromPreferences() {
 }
 
 void CAdvisor::Reset() {
+  _hud.Reset();
   {
     CSLock lock(_data_critsec);
     _data = AdvisorData();
@@ -241,6 +243,8 @@ void CAdvisor::OnDecision(CString best_action, CString action_taken,
 }
 
 void CAdvisor::OnHeartbeat() {
+  // HUD (stats above the balance); it checks the preferences itself
+  _hud.OnHeartbeat();
   if (!Preferences()->advisor_enabled()) {
     return;
   }
@@ -377,6 +381,7 @@ void CAdvisor::UpdateVisibilityAndPosition() {
 void CAdvisor::OnTimer(UINT_PTR id) {
   if (id == kAdvisorTimerId) {
     UpdateVisibilityAndPosition();
+    _hud.OnGuiTimer();
     return;
   }
   CWnd::OnTimer(id);
