@@ -60,7 +60,12 @@ int main(int argc, char **argv) {
 
   explorer::Explorer ex;
   explorer::UiState ui;
-  std::string path = argc > 1 ? argv[1] : "Hand_Histories/oh_stats.db";
+  // Default database: argument, else next to the program, else the current folder
+  std::string exe_dir = argv[0];
+  { size_t cut = exe_dir.find_last_of("/\\"); exe_dir = cut == std::string::npos ? std::string() : exe_dir.substr(0, cut + 1); }
+  std::string path = argc > 1 ? argv[1] : exe_dir + "Hand_Histories/oh_stats.db";
+  if (!FileExists(path)) path = exe_dir + "oh_stats.db";
+  if (!FileExists(path)) path = "Hand_Histories/oh_stats.db";
   if (!FileExists(path)) path = "oh_stats.db";
   if (FileExists(path)) {
     std::string error;

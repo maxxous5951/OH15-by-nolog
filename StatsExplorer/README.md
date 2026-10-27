@@ -23,7 +23,9 @@ cmake --build build --config Release
 build/StatsExplorer  chemin\vers\oh_stats.db      # Windows : build\Release\StatsExplorer.exe
 ```
 
-Sans argument, le programme cherche `Hand_Histories/oh_stats.db` puis `oh_stats.db` dans le dossier courant.
+Sans argument, le programme cherche `Hand_Histories/oh_stats.db` puis `oh_stats.db` d'abord à côté de l'exécutable
+(donc : copiez `StatsExplorer.exe` + `fonts/` dans le dossier d'OpenHoldem), puis dans le dossier courant.
+`File > Open database...` contient un navigateur de dossiers (clic = dossier / fichier `.db`).
 Le dossier `fonts/` (police avec accents) est copié à côté de l'exécutable. Copies locales : `-DIMGUI_DIR=... -DGLFW_DIR=...`.
 
 ## Utilisation

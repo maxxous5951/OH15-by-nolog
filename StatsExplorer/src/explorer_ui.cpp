@@ -10,6 +10,10 @@
 //******************************************************************************
 
 #include "explorer_ui.h"
+#include <filesystem>
+#include <algorithm>
+#include <system_error>
+#include <vector>
 
 #include <math.h>
 #include <stdio.h>
@@ -91,6 +95,10 @@ void DrawMenu(Explorer &ex, UiState &ui) {
     if (ImGui::MenuItem("Open database...")) {
       snprintf(ui.path_buffer, sizeof(ui.path_buffer), "%s", ex.path.c_str());
       ui.popup_error.clear();
+      {
+        std::filesystem::path p = std::filesystem::u8path(ex.path.empty() ? "." : ex.path);
+        ui.browse_dir = ex.path.empty() ? std::string() : p.parent_path().u8string();
+      }
       ui.open_path_popup = true;
     }
     if (ImGui::MenuItem("Create demo database...")) {
@@ -126,6 +134,51 @@ void DrawMenu(Explorer &ex, UiState &ui) {
   ImGui::EndMenuBar();
 }
 
+
+// Simple folder browser: directories and .db/.sqlite files of ui.browse_dir.
+static void DrawDbBrowser(UiState &ui) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  fs::path dir = fs::u8path(ui.browse_dir.empty() ? "." : ui.browse_dir);
+  dir = fs::absolute(dir, ec);
+  if (ec || !fs::is_directory(dir, ec)) dir = fs::current_path(ec);
+  ui.browse_dir = dir.u8string();
+  ImGui::Text("Folder: %s", ui.browse_dir.c_str());
+  std::vector<std::string> dirs, files;
+  for (fs::directory_iterator it(dir, fs::directory_options::skip_permission_denied, ec), end; !ec && it != end; it.increment(ec)) {
+    std::error_code e2;
+    std::string name = it->path().filename().u8string();
+    if (it->is_directory(e2)) { if (!name.empty() && name[0] != '.') dirs.push_back(name); }
+    else {
+      std::string ext = it->path().extension().u8string();
+      std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char ch) { return (char)tolower(ch); });
+      if (ext == ".db" || ext == ".sqlite" || ext == ".sqlite3") files.push_back(name);
+    }
+  }
+  std::sort(dirs.begin(), dirs.end());
+  std::sort(files.begin(), files.end());
+  if (ImGui::BeginChild("##browser", ImVec2(0, 220), true)) {
+    if (dir.has_parent_path() && dir.parent_path() != dir && ImGui::Selectable("[..]")) {
+      ui.browse_dir = dir.parent_path().u8string();
+    }
+    for (size_t i = 0; i < dirs.size(); ++i) {
+      ImGui::PushID((int)i);
+      std::string label = "[" + dirs[i] + "]";
+      if (ImGui::Selectable(label.c_str())) { ui.browse_dir = (dir / fs::u8path(dirs[i])).u8string(); }
+      ImGui::PopID();
+    }
+    for (size_t i = 0; i < files.size(); ++i) {
+      ImGui::PushID((int)(1000 + i));
+      if (ImGui::Selectable(files[i].c_str())) {
+        snprintf(ui.path_buffer, sizeof(ui.path_buffer), "%s", (dir / fs::u8path(files[i])).u8string().c_str());
+      }
+      ImGui::PopID();
+    }
+    if (dirs.empty() && files.empty()) ImGui::TextDisabled("(no sub-folder or .db file)");
+  }
+  ImGui::EndChild();
+}
+
 void DrawPopups(Explorer &ex, UiState &ui) {
   if (ui.open_path_popup)    { ImGui::OpenPopup("Open database");   ui.open_path_popup = false; }
   if (ui.open_demo_popup)    { ImGui::OpenPopup("Demo database");   ui.open_demo_popup = false; }
@@ -139,6 +192,7 @@ void DrawPopups(Explorer &ex, UiState &ui) {
     ImGui::SetNextItemWidth(-1);
     bool enter = ImGui::InputText("##path", ui.path_buffer, sizeof(ui.path_buffer),
                                   ImGuiInputTextFlags_EnterReturnsTrue);
+    DrawDbBrowser(ui);
     if (!ui.popup_error.empty()) ImGui::TextColored(kRed, "%s", ui.popup_error.c_str());
     if (ImGui::Button("Open") || enter) {
       std::string error;

@@ -22,6 +22,7 @@ struct UiState {
   UiState();
   // Dialogs
   char path_buffer[512];
+  std::string browse_dir;  // folder shown in the Open database browser
   char demo_path_buffer[512];
   char name_buffer[64];
   char column_filter[64];

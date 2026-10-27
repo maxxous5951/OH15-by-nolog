@@ -291,6 +291,13 @@ int main(int argc, char **argv) {
   Frame(ui_ex, ui, (out + "11_player_hud.ppm").c_str());
   CHECK(ui_ex.TypeOf("Maniac") == kTypeManiac);
 
+  // Open database browser: starts in the folder of the open database, lists .db files
+  ui.browse_dir = out; ui.open_path_popup = true; Frames(ui_ex, ui, 3);
+  Frame(ui_ex, ui, (out + "16_open_browser.ppm").c_str());
+  ImGui::GetIO().AddKeyEvent(ImGuiKey_Escape, true); Frames(ui_ex, ui, 2);
+  ImGui::GetIO().AddKeyEvent(ImGuiKey_Escape, false); Frames(ui_ex, ui, 2);
+  CHECK(!ui.browse_dir.empty());
+
   // filter popup, import popup, export popup
   ui.open_filter_popup = true; Frames(ui_ex, ui, 3);
   Frame(ui_ex, ui, (out + "12_filters.ppm").c_str());
