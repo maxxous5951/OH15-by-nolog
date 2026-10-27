@@ -31,7 +31,7 @@ pt_<N><période>_<stat><siège> pt_12months_3bet5   sur la période donnée
 - **Suffixes** (cités par OpenHoldem) : `raischair`, `headsupchair`, `smallblindchair`, `bigblindchair`, `dealerchair`, `cutoffchair`, `userchair`, `firstraiserchair`, `firstcallerchair`, `lastcallerchair`.
 - **Périodes** : `years`, `months`, `weeks`, `days`, `hours`, `minutes`, `seconds` (ex. `2days`). On ne peut pas mélanger nombre de mains et période.
 - **Valeurs** : ratios entre 0 et 1 (ex. `0.25` = 25 %), `hands` est un compte. Une stat sans occasion (ex. `4bet` jamais observé) renvoie *indéfini* (`-1`), de même qu'un joueur inconnu.
-- Les mains cash et tournoi sont séparées selon `istournament`, et par site (nom du tablemap).
+- Les mains cash et tournoi sont séparées selon `istournament`, et par site (nom du tablemap). Si le joueur n'est pas trouvé avec ces deux critères, la recherche est élargie : tout type de partie, puis tout site (le niveau utilisé apparaît dans le log de débogage PokerTracker : `filter level 0/1/2`).
 - Pseudos : correspondance exacte (sans casse), sinon le pseudo le plus proche (1 faute pour 4–11 caractères, 2 au-delà) s'il est unique.
 
 Exemple de formule : `when pt_vpip_raischair > 0.45 and pt_hands_raischair >= 30 ...`

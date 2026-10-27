@@ -639,16 +639,16 @@ std::string Db::ResolveName(const std::string &scraped_name, const StatFilter &f
   std::lock_guard<std::mutex> lock(mutex_);
   if (!db_ || scraped_name.empty()) return "";
   const std::string site_clause = filter.site.empty() ? "" : " AND site = ?";
+  const std::string type_clause = filter.any_game_type ? "" : " AND is_tournament = ?";
 
   // 1. Exact match (ignoring case)
   {
-    Stmt stmt(db_, "SELECT name FROM hand_player WHERE name = ?" + site_clause +
-                   " AND is_tournament = ? LIMIT 1;");
+    Stmt stmt(db_, "SELECT name FROM hand_player WHERE name = ?" + site_clause + type_clause + " LIMIT 1;");
     if (!stmt.ok()) return "";
     int k = 1;
     sqlite3_bind_text(stmt.get(), k++, scraped_name.c_str(), -1, SQLITE_TRANSIENT);
     if (!filter.site.empty()) sqlite3_bind_text(stmt.get(), k++, filter.site.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int(stmt.get(), k++, filter.tournament ? 1 : 0);
+    if (!filter.any_game_type) sqlite3_bind_int(stmt.get(), k++, filter.tournament ? 1 : 0);
     if (sqlite3_step(stmt.get()) == SQLITE_ROW) {
       return (const char *)sqlite3_column_text(stmt.get(), 0);
     }
@@ -658,11 +658,11 @@ std::string Db::ResolveName(const std::string &scraped_name, const StatFilter &f
   const int length = (int)scraped_name.size();
   const int allowed = (length < 4) ? 0 : (length < 12 ? 1 : 2);
   if (allowed == 0) return "";
-  Stmt stmt(db_, "SELECT DISTINCT name FROM hand_player WHERE is_tournament = ?" + site_clause + ";");
+  Stmt stmt(db_, std::string("SELECT DISTINCT name FROM hand_player WHERE 1 = 1") + site_clause + type_clause + ";");
   if (!stmt.ok()) return "";
   int k = 1;
-  sqlite3_bind_int(stmt.get(), k++, filter.tournament ? 1 : 0);
   if (!filter.site.empty()) sqlite3_bind_text(stmt.get(), k++, filter.site.c_str(), -1, SQLITE_TRANSIENT);
+  if (!filter.any_game_type) sqlite3_bind_int(stmt.get(), k++, filter.tournament ? 1 : 0);
   std::string best;
   int best_distance = allowed + 1;
   bool ambiguous = false;

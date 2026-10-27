@@ -653,6 +653,20 @@ static void TestDatabase() {
   CHECK(db.ResolveName("Vi1lain", f) == "Villain");       // one wrong character
   CHECK(db.ResolveName("Vilain", f) == "Villain");        // one lost character
   CHECK(db.ResolveName("Xyzabc", f) == "");
+  {
+    // Other site / other game type: found only when the filter is relaxed
+    StatFilter other = f;
+    other.site = "other_site";
+    CHECK(db.ResolveName("Villain", other) == "");
+    other.any_game_type = true;
+    CHECK(db.ResolveName("Villain", other) == "");
+    other.site.clear();
+    CHECK(db.ResolveName("Villain", other) == "Villain");
+    StatFilter wrong_type = f;
+    wrong_type.any_game_type = true;
+    CHECK(db.ResolveName("Villain", wrong_type) == "Villain");
+    CHECK(db.ResolveName("Vi1lain", wrong_type) == "Villain");
+  }
   CHECK(db.ResolveName("P2", f) == "P2");                 // exact
   CHECK(db.ResolveName("P9", f) == "");                   // too short for fuzzy matching
   CHECK(db.ResolveName("", f) == "");

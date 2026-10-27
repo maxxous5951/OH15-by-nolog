@@ -81,8 +81,9 @@ class CStatsDatabase {
   struct ChairName {
     std::string scraped, resolved;
     bool        found;
+    int         level;  // 0 = site and game type match, 1 = any game type, 2 = any site and game type
     DWORD       checked_at;
-    ChairName() : found(false), checked_at(0) {}
+    ChairName() : found(false), level(0), checked_at(0) {}
   };
   ChairName   _chair[kMaxNumberOfPlayers];
   // Cache of the stat values; invalid as soon as the database changes

@@ -228,14 +228,32 @@ bool CStatsDatabase::NameExists(int chair) {
   ohstats::StatFilter filter;
   filter.site = ToStd(SiteName());
   filter.tournament = p_engine_container->symbol_engine_istournament()->istournament();
+  // The site name and the cash/tournament flag of the table may differ from the ones
+  // stored with the hands (other tablemap, imported hands): relax step by step.
   std::string resolved = _db.ResolveName(scraped, filter);
+  int level = 0;
+  if (resolved.empty()) {
+    ohstats::StatFilter any_type = filter;
+    any_type.any_game_type = true;
+    resolved = _db.ResolveName(scraped, any_type);
+    level = 1;
+  }
+  if (resolved.empty()) {
+    ohstats::StatFilter any_site = filter;
+    any_site.any_game_type = true;
+    any_site.site.clear();
+    resolved = _db.ResolveName(scraped, any_site);
+    level = 2;
+  }
   c.scraped = scraped;
   c.resolved = resolved;
   c.found = !resolved.empty();
+  c.level = c.found ? level : 0;
   c.checked_at = GetTickCount();
   write_log(Preferences()->debug_pokertracker(),
-    "[StatsDatabase] chair %d: [%s] -> [%s]\n", chair, scraped.c_str(),
-    c.found ? resolved.c_str() : "unknown");
+    "[StatsDatabase] chair %d: [%s] -> [%s] (site [%s], %s, filter level %d)\n", chair, scraped.c_str(),
+    c.found ? resolved.c_str() : "unknown", filter.site.c_str(),
+    filter.tournament ? "tournament" : "cash", c.level);
   return c.found;
 }
 
@@ -290,9 +308,12 @@ double CStatsDatabase::GetStat(int chair, int stat_index) {
   CSLock lock(_lock);
   const std::string &player = _chair[chair].resolved;
   if (player.empty()) return kUndefined;
+  // Same filter level as the one that found the name
+  if (_chair[chair].level >= 1) filter.any_game_type = true;
+  if (_chair[chair].level >= 2) filter.site.clear();
   char key[512];
   sprintf_s(key, sizeof(key), "%s|%s|%s|%d|%d|%s|%d",
-    player.c_str(), stat_name.c_str(), filter.site.c_str(), filter.tournament ? 1 : 0,
+    player.c_str(), stat_name.c_str(), filter.site.c_str(), filter.any_game_type ? 2 : (filter.tournament ? 1 : 0),
     filter.nb_hands, (LPCTSTR)period_filter, filter.position);
   std::map<std::string, double>::const_iterator cached = _stat_cache.find(key);
   if (cached != _stat_cache.end()) return cached->second;
