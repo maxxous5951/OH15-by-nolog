@@ -507,10 +507,10 @@ void CAdvisorHud::OnGuiTimer() {
     outer = HudRect(-(int)(160 * s), -(int)(40 * s), client.Width() + (int)(160 * s), client.Height() + (int)(40 * s));
     MONITORINFO monitor = { sizeof(monitor) };
     if (::GetMonitorInfo(::MonitorFromWindow(table, MONITOR_DEFAULTTONEAREST), &monitor)) {
-      outer.l = (std::max)(outer.l, (int)monitor.rcMonitor.left - origin.x);
-      outer.t = (std::max)(outer.t, (int)monitor.rcMonitor.top - origin.y);
-      outer.r = (std::min)(outer.r, (int)monitor.rcMonitor.right - origin.x);
-      outer.b = (std::min)(outer.b, (int)monitor.rcMonitor.bottom - origin.y);
+      outer.l = (std::max)(outer.l, (int)(monitor.rcMonitor.left - origin.x));
+      outer.t = (std::max)(outer.t, (int)(monitor.rcMonitor.top - origin.y));
+      outer.r = (std::min)(outer.r, (int)(monitor.rcMonitor.right - origin.x));
+      outer.b = (std::min)(outer.b, (int)(monitor.rcMonitor.bottom - origin.y));
       // the table window itself is always allowed
       outer.l = (std::min)(outer.l, inner.l); outer.t = (std::min)(outer.t, inner.t);
       outer.r = (std::max)(outer.r, inner.r); outer.b = (std::max)(outer.b, inner.b);
