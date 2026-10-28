@@ -757,12 +757,26 @@ void CDlgPreferences::BuildPages() {
     p.items.push_back(PREF_CHECK("Show the HUD (needs the advisor mode to be enabled)", hud_enabled, k_prefs_hud_enabled));
     p.items.push_back(PREF_CHECK("Show the names of the statistics (VPIP 92 PFR 71 ...) instead of 92/71/...",
       hud_show_names, k_prefs_hud_show_names));
-    p.items.push_back(Note("A small label above the balance of every opponent shows the statistics of the list "
-      "of the current betround. The statistics come from the OpenHoldem stats database "
-      "(file of the page \"Stats Database\"), also if PokerTracker is the source of the pt_-symbols. "
-      "The number in brackets is the number of hands. The colour shows the type of the player "
-      "(blue nit, green TAG, orange LAG, red maniac, yellow fish / calling station, purple passive, "
-      "grey unknown or too few hands). \"new\" = player not yet in the database."));
+    p.items.push_back(PREF_CHECK("Allow the labels to stick out of the table window (outside of the table)",
+      hud_outside, k_prefs_hud_outside));
+    p.items.push_back(Note("A label next to every opponent shows the statistics of the list of the current betround. "
+      "The statistics come from the OpenHoldem stats database (file of the page \"Stats Database\"), also if "
+      "PokerTracker is the source of the pt_-symbols. The number in brackets is the number of hands. "
+      "The colour shows the type of the player (blue nit, green TAG, orange LAG, red maniac, yellow fish / "
+      "calling station, purple passive, grey unknown or fewer than 30 hands). \"new\" = player not yet in the database. "
+      "The labels never cover each other, the seats, the cards, the bets or the board."));
+    p.items.push_back(Heading("Style"));
+    const int style_radio = (int)p.items.size();
+    p.items.push_back(Radio({ "1. Pill: one line above the seat",
+                              "2. Tab: two lines under the seat",
+                              "3. Column: labelled stats next to the seat, outside of the table",
+                              "4. Badge: type and two stats, all stats of the betround on mouse-over" },
+      []() -> int { return Preferences()->hud_style(); },
+      [](int index) { SetNumber(k_prefs_hud_style, index); }));
+    PrefsItem preview;
+    preview.kind = PrefsItem::kPreview;
+    preview.link_item = style_radio;
+    p.items.push_back(preview);
     p.items.push_back(Heading("Statistics per betround"));
     p.items.push_back(PREF_TEXT("Preflop", "hud_stats_preflop", hud_stats_preflop, k_prefs_hud_stats_preflop));
     p.items.push_back(PREF_TEXT("Flop", "hud_stats_flop", hud_stats_flop, k_prefs_hud_stats_flop));
@@ -1040,6 +1054,19 @@ void CDlgPreferences::CreateControls(int page_index) {
         }
         break;
       }
+      case PrefsItem::kPreview: {
+        // Example of the HUD style that is selected in the radio group above (not yet saved)
+        CHudPreviewWnd* preview = new CHudPreviewWnd();
+        Own(preview);
+        const int radio_item = item.link_item;
+        preview->CreatePreview(window, nowhere, [this, page_index, radio_item]() -> int {
+          if (radio_item < 0 || radio_item >= (int)_pages[page_index].items.size()) return 0;
+          const int index = GetRadio(_pages[page_index].items[radio_item]);
+          return index >= 0 ? index : Preferences()->hud_style();
+        });
+        item.ctrl = preview;
+        break;
+      }
       case PrefsItem::kButton: {
         item.first_id = kFirstControlId + (int)_refs.size();
         CtrlRef ref = { page_index, i, 0 };
@@ -1135,6 +1162,13 @@ void CDlgPreferences::LayoutPage(int page_index) {
         y += (int)item.radios.size() * px(30) + px(6);
         ++i;
         break;
+      case PrefsItem::kPreview: {
+        const int height = static_cast<CHudPreviewWnd*>(item.ctrl)->PreferredHeight(width);
+        item.ctrl->MoveWindow(0, y, width, height);
+        y += height + px(10);
+        ++i;
+        break;
+      }
       case PrefsItem::kButton:
         if (item.same_row) {
           item.ctrl->MoveWindow(width - px(120), last_row_y - px(2), px(120), px(28));

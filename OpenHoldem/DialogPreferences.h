@@ -36,7 +36,7 @@ const UINT WMU_PREFS_SELECT = WM_APP + 0x0450;
 
 // One setting (or a heading / a note) of a page
 struct PrefsItem {
-  enum Kind { kHeading, kNote, kCheck, kNumber, kText, kLines, kRadio, kButton };
+  enum Kind { kHeading, kNote, kCheck, kNumber, kText, kLines, kRadio, kButton, kPreview };
   Kind    kind;
   CString label;
   CString key;                        // name to find the item (see CDlgPreferences::TextOf)
@@ -59,6 +59,7 @@ struct PrefsItem {
   // check box / button
   bool    disabled;
   bool    same_row;                   // button: in the row of the previous heading, on the right
+  int     link_item;                  // preview: index of the radio group of the page that it shows
   std::function<void(CDlgPreferences*)> on_click;
   // called once after all values got saved
   std::function<void()>           after_apply;
@@ -73,7 +74,7 @@ struct PrefsItem {
   std::vector<CWnd*> radios;
 
   PrefsItem() : kind(kNote), min_value(0), max_value(0), step(1), disabled_options(0),
-    disabled(false), same_row(false), has_default(false), default_value(0), first_id(0), label_ctrl(NULL), ctrl(NULL), spin(NULL) {}
+    disabled(false), same_row(false), link_item(-1), has_default(false), default_value(0), first_id(0), label_ctrl(NULL), ctrl(NULL), spin(NULL) {}
 };
 
 struct PrefsPage {

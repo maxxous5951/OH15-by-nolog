@@ -172,6 +172,8 @@ enum {
   // HUD: stats above the balance of every player (advisor mode)
   k_prefs_hud_enabled,
   k_prefs_hud_show_names,
+  k_prefs_hud_style,             // 0 = pill, 1 = tab, 2 = column, 3 = badge (see HudFormat.h)
+  k_prefs_hud_outside,           // labels may stick out of the table window
   // Mouse (0 = fast reference mouse, 1 = human mouse; see mousedll.h)
   k_prefs_mouse_mode,
   k_prefs_mouse_speed_percent,
@@ -380,6 +382,8 @@ public:
   const int advisor_corner() { return (int)prefs_numerical_values[k_prefs_advisor_corner]; }
   const bool hud_enabled() { return prefs_numerical_values[k_prefs_hud_enabled] != 0; }
   const bool hud_show_names() { return prefs_numerical_values[k_prefs_hud_show_names] != 0; }
+  const int  hud_style() { return (int)prefs_numerical_values[k_prefs_hud_style]; }
+  const bool hud_outside() { return prefs_numerical_values[k_prefs_hud_outside] != 0; }
   LPCSTR hud_stats_preflop() { return NonEmptyStringValueElseDefault(k_prefs_hud_stats_preflop); }
   LPCSTR hud_stats_flop() { return NonEmptyStringValueElseDefault(k_prefs_hud_stats_flop); }
   LPCSTR hud_stats_turn() { return NonEmptyStringValueElseDefault(k_prefs_hud_stats_turn); }

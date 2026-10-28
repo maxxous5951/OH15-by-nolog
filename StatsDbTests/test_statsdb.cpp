@@ -986,6 +986,91 @@ static void TestHud() {
   CHECK(HudTypeColor(kHudTypeManiac) != HudTypeColor(kHudTypeTag));
 }
 
+static void TestHudText() {
+  printf("HUD texts for all styles\n");
+  std::vector<std::string> st = ParseHudStatList("vpip pfr 3bet");
+  std::vector<double> v;
+  v.push_back(0.924); v.push_back(0.71); v.push_back(0.12);
+  HudText t = BuildHudText(st, v, 119, 0.924, 0.71, false);
+  CHECK(t.compact == "92/71/12 (119)");
+  CHECK(t.named == "VPIP 92 PFR 71 3B 12 (119)");
+  CHECK(t.names.size() == 4 && t.names[3] == "Hands" && t.values[3] == "119");
+  CHECK(t.type == "Maniac" && t.badge == "Maniac 92/71");
+  CHECK(t.colour == HudTypeColor(kHudTypeManiac));
+  CHECK(BuildHudText(st, v, 119, 0.924, 0.71, true).compact == t.named);
+  HudText n = BuildHudText(st, v, -1, -1, -1, false);
+  CHECK(n.compact == "new" && n.type == "new" && n.badge == "new" && n.names.empty());
+  HudText u = BuildHudText(st, v, 10, 0.5, 0.2, false);   // too few hands: type unknown
+  CHECK(u.type == "?" && u.badge == "? 92/71");
+}
+
+static bool HudAnyOverlap(const std::vector<HudRect> &labels, const std::vector<HudRect> &seats,
+                          const std::vector<HudRect> &obstacles) {
+  for (size_t i = 0; i < labels.size(); ++i) {
+    for (size_t k = i + 1; k < labels.size(); ++k) if (HudOverlap(labels[i], labels[k], 1) > 0) return true;
+    for (size_t k = 0; k < seats.size(); ++k) if (HudOverlap(labels[i], seats[k], 0) > 0) return true;
+    for (size_t k = 0; k < obstacles.size(); ++k) if (HudOverlap(labels[i], obstacles[k], 0) > 0) return true;
+  }
+  return false;
+}
+
+static void TestHudPlacement() {
+  printf("HUD placement\n");
+  const HudRect inner(0, 0, 690, 400), outer(-150, -40, 840, 440);
+  // 6 seats (name + balance box 104x44), cards above, bets next to them
+  const int sx[6] = { 293, 560, 560, 293, 26, 26 }, sy[6] = { 52, 112, 268, 330, 268, 112 };
+  std::vector<HudRect> seats, obstacles;
+  for (int i = 0; i < 6; ++i) {
+    seats.push_back(HudRect(sx[i], sy[i], sx[i] + 104, sy[i] + 44));
+    obstacles.push_back(HudRect(sx[i] + 40, sy[i] - 32, sx[i] + 64, sy[i] - 2));      // cards
+    obstacles.push_back(HudRect(sx[i] + 110, sy[i] + 40, sx[i] + 134, sy[i] + 64));   // bet
+  }
+  obstacles.push_back(HudRect(250, 170, 440, 230));                                   // board / pot
+  const int widths[4] = { 100, 104, 114, 90 }, heights[4] = { 19, 34, 70, 17 };
+  for (int style = 0; style < kHudNumberOfStyles; ++style) {
+    std::vector<HudPlaceItem> items(6);
+    for (int i = 0; i < 6; ++i) {
+      items[i].seat = seats[i]; items[i].width = widths[style]; items[i].height = heights[style];
+      items[i].style = style; items[i].valid = (i != 3);   // seat 3 = hero, no label
+    }
+    std::vector<HudRect> placed = PlaceHudLabels(items, obstacles, inner, outer);
+    std::vector<HudRect> labels;
+    for (int i = 0; i < 6; ++i) {
+      if (i == 3) { CHECK(placed[i].Empty()); continue; }
+      CHECK(placed[i].Width() == widths[style] && placed[i].Height() == heights[style]);
+      CHECK(HudInside(placed[i], outer));
+      labels.push_back(placed[i]);
+    }
+    std::vector<HudRect> others = seats;                 // the hero seat counts too
+    CHECK(!HudAnyOverlap(labels, others, obstacles));
+    if (style == kHudStyleColumn) {
+      // outside of the table: left of the left seats, right of the right seats
+      CHECK(placed[4].r <= seats[4].l && placed[5].r <= seats[5].l);
+      CHECK(placed[1].l >= seats[1].r && placed[2].l >= seats[2].r);
+    }
+    if (style == kHudStyleTab) CHECK(placed[1].t >= seats[1].b);   // directly under the seat
+  }
+  // Everything is crowded: no free position, but still a rectangle inside the allowed area
+  std::vector<HudPlaceItem> crowded(2);
+  for (int i = 0; i < 2; ++i) {
+    crowded[i].seat = HudRect(10 + i * 30, 10, 40 + i * 30, 40);
+    crowded[i].width = 400; crowded[i].height = 300; crowded[i].valid = true;
+  }
+  std::vector<HudRect> p2 = PlaceHudLabels(crowded, std::vector<HudRect>(), HudRect(0, 0, 100, 100), HudRect(-20, -20, 120, 120));
+  CHECK(p2.size() == 2 && p2[0].Width() == 400);      // too big for the area: placed anyway, no crash
+  // Invalid items stay empty
+  std::vector<HudPlaceItem> none(3);
+  std::vector<HudRect> p3 = PlaceHudLabels(none, std::vector<HudRect>(), inner, outer);
+  CHECK(p3.size() == 3 && p3[0].Empty());
+  // Two labels asked for the same spot: they do not overlap
+  std::vector<HudPlaceItem> twins(2);
+  for (int i = 0; i < 2; ++i) {
+    twins[i].seat = HudRect(300, 150, 404, 194); twins[i].width = 100; twins[i].height = 19; twins[i].valid = true;
+  }
+  std::vector<HudRect> p4 = PlaceHudLabels(twins, std::vector<HudRect>(), inner, outer);
+  CHECK(HudOverlap(p4[0], p4[1], 1) == 0);
+}
+
 int main(int argc, char **argv) {
   TestHelpers();
   TestPositions();
@@ -999,6 +1084,8 @@ int main(int argc, char **argv) {
   TestDatabase();
   TestExplorerQueries();
   TestHud();
+  TestHudText();
+  TestHudPlacement();
   if (argc > 1) TestStatNamesMatchPokerTracker(argv[1]);
   printf("\n%d checks, %d failures\n", g_checks, g_failures);
   return g_failures ? 1 : 0;

@@ -149,6 +149,8 @@ const char* k_registry_keys_for_numerical_values[k_prefs_last_numerical_value + 
   "advisor_corner",
   "hud_enabled",
   "hud_show_names",
+  "hud_style",
+  "hud_outside",
   "mouse_mode",
   "mouse_speed_percent",
   "mouse_curvature_percent",
@@ -271,6 +273,8 @@ void CPreferences::InitDefaults(void) {
   prefs_numerical_values[k_prefs_advisor_corner] = 1;   // top right
   prefs_numerical_values[k_prefs_hud_enabled] = false;
   prefs_numerical_values[k_prefs_hud_show_names] = false;
+  prefs_numerical_values[k_prefs_hud_style] = 0;
+  prefs_numerical_values[k_prefs_hud_outside] = true;
   // Mouse: the fast reference mouse stays the default
   prefs_numerical_values[k_prefs_mouse_mode] = 0;
   prefs_numerical_values[k_prefs_mouse_speed_percent] = 100;

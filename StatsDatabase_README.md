@@ -38,15 +38,18 @@ Exemple de formule : `when pt_vpip_raischair > 0.45 and pt_hands_raischair >= 30
 
 ## HUD sur la table (mode advisor)
 
-Une petite étiquette au-dessus du solde de chaque adversaire affiche des stats de la base, **selon le round en cours** (preflop / flop / turn / river).
+Une étiquette à côté de chaque adversaire affiche des stats de la base, **selon le round en cours** (preflop / flop / turn / river).
 
 - Activation : mode advisor actif + Préférences → page **HUD** → « Show the HUD ».
+- **4 styles au choix** (la page HUD montre un aperçu en direct, en anglais ; image : `Documentation/HUD_styles.png`) :
+  1. **Pill** : une ligne au-dessus du siège ; 2. **Tab** : 2 lignes sous le siège ; 3. **Column** : colonne étiquetée à côté du siège, à l'extérieur de la table ; 4. **Badge** : type + 2 stats, toutes les stats du round au survol de la souris.
+- **Pas de chevauchement** : les étiquettes évitent les autres étiquettes, les sièges, les cartes, les mises, le bouton dealer, le board et le pot (régions de la table map). Si la place manque dans la fenêtre de la table, elles peuvent dépasser un peu à l'extérieur (option « Allow the labels to stick out of the table window »).
 - Une liste de stats par round (noms séparés par des espaces, 6 maximum) : mêmes noms que les symboles `pt_` sans préfixe ni siège. Défauts : preflop `vpip pfr 3bet`, flop `flop_cbet flop_fold_to_cbet`, turn `turn_af turn_cbet`, river `wtsd wssd`.
 - Format : `92/71/12 (119)` = valeurs en % (les `…_af` avec une décimale) et nombre de mains entre parenthèses ; option « show names » : `VPIP 92 PFR 71 3B 12 (119)`. `new` = joueur pas encore dans la base.
 - Couleur = type de joueur (bleu nit, vert TAG, orange LAG, rouge maniac, jaune fish / calling station, violet passif, gris inconnu ou moins de 30 mains).
-- Position : au-dessus de la région `p<N>balance` de la table map (sinon `u<N>balance`, `p<N>name`). Les étiquettes ne bloquent pas les clics et suivent la fenêtre de la table.
+- Position : à partir des régions `p<N>name` / `p<N>balance` de la table map (sinon `u<N>…`). Les étiquettes des styles 1 à 3 ne bloquent pas les clics ; le badge (style 4) doit réagir à la souris.
 - Les stats viennent toujours de la base OpenHoldem, même si PokerTracker reste la source des symboles `pt_`.
-- Non testé sous Windows (code MFC non compilé ici) ; la logique de texte / couleurs est testée (`StatsDbTests`).
+- Non testé sous Windows (code MFC non compilé ici) ; la logique de texte, de couleurs et de placement est testée (`StatsDbTests`).
 
 ## Stats disponibles (99)
 
