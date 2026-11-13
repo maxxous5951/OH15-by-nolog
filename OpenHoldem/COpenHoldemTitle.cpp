@@ -21,6 +21,7 @@
 #include "../CTablemap/CTablemap.h"
 #include "CTableTitle.h"
 #include "MainFrm.h"
+#include "CFlagsToolbar.h"
 
 COpenHoldemTitle *p_openholdem_title = NULL;
 
@@ -79,5 +80,17 @@ void COpenHoldemTitle::UpdateTitle() {
 	static CString current_title;
 	current_title = GetTitle();
 	HWND main_window = PMainframe()->GetSafeHwnd();
-	SetWindowText(main_window, current_title);
+	// The REAL OS window text (taskbar, Alt+Tab, the scraper's "window to capture" list,
+	// anything using EnumWindows / GetWindowText) is the window label alone when one is
+	// set, so that it identifies the window there too, not just in our own custom header.
+	CString os_title = window_label.IsEmpty() ? current_title : window_label;
+	SetWindowText(main_window, os_title);
+	// SetWindowText() above just sent WM_SETTEXT, which CMainFrame forwards verbatim to
+	// the custom header (see CMainFrame::OnSetTextMessage). Overwrite it right after with
+	// the full descriptive title: the header needs the formula/site/table names to fill
+	// its own "profile + table" display and its title bar fallback, regardless of what
+	// the OS-level window text was just shortened to.
+	if (p_flags_toolbar != NULL) {
+		p_flags_toolbar->SetTitle(current_title);
+	}
 }
