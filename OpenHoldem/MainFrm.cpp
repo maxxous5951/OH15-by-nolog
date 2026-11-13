@@ -165,6 +165,9 @@ CMainFrame::~CMainFrame() {
   }
 }
 
+// see definition below OnSetTextMessage()
+static CString AcquireUniqueWindowLabel();
+
 int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct) {
 	CString			t = "";
 	lpCreateStruct->dwExStyle |= WS_MINIMIZE;
@@ -187,6 +190,10 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct) {
 	CString title;
 	GetWindowText(title);
 	p_flags_toolbar->SetTitle(title);
+	// Window Label preferences: show a unique one (if configured and available) in
+	// green next to "Help", to tell several open OpenHoldem windows apart.
+	p_openholdem_title->SetWindowLabel(AcquireUniqueWindowLabel());
+	p_flags_toolbar->SetWindowLabel((LPCSTR)p_openholdem_title->GetWindowLabel());
 	// Start timer that checks if we should enable buttons
 	SetTimer(ENABLE_BUTTONS_TIMER, 50, 0);
 	// Start timer that updates status bar
@@ -331,6 +338,43 @@ LRESULT CMainFrame::OnSetTextMessage(WPARAM wparam, LPARAM lparam) {
     p_flags_toolbar->SetTitle((const char*)lparam);
   }
   return result;
+}
+
+// Picks the first non-empty "Window Label" preference that is not already shown by
+// another OpenHoldem window currently running, so that several open windows can be told
+// apart (shown in green next to "Help"). Uses a named mutex per slot: the mutex object
+// keeps existing (and so ERROR_ALREADY_EXISTS keeps firing for other processes) for as
+// long as this process keeps its handle open, i.e. for the whole session - no explicit
+// release is needed, Windows closes the handle when the process exits.
+static CString AcquireUniqueWindowLabel() {
+  const LPCSTR labels[15] = {
+    Preferences()->window_label_01(), Preferences()->window_label_02(),
+    Preferences()->window_label_03(), Preferences()->window_label_04(),
+    Preferences()->window_label_05(), Preferences()->window_label_06(),
+    Preferences()->window_label_07(), Preferences()->window_label_08(),
+    Preferences()->window_label_09(), Preferences()->window_label_10(),
+    Preferences()->window_label_11(), Preferences()->window_label_12(),
+    Preferences()->window_label_13(), Preferences()->window_label_14(),
+    Preferences()->window_label_15(),
+  };
+  for (int i = 0; i < 15; ++i) {
+    CString label = labels[i];
+    label.Trim();
+    if (label.IsEmpty()) continue;
+    CString mutex_name;
+    mutex_name.Format("OpenHoldem_WindowLabel_%d", i);
+    HANDLE h = ::CreateMutexA(NULL, FALSE, mutex_name);
+    if (h == NULL) continue;
+    if (::GetLastError() == ERROR_ALREADY_EXISTS) {
+      // another running OpenHoldem window already shows this label
+      ::CloseHandle(h);
+      continue;
+    }
+    // Keep the handle open (leaked on purpose) for the rest of the process lifetime,
+    // so the mutex object - and therefore this label - stays reserved until we exit.
+    return label;
+  }
+  return "";
 }
 
 // CMainFrame message handlers
