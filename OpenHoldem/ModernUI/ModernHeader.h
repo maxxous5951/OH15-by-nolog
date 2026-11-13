@@ -54,6 +54,10 @@ class ModernHeader {
   // no connection pill. Optional maximize button next to minimize.
   void SetCompact(bool compact) { compact_ = compact; relayout_ = true; Invalidate(); }
   void SetMaximizeButton(bool enabled) { has_maximize_ = enabled; Rebuild(); }
+  // One of the 15 "Window Label" preferences (CMainFrame/COpenHoldemTitle pick one unique
+  // among the windows currently running). When set, replaces the title bar text entirely
+  // (the real OS window text is already just the label too, see COpenHoldemTitle).
+  void SetWindowLabel(const std::wstring& label) { window_label_ = label; Invalidate(); }
   // Enable / check state by command id. Applies to toolbar buttons AND to the
   // items of the menus (re-applied every time a menu opens).
   void SetCommandEnabled(int id, bool enabled);
@@ -110,7 +114,11 @@ class ModernHeader {
   float scale_;
   int   width_;
   bool  relayout_;
-  std::wstring title_;
+  std::wstring title_;                         // full window text: "<profile> | <site> | <table>"
+  std::wstring window_title_ = L"OpenHoldem";   // shown in the title bar
+  std::wstring profile_name_;                  // shown (green) right of the menus: loaded formula
+  std::wstring table_name_;                    // shown (green) after profile_name_: connected table, if any
+  std::wstring window_label_;                  // see SetWindowLabel()
   bool  connected_;
   Gdiplus::Bitmap* app_icon_;
   mutable CRITICAL_SECTION lock_;      // buttons are changed from the engine thread
@@ -120,7 +128,7 @@ class ModernHeader {
   std::vector<int> flag_ids_;
   std::vector<Element> elements_;
   // Extra rectangles
-  Gdiplus::RectF title_text_rect_, pill_rect_, flags_label_rect_;
+  Gdiplus::RectF title_text_rect_, pill_rect_, flags_label_rect_, profile_rect_;
   std::vector<float> separators_;      // x positions of the toolbar separators
   float title_h_, menu_h_, tool_h_, flags_h_;
 
