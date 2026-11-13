@@ -115,3 +115,31 @@ private:
 	CStatic		_progress;
 	CFont		_fixed_font;
 };
+
+// Kinds of text regions (see RegionCategory in BatchFonts.cpp)
+enum {
+	k_batch_cat_names = 0,
+	k_batch_cat_balances,
+	k_batch_cat_bets,
+	k_batch_cat_pots,
+	k_batch_cat_buttons,
+	k_batch_cat_other,
+	k_batch_cat_count
+};
+
+// "Which kinds of regions should be scanned?"
+class CDlgBatchFilter : public CDialog {
+public:
+	CDlgBatchFilter(CWnd *parent = NULL);
+	enum { IDD = IDD_BATCH_FILTER };
+	int			counts[k_batch_cat_count];	// in: number of text regions per kind
+	unsigned	mask;						// in/out: checked kinds (bit = kind)
+protected:
+	virtual BOOL OnInitDialog();
+	virtual void OnOK();
+	afx_msg void OnBnClickedAll();
+	afx_msg void OnBnClickedNone();
+	DECLARE_MESSAGE_MAP()
+private:
+	void SetAll(bool checked);
+};
