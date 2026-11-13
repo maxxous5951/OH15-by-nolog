@@ -15,6 +15,13 @@
 #include <cstdio>
 #include <cwctype>
 
+// Compact layout (heights in 96-dpi pixels): the whole header is ~120 px
+// instead of 176 px, so that the main window can be as small as OpenHoldem 14.
+static const int kTitleH = 28;
+static const int kMenuH  = 28;
+static const int kToolH  = 40;
+static const int kFlagsH = 26;
+
 namespace modernui {
 
 using namespace Gdiplus;
@@ -181,6 +188,15 @@ const ModernHeader::Element* ModernHeader::FindElement(Kind kind, int id) const 
 void ModernHeader::SetTitle(const std::wstring& title) {
   if (title == title_) return;
   title_ = title;
+  // The loaded profile (formula name) goes to the menu row, the title bar keeps the rest.
+  // Expected format when connected: "<formula> | <site> | <table>"; just "<formula>" otherwise.
+  const size_t sep1 = title.find(L" | ");
+  profile_name_ = (sep1 == std::wstring::npos) ? title : title.substr(0, sep1);
+  const std::wstring rest = (sep1 == std::wstring::npos) ? std::wstring() : title.substr(sep1 + 3);
+  window_title_ = rest.empty() ? std::wstring(L"OpenHoldem") : rest;
+  const size_t sep2 = rest.find(L" | ");
+  table_name_ = (sep2 == std::wstring::npos) ? std::wstring() : rest.substr(sep2 + 3);
+  relayout_ = true;
   Invalidate();
 }
 
@@ -220,11 +236,11 @@ bool ModernHeader::IsButtonChecked(int id) const {
 }
 
 int ModernHeader::Height(float s) const {
-  return (int)((38 + 38 + 62 + (compact_ ? 0 : 38)) * s + 0.5f);
+  return (int)((kTitleH + kMenuH + kToolH + (compact_ ? 0 : kFlagsH)) * s + 0.5f);
 }
 
 int ModernHeader::TitleBarHeight(float s) const {
-  return (int)(38 * s + 0.5f);
+  return (int)(kTitleH * s + 0.5f);
 }
 
 // ---------------------------------------------------------------------------
@@ -235,7 +251,7 @@ void ModernHeader::Layout(Graphics& g, int width, float s) {
   AutoLock lock(&lock_);
   scale_ = s;
   width_ = width;
-  title_h_ = 38 * s; menu_h_ = 38 * s; tool_h_ = 62 * s; flags_h_ = compact_ ? 0.0f : 38 * s;
+  title_h_ = kTitleH * s; menu_h_ = kMenuH * s; tool_h_ = kToolH * s; flags_h_ = compact_ ? 0.0f : kFlagsH * s;
   const float y1 = title_h_, y2 = y1 + menu_h_, y3 = y2 + tool_h_;
   separators_.clear();
 
@@ -245,75 +261,82 @@ void ModernHeader::Layout(Graphics& g, int width, float s) {
   Element* minimize = FindElement(kMinimize, 0);
   Element* maximize = FindElement(kMaximize, 0);
   Element* theme = FindElement(kTheme, 0);
-  if (close)    close->rect = RectF(x - 46 * s, 0, 46 * s, title_h_);
-  x -= 46 * s;
-  if (maximize) { maximize->rect = RectF(x - 46 * s, 0, 46 * s, title_h_); x -= 46 * s; }
-  if (minimize) minimize->rect = RectF(x - 46 * s, 0, 46 * s, title_h_);
-  x -= 46 * s + 12 * s;
+  if (close)    close->rect = RectF(x - 40 * s, 0, 40 * s, title_h_);
+  x -= 40 * s;
+  if (maximize) { maximize->rect = RectF(x - 40 * s, 0, 40 * s, title_h_); x -= 40 * s; }
+  if (minimize) minimize->rect = RectF(x - 40 * s, 0, 40 * s, title_h_);
+  x -= 40 * s + 8 * s;
   if (compact_) {
     pill_rect_ = RectF(0, 0, 0, 0);
   } else {
     std::wstring pill = connected_ ? L"Connected" : L"Not connected";
     float pill_w = MeasureLabel(g, pill, GetFont(12.0f * s, false)) + 34 * s;
-    pill_rect_ = RectF(x - pill_w, (title_h_ - 24 * s) / 2, pill_w, 24 * s);
+    pill_rect_ = RectF(x - pill_w, (title_h_ - 20 * s) / 2, pill_w, 20 * s);
     x -= pill_w + 8 * s;
   }
-  if (theme) theme->rect = RectF(x - 30 * s, (title_h_ - 30 * s) / 2, 30 * s, 30 * s);
-  x -= 30 * s + 10 * s;
-  title_text_rect_ = RectF(38 * s, 0, (x - 38 * s) > 0 ? (x - 38 * s) : 0, title_h_);
+  if (theme) theme->rect = RectF(x - 24 * s, (title_h_ - 24 * s) / 2, 24 * s, 24 * s);
+  x -= 24 * s + 8 * s;
+  title_text_rect_ = RectF(30 * s, 0, (x - 30 * s) > 0 ? (x - 30 * s) : 0, title_h_);
 
   // --- menu bar ---
-  float mx = 10 * s;
+  float mx = 6 * s;
   const Font* menu_font = GetFont(13.0f * s, false);
   for (size_t i = 0; i < elements_.size(); ++i) {
     Element& e = elements_[i];
     if (e.kind != kMenu) continue;
-    float w = MeasureLabel(g, e.label, menu_font) + 26 * s;
-    e.rect = RectF(mx, y1 + 4 * s, w, 30 * s);
+    float w = MeasureLabel(g, e.label, menu_font) + 18 * s;
+    e.rect = RectF(mx, y1 + 2 * s, w, (kMenuH - 4) * s);
     mx += w + 2 * s;
+  }
+  // Name of the loaded profile, in green, right of the last menu ("Help")
+  profile_rect_ = RectF(0, 0, 0, 0);
+  if (!compact_ && !profile_name_.empty()) {
+    const float px = mx + 10 * s;
+    const float pw = (float)width - 8 * s - px;
+    if (pw > 20 * s) profile_rect_ = RectF(px, y1, pw, menu_h_);
   }
 
   // --- toolbar ---
   // Natural widths first; if the window is too narrow the buttons shrink and
   // their labels get an ellipsis ("Shoot fra...").
-  const Font* tool_font = GetFont(11.5f * s, false);
+  const Font* tool_font = GetFont(10.5f * s, false);
   std::vector<Element*> tools;
   std::vector<float> widths;
-  float natural_total = 0, fixed_total = 20 * s;      // left + right margin
+  float natural_total = 0, fixed_total = 12 * s;      // left + right margin
   for (size_t i = 0; i < elements_.size(); ++i) {
     Element& e = elements_[i];
     if (e.kind != kTool) continue;
-    float w = MeasureLabel(g, e.label, tool_font) + 22 * s;
-    if (w < 60 * s) w = 60 * s;
+    float w = MeasureLabel(g, e.label, tool_font) + 12 * s;
+    if (w < 46 * s) w = 46 * s;
     tools.push_back(&e);
     widths.push_back(w);
     natural_total += w;
     fixed_total += 2 * s;                               // gap after each button
-    if (e.group_start && tools.size() > 1) fixed_total += 15 * s;   // separator
+    if (e.group_start && tools.size() > 1) fixed_total += 9 * s;   // separator
   }
   float room = (float)width - fixed_total;
   float factor = (natural_total > room && natural_total > 0) ? room / natural_total : 1.0f;
   if (factor < 0.72f) factor = 0.72f;
-  float tx = 10 * s;
+  float tx = 6 * s;
   for (size_t i = 0; i < tools.size(); ++i) {
     Element& e = *tools[i];
     if (e.group_start && i > 0) {
-      tx += 6 * s;
+      tx += 3 * s;
       separators_.push_back(tx);
-      tx += 9 * s;
+      tx += 6 * s;
     }
     float w = widths[i] * factor;
-    e.rect = RectF(tx, y2 + 3 * s, w, 56 * s);
+    e.rect = RectF(tx, y2 + 2 * s, w, (kToolH - 4) * s);
     tx += w + 2 * s;
   }
 
   // --- flags (none in compact mode: no kFlag elements exist there) ---
-  flags_label_rect_ = RectF(16 * s, y3, 46 * s, flags_h_);
+  flags_label_rect_ = RectF(10 * s, y3, 40 * s, flags_h_);
   int n = 0;
   for (size_t i = 0; i < elements_.size(); ++i) {
     Element& e = elements_[i];
     if (e.kind != kFlag) continue;
-    e.rect = RectF(64 * s + n * 28 * s, y3 + (flags_h_ - 24 * s) / 2, 24 * s, 24 * s);
+    e.rect = RectF(52 * s + n * 24 * s, y3 + (flags_h_ - 20 * s) / 2, 20 * s, 20 * s);
     ++n;
   }
   relayout_ = false;
@@ -327,10 +350,18 @@ void ModernHeader::PaintTitleBar(Graphics& g, const Palette& c) {
   const float s = scale_;
   if (app_icon_) {
     g.SetInterpolationMode(InterpolationModeHighQualityBicubic);
-    g.DrawImage(app_icon_, RectF(14 * s, (title_h_ - 16 * s) / 2, 16 * s, 16 * s));
+    g.DrawImage(app_icon_, RectF(10 * s, (title_h_ - 16 * s) / 2, 16 * s, 16 * s));
   }
-  DrawLabel(g, title_, GetFont(13.0f * s, true), title_text_rect_, Rgba(c.text), HAlign::Left, true);
+  // The custom label replaces the title bar text entirely when it is set;
+  // otherwise the usual "<site> | <table>" (or "OpenHoldem") is shown.
+  const std::wstring& top_title = window_label_.empty() ? window_title_ : window_label_;
+  DrawLabel(g, top_title, GetFont(13.0f * s, true), title_text_rect_, Rgba(c.text), HAlign::Left, true);
   if (compact_) return;
+  if (profile_rect_.Width > 0) {
+    // Loaded profile, and (if connected) the table we are sitting at.
+    std::wstring profile_text = table_name_.empty() ? profile_name_ : (profile_name_ + L"  \u2013  " + table_name_);
+    DrawLabel(g, profile_text, GetFont(13.0f * s, true), profile_rect_, Rgba(c.success), HAlign::Left, true);
+  }
   // Connection pill
   FillRoundRect(g, pill_rect_, pill_rect_.Height / 2, Rgba(connected_ ? c.success_soft : c.surface_hover));
   DWORD pill_fg = connected_ ? c.success : c.text_dim;
@@ -357,15 +388,15 @@ void ModernHeader::PaintElement(Graphics& g, const Palette& c, size_t index) {
       DWORD fg = e.enabled ? c.text : c.text_disabled;
       if (e.checked) {
         DWORD tint = e.success_tint ? c.success : c.accent;
-        FillRoundRect(g, r, 10 * s, Rgba(e.success_tint ? c.success_soft : c.accent_soft));
+        FillRoundRect(g, r, 8 * s, Rgba(e.success_tint ? c.success_soft : c.accent_soft));
         StrokeRoundRect(g, r, 10 * s, Rgba(tint), 1.6f * s);
         fg = tint;
       } else if (hot) {
         FillRoundRect(g, r, 10 * s, Rgba(down ? c.surface_pressed : c.surface_hover));
       }
-      float icon = 20 * s;
-      DrawIcon(g, e.icon, RectF(r.X + (r.Width - icon) / 2, r.Y + 9 * s, icon, icon), Rgba(fg), 1.9f);
-      DrawLabel(g, e.label, GetFont(11.5f * s, false), RectF(r.X, r.Y + 31 * s, r.Width, 18 * s),
+      float icon = 16 * s;
+      DrawIcon(g, e.icon, RectF(r.X + (r.Width - icon) / 2, r.Y + 4 * s, icon, icon), Rgba(fg), 1.8f);
+      DrawLabel(g, e.label, GetFont(10.5f * s, false), RectF(r.X, r.Y + 22 * s, r.Width, 15 * s),
                 Rgba(fg), HAlign::Center, true);
       break;
     }
@@ -670,7 +701,7 @@ LRESULT ModernHeader::HandleMessage(HWND hwnd, UINT msg, WPARAM wparam, LPARAM l
 // Status bar
 // ===========================================================================
 
-int StatusbarHeight(float s) { return (int)(26 * s + 0.5f); }
+int StatusbarHeight(float s) { return (int)(22 * s + 0.5f); }
 
 ModernStatusbar::ModernStatusbar() : hwnd_(nullptr) { GdiplusAcquire(); }
 
