@@ -214,6 +214,25 @@ enum {
   k_prefs_hud_stats_flop,
   k_prefs_hud_stats_turn,
   k_prefs_hud_stats_river,
+  // Up to 15 user-defined window labels (see "Window Label" preferences page).
+  // At launch OpenHoldem picks the first one not already used by another running
+  // instance (checked with a named mutex) and shows it in the header, to tell
+  // several open windows apart. Empty slots are skipped.
+  k_prefs_window_label_01,
+  k_prefs_window_label_02,
+  k_prefs_window_label_03,
+  k_prefs_window_label_04,
+  k_prefs_window_label_05,
+  k_prefs_window_label_06,
+  k_prefs_window_label_07,
+  k_prefs_window_label_08,
+  k_prefs_window_label_09,
+  k_prefs_window_label_10,
+  k_prefs_window_label_11,
+  k_prefs_window_label_12,
+  k_prefs_window_label_13,
+  k_prefs_window_label_14,
+  k_prefs_window_label_15,
   // leave this always at the last position
   k_prefs_last_CString_value,
 };
@@ -388,6 +407,21 @@ public:
   LPCSTR hud_stats_flop() { return NonEmptyStringValueElseDefault(k_prefs_hud_stats_flop); }
   LPCSTR hud_stats_turn() { return NonEmptyStringValueElseDefault(k_prefs_hud_stats_turn); }
   LPCSTR hud_stats_river() { return NonEmptyStringValueElseDefault(k_prefs_hud_stats_river); }
+  LPCSTR window_label_01() { return prefs_CString_values[k_prefs_window_label_01]; }
+  LPCSTR window_label_02() { return prefs_CString_values[k_prefs_window_label_02]; }
+  LPCSTR window_label_03() { return prefs_CString_values[k_prefs_window_label_03]; }
+  LPCSTR window_label_04() { return prefs_CString_values[k_prefs_window_label_04]; }
+  LPCSTR window_label_05() { return prefs_CString_values[k_prefs_window_label_05]; }
+  LPCSTR window_label_06() { return prefs_CString_values[k_prefs_window_label_06]; }
+  LPCSTR window_label_07() { return prefs_CString_values[k_prefs_window_label_07]; }
+  LPCSTR window_label_08() { return prefs_CString_values[k_prefs_window_label_08]; }
+  LPCSTR window_label_09() { return prefs_CString_values[k_prefs_window_label_09]; }
+  LPCSTR window_label_10() { return prefs_CString_values[k_prefs_window_label_10]; }
+  LPCSTR window_label_11() { return prefs_CString_values[k_prefs_window_label_11]; }
+  LPCSTR window_label_12() { return prefs_CString_values[k_prefs_window_label_12]; }
+  LPCSTR window_label_13() { return prefs_CString_values[k_prefs_window_label_13]; }
+  LPCSTR window_label_14() { return prefs_CString_values[k_prefs_window_label_14]; }
+  LPCSTR window_label_15() { return prefs_CString_values[k_prefs_window_label_15]; }
   // Mouse
   const int mouse_mode() { return (int)prefs_numerical_values[k_prefs_mouse_mode]; }
   const int mouse_speed_percent() { return (int)prefs_numerical_values[k_prefs_mouse_speed_percent]; }
