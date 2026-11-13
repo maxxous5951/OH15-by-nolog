@@ -156,6 +156,10 @@ void CFlagsToolbar::SetTitle(const char *title) {
   _header->SetTitle(modernui::ToWide(title));
 }
 
+void CFlagsToolbar::SetWindowLabel(const char *label) {
+  _header->SetWindowLabel(modernui::ToWide(label));
+}
+
 void CFlagsToolbar::SetConnected(bool connected) {
   _header->SetConnected(connected);
 }
