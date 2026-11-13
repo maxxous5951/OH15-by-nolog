@@ -1,0 +1,553 @@
+--- a/ManualModeDlg.h	2026-11-11 12:18:55.639977691 +0000
++++ b/ManualModeDlg.h	2026-11-11 12:48:33.601713388 +0000
+@@ -20,6 +20,8 @@
+ #include "poker_defs.h"
+ #include "EditDlg.h"
+ #include "GameInfoDlg.h"
++#include "HandReplayDlg.h"
++#include "HandHistory.h"
+ 
+ // Limits
+ #define LIMIT_NL		0
+@@ -64,6 +66,23 @@
+ 	enum { IDD = IDD_MANUALMODE_DIALOG };
+ 	virtual BOOL DestroyWindow();
+ 
++	// Hand replay, driven by the independent "Hand Replay" window
++	bool ImportHand(const CString& text, const CString& hero, CString* error);
++	bool HandStepNext();
++	bool HandStepPrev();
++	bool HandStepToDecision();	// next action of the hero, also in the following hands
++	bool NextHand();
++	bool PrevHand();
++	bool HeroToAct();
++	bool HandLoaded() const { return hh_loaded; }
++	size_t HandStep() const { return hh_step; }
++	size_t HandStepCount() const { return hh_hand.events.size(); }
++	size_t HandIndex() const { return hh_index; }
++	size_t HandCount() const { return hh_hands.size(); }
++	CString HandHero() const { CString h; h = hh_hero.c_str(); return h; }
++	CString HandStatus();
++	virtual BOOL PreTranslateMessage(MSG* pMsg);
++
+ protected:
+ 	virtual void DoDataExchange(CDataExchange* pDX);	// DDX/DDV support
+ 	HICON		m_hIcon;
+@@ -107,6 +126,16 @@
+ 	CGameInfoDlg	gameinfo;
+ 	CEdit				  swag;
+ 
++	// Hand-history replay
++	CHandReplayDlg		handreplay;
++	bool					hh_loaded;
++	std::vector<HandHistory::Hand>	hh_hands;	// all imported hands
++	std::vector<std::string>				hh_heroes;	// hero of each hand
++	size_t				hh_index;		// current hand
++	HandHistory::Hand	hh_hand;		// current hand
++	std::string		hh_hero;		// hero of the current hand
++	size_t				hh_step;		// number of events applied so far
++
+ 	// Generated message map functions
+ 	virtual BOOL OnInitDialog();
+ 	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
+@@ -231,4 +260,9 @@
+ private:
+   int PlayerCardLeft(int chair, int index);
+   int PlayerCardTop(int chair);
++private:
++  // Hand replay
++  unsigned int CardFromString(const std::string& card);
++  void SelectHand(size_t index);
++  void ApplyHandStep();
+ };
+--- a/ManualModeDlg.cpp	2026-11-11 12:18:55.639051548 +0000
++++ b/ManualModeDlg.cpp	2026-11-11 12:48:33.602075158 +0000
+@@ -136,6 +136,9 @@
+   Registry reg;
+   reg.read_reg();
+   macro_text = reg.macro;
++  hh_loaded = false;
++  hh_index = 0;
++  hh_step = 0;
+ 	// Set exception handler
+ 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
+ 	black_pen.CreatePen(PS_SOLID, 1, COLOR_BLACK);
+@@ -181,6 +184,9 @@
+ }
+ 
+ BOOL CManualModeDlg::DestroyWindow() {
++	if (handreplay.GetSafeHwnd() != NULL) {
++		handreplay.DestroyWindow();
++	}
+ 	all_cards.DeleteObject();
+ 	cFont.DeleteObject();
+ 	return CDialog::DestroyWindow();
+@@ -332,6 +338,8 @@
+ 			pSysMenu->AppendMenu(MF_SEPARATOR);
+ 			pSysMenu->AppendMenu(MF_STRING, IDM_ABOUTBOX, strAboutMenu);
+ 		}
++		// Re-open the independent hand replay window (if it was closed)
++		pSysMenu->AppendMenu(MF_STRING, IDM_HANDREPLAY, "Hand &Replay...");
+ 	}
+ 
+ 	// Set the icon for this dialog.  The framework does this automatically
+@@ -354,6 +362,9 @@
+ 	limit = LIMIT_NL;
+ 	network = "Stars";
+ 
++	// Independent window to replay hand-histories, beside this window
++	handreplay.Open(this);
++
+ 	return TRUE;  // return TRUE  unless you set the focus to a control
+ }
+ 
+@@ -364,6 +375,10 @@
+ 		CAboutDlg dlgAbout;
+ 		dlgAbout.DoModal();
+ 	}
++	else if ((nID & 0xFFF0) == IDM_HANDREPLAY)
++	{
++		handreplay.Open(this);
++	}
+ 	else 
+ 	{
+ 		CDialog::OnSysCommand(nID, lParam);
+@@ -2668,4 +2683,294 @@
+ 	raise_amount = 0;
+ 	swag.SetWindowTextA("");
+ 	InvalidateRect(NULL, true);
+-}
+\ No newline at end of file
++}
++
++
++/*****************************************************
++*
++* Hand replay: simulate recorded (PokerStars) hands
++*
++* The whole table is rebuilt from the hand-history for every step,
++* so stepping backwards is as simple as stepping forwards.
++* PokerStars seat N is chair N-1. Everybody gets card-backs,
++* except the hero (real cards) and players who showed their hand.
++* All controls live in the independent CHandReplayDlg window;
++* this window looks exactly like before.
++*
++*****************************************************/
++
++unsigned int CManualModeDlg::CardFromString(const std::string& s)
++{
++	if (s.length() < 2) return CARD_NOCARD;
++	char r = (char)tolower((unsigned char)s[0]);
++	if (r == 0 || strchr("23456789tjqka", r) == NULL) return CARD_NOCARD;
++	int suit;
++	switch (tolower((unsigned char)s[1]))
++	{
++		case 'c': suit = Suit_CLUBS; break;
++		case 'd': suit = Suit_DIAMONDS; break;
++		case 'h': suit = Suit_HEARTS; break;
++		case 's': suit = Suit_SPADES; break;
++		default: return CARD_NOCARD;
++	}
++	return StdDeck_MAKE_CARD(get_rank(r), suit);
++}
++
++bool CManualModeDlg::ImportHand(const CString& text, const CString& hero_name, CString* error)
++{
++	std::vector<HandHistory::Hand> hands;
++	std::string parse_error;
++	if (!HandHistory::ParseAll((LPCTSTR)text, &hands, &parse_error))
++	{
++		*error = parse_error.c_str();
++		return false;
++	}
++	CString hero_trimmed = hero_name;
++	hero_trimmed.Trim();
++	const std::string wanted = (LPCTSTR)hero_trimmed;
++
++	// Hero of every hand: the requested name if seated there,
++	// otherwise the player of the "Dealt to" line of that hand.
++	std::vector<std::string> heroes;
++	size_t hands_with_hero = 0;
++	for (size_t h = 0; h < hands.size(); ++h)
++	{
++		std::string hero = hands[h].default_hero;
++		for (size_t i = 0; i < hands[h].seats.size(); ++i)
++		{
++			if (!wanted.empty() && hands[h].seats[i].name == wanted) hero = wanted;
++		}
++		if (!hero.empty()) ++hands_with_hero;
++		heroes.push_back(hero);
++	}
++	if (hands_with_hero == 0)
++	{
++		if (wanted.empty())
++			*error = "No \"Dealt to\" line found.\nPlease enter the name of the hero.";
++		else
++			error->Format("Hero \"%s\" is not seated in any of these hands.\nPlease enter the exact player name.", wanted.c_str());
++		return false;
++	}
++
++	hh_hands = hands;
++	hh_heroes = heroes;
++	hh_loaded = true;
++	SelectHand(0);
++	ApplyHandStep();
++	return true;
++}
++
++// Makes hand <index> the current one, at step 0 (the caller applies the step)
++void CManualModeDlg::SelectHand(size_t index)
++{
++	if (index >= hh_hands.size()) return;
++	hh_index = index;
++	hh_hand = hh_hands[index];
++	hh_hero = hh_heroes[index];
++	hh_step = 0;
++
++	// Game info (the same values as in the "white box")
++	if (hh_hand.bblind > 0)
++	{
++		sblind = NumberToFormattedString(hh_hand.sblind);
++		bblind = NumberToFormattedString(hh_hand.bblind);
++		bbet = NumberToFormattedString(hh_hand.bblind * 2);
++	}
++	ante = NumberToFormattedString(hh_hand.ante);
++	limit = hh_hand.limit;
++	istournament = hh_hand.tournament;
++	isomaha = hh_hand.omaha;
++	network = "Stars";
++	if (!hh_hand.hand_id.empty()) handnumber = hh_hand.hand_id.c_str();
++}
++
++bool CManualModeDlg::NextHand()
++{
++	if (!hh_loaded || hh_index + 1 >= hh_hands.size()) return false;
++	SelectHand(hh_index + 1);
++	ApplyHandStep();
++	return true;
++}
++
++bool CManualModeDlg::PrevHand()
++{
++	if (!hh_loaded || hh_index == 0) return false;
++	SelectHand(hh_index - 1);
++	ApplyHandStep();
++	return true;
++}
++
++bool CManualModeDlg::HandStepNext()
++{
++	if (!hh_loaded || hh_step >= hh_hand.events.size()) return false;
++	++hh_step;
++	ApplyHandStep();
++	return true;
++}
++
++bool CManualModeDlg::HandStepPrev()
++{
++	if (!hh_loaded || hh_step == 0) return false;
++	--hh_step;
++	ApplyHandStep();
++	return true;
++}
++
++// Jumps to the next situation where the hero has to act.
++// Starts strictly after the current step and goes on in the following hands.
++bool CManualModeDlg::HandStepToDecision()
++{
++	if (!hh_loaded) return false;
++	for (size_t h = hh_index; h < hh_hands.size(); ++h)
++	{
++		const HandHistory::Hand& hand = hh_hands[h];
++		size_t first = (h == hh_index) ? hh_step + 1 : 0;
++		for (size_t i = first; i < hand.events.size(); ++i)
++		{
++			if (HandHistory::IsDecision(hand.events[i], hh_heroes[h]))
++			{
++				if (h != hh_index) SelectHand(h);
++				hh_step = i;  // state right before the hero's action
++				ApplyHandStep();
++				return true;
++			}
++		}
++	}
++	return false;
++}
++
++// Is the next action of the hand one of the hero?
++bool CManualModeDlg::HeroToAct()
++{
++	if (!hh_loaded || hh_step >= hh_hand.events.size()) return false;
++	return HandHistory::IsDecision(hh_hand.events[hh_step], hh_hero);
++}
++
++CString CManualModeDlg::HandStatus()
++{
++	CString status;
++	if (!hh_loaded)
++	{
++		status = "No hand loaded.\nPaste one or more hand-histories above and click Load.";
++		return status;
++	}
++	status.Format("Hand %u / %u  (#%s)    Step %u / %u\n",
++		(unsigned)(hh_index + 1), (unsigned)hh_hands.size(), hh_hand.hand_id.c_str(),
++		(unsigned)hh_step, (unsigned)hh_hand.events.size());
++	if (hh_step < hh_hand.events.size())
++	{
++		status += HeroToAct() ? "HERO TO ACT: " : "Next: ";
++		status += hh_hand.events[hh_step].text.c_str();
++	}
++	else
++	{
++		status += "End of hand.";
++	}
++	return status;
++}
++
++// Arrow keys etc. also work while the ManualMode window has the focus
++BOOL CManualModeDlg::PreTranslateMessage(MSG* pMsg)
++{
++	if (pMsg->message == WM_KEYDOWN && handreplay.GetSafeHwnd() != NULL)
++	{
++		if (handreplay.HandleShortcut((UINT)pMsg->wParam)) return TRUE;
++	}
++	return CDialog::PreTranslateMessage(pMsg);
++}
++
++void CManualModeDlg::ApplyHandStep()
++{
++	if (!hh_loaded) return;
++	const HandHistory::State s = HandHistory::Replay(hh_hand, hh_hero, hh_step);
++
++	// Board
++	CardMask_RESET(used_cards);
++	for (int i = 0; i < kNumberOfCommunityCards; ++i)
++	{
++		card[CC0 + i] = CARD_NOCARD;
++	}
++	int ncommon = 0;
++	for (size_t i = 0; i < s.board.size() && i < (size_t)kNumberOfCommunityCards; ++i)
++	{
++		unsigned int c = CardFromString(s.board[i]);
++		card[CC0 + i] = c;
++		if (c != CARD_NOCARD)
++		{
++			CardMask_SET(used_cards, c);
++			++ncommon;
++		}
++	}
++	// Keep do_scrape_bets_into_pot() consistent if the user continues manually
++	ncommoncards_last = ncommon;
++	pot = s.pot;
++
++	// Players: start with empty chairs, then fill the seats of the hand
++	for (int i = 0; i < kMaxNumberOfPlayers; ++i)
++	{
++		seated[i] = active[i] = dealer[i] = false;
++		for (int j = 0; j < kNumberOfCardsPerPlayerOmaha; ++j)
++		{
++			SetPlayerCard(i, j, CARD_NOCARD);
++		}
++		playername[i].Format("Player%d", i);
++		playerbalance[i] = "0";
++		playerbet[i] = "0";
++	}
++	for (size_t k = 0; k < hh_hand.seats.size(); ++k)
++	{
++		const HandHistory::Seat& seat = hh_hand.seats[k];
++		int chair = seat.seat - 1;
++		if (chair < 0 || chair >= kMaxNumberOfPlayers) continue;
++		std::map<std::string, HandHistory::PlayerState>::const_iterator it = s.players.find(seat.name);
++		if (it == s.players.end()) continue;
++		const HandHistory::PlayerState& p = it->second;
++
++		seated[chair] = true;
++		// A folded player stays "sat in" (like ManualMode's own fold), just without cards
++		active[chair] = p.in_hand;
++		dealer[chair] = (seat.seat == hh_hand.button_seat);
++		playername[chair] = seat.name.c_str();
++		playerbalance[chair] = NumberToFormattedString(p.stack);
++		playerbet[chair] = NumberToFormattedString(p.bet);
++
++		if (!p.in_hand || p.folded) continue;
++		for (int j = 0; j < kNumberOfCardsPerPlayerOmaha; ++j)
++		{
++			unsigned int c = CARD_BACK;
++			if (j < (int)p.cards.size())
++			{
++				unsigned int real = CardFromString(p.cards[j]);
++				if (real != CARD_NOCARD)
++				{
++					c = real;
++					CardMask_SET(used_cards, real);
++				}
++			}
++			SetPlayerCard(chair, j, c);
++		}
++	}
++	// Dealer button: if the button seat is empty, keep it somewhere valid
++	bool any_dealer = false;
++	for (int i = 0; i < kMaxNumberOfPlayers; ++i) any_dealer = any_dealer || dealer[i];
++	if (!any_dealer) dealer[0] = true;
++
++	// Is it the hero's turn? Then show the action buttons like a real table.
++	for (int i = 0; i < 5; ++i) buttonstate[i] = false;
++	if (HeroToAct())
++	{
++		double current_bet = 0;
++		for (std::map<std::string, HandHistory::PlayerState>::const_iterator it = s.players.begin(); it != s.players.end(); ++it)
++		{
++			if (it->second.bet > current_bet) current_bet = it->second.bet;
++		}
++		const HandHistory::PlayerState& hero = s.players.find(hh_hero)->second;
++		buttonstate[0] = true;                                  // fold
++		if (hero.bet >= current_bet) buttonstate[2] = true;     // check
++		else buttonstate[1] = true;                             // call
++		if (hero.stack + hero.bet > current_bet) buttonstate[3] = true;  // raise
++		if (limit != LIMIT_FL) buttonstate[4] = true;           // allin
++	}
++
++	InvalidateRect(NULL, true);
++}
+--- a/ManualMode.rc	2026-11-11 12:18:55.638709533 +0000
++++ b/ManualMode.rc	2026-11-11 12:48:33.601564781 +0000
+@@ -102,6 +102,28 @@
+     EDITTEXT        IDC_SWAG,339,178,39,12,ES_MULTILINE | ES_AUTOHSCROLL,WS_EX_RIGHT
+ END
+ 
++IDD_HANDREPLAY DIALOGEX 0, 0, 260, 222
++STYLE DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU
++CAPTION "Hand Replay"
++FONT 8, "MS Shell Dlg", 400, 0, 0x1
++BEGIN
++    EDITTEXT        IDC_HH_TEXT,7,7,246,90,ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_WANTRETURN | WS_VSCROLL | WS_HSCROLL
++    LTEXT           "Hero:",IDC_STATIC,7,106,22,8
++    EDITTEXT        IDC_HH_HERO,30,103,70,14,ES_AUTOHSCROLL
++    LTEXT           "(empty = player of the ""Dealt to"" line)",IDC_STATIC,105,106,148,8
++    PUSHBUTTON      "&Load",IDC_HAND_LOAD,7,122,45,14
++    PUSHBUTTON      "< Hand",IDC_HAND_PREVHAND,150,122,48,14
++    PUSHBUTTON      "Hand >",IDC_HAND_NEXTHAND,205,122,48,14
++    PUSHBUTTON      "< &Back",IDC_HAND_PREV,7,141,45,14
++    PUSHBUTTON      "&Next >",IDC_HAND_NEXT,56,141,45,14
++    PUSHBUTTON      "Next &decision",IDC_HAND_NEXTDEC,105,141,62,14
++    PUSHBUTTON      "&Play",IDC_HAND_PLAY,171,141,34,14
++    EDITTEXT        IDC_HAND_DELAY,209,142,26,12,ES_AUTOHSCROLL | ES_NUMBER
++    LTEXT           "ms",IDC_STATIC,238,144,14,8
++    LTEXT           "",IDC_HAND_STATUS,7,162,246,28
++    LTEXT           "Keys: Left/Right = step, Up/Down = previous/next hand, PgDn = next decision, P = play/stop",IDC_STATIC,7,193,246,18
++END
++
+ IDD_EDITDLG DIALOGEX 0, 0, 118, 50
+ STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+ CAPTION "Dialog"
+@@ -194,6 +216,14 @@
+         BOTTOMMARGIN, 229
+     END
+ 
++    IDD_HANDREPLAY, DIALOG
++    BEGIN
++        LEFTMARGIN, 7
++        RIGHTMARGIN, 253
++        TOPMARGIN, 7
++        BOTTOMMARGIN, 215
++    END
++
+     IDD_EDITDLG, DIALOG
+     BEGIN
+         LEFTMARGIN, 7
+--- a/resource.h	2026-11-11 12:18:55.640916215 +0000
++++ b/resource.h	2026-11-11 12:48:33.601282604 +0000
+@@ -3,6 +3,7 @@
+ // Used by ManualMode.rc
+ //
+ #define IDM_ABOUTBOX                    0x0010
++#define IDM_HANDREPLAY                  0x0020
+ #define IDD_ABOUTBOX                    100
+ #define IDS_ABOUTBOX                    101
+ #define IDD_MANUALMODE_DIALOG           102
+@@ -13,6 +14,7 @@
+ #define IDD_EDITDLG                     130
+ #define IDB_CARDS                       141
+ #define IDD_GAMEINFO                    157
++#define IDD_HANDREPLAY                  158
+ #define IDC_EDITENTRY                   1000
+ #define IDC_TOURNAMENT                  1001
+ #define IDC_BUTTON1                     1002
+@@ -34,6 +36,17 @@
+ #define IDC_ANTE                        1080
+ #define IDC_GAME_TYPE                   1081
+ #define IDC_HOLDEM_OMAHA                1082
++#define IDC_HH_TEXT                     1083
++#define IDC_HH_HERO                     1084
++#define IDC_HAND_STATUS                 1085
++#define IDC_HAND_LOAD                   1086
++#define IDC_HAND_PREV                   1087
++#define IDC_HAND_NEXT                   1088
++#define IDC_HAND_PREVHAND               1089
++#define IDC_HAND_NEXTHAND               1090
++#define IDC_HAND_NEXTDEC                1091
++#define IDC_HAND_PLAY                   1092
++#define IDC_HAND_DELAY                  1093
+ #define ID_POPUP_A                      32771
+ #define ID_POPUP_2                      32772
+ #define ID_POPUP_3                      32773
+@@ -128,9 +141,9 @@
+ // 
+ #ifdef APSTUDIO_INVOKED
+ #ifndef APSTUDIO_READONLY_SYMBOLS
+-#define _APS_NEXT_RESOURCE_VALUE        137
++#define _APS_NEXT_RESOURCE_VALUE        159
+ #define _APS_NEXT_COMMAND_VALUE         32860
+-#define _APS_NEXT_CONTROL_VALUE         1083
++#define _APS_NEXT_CONTROL_VALUE         1094
+ #define _APS_NEXT_SYMED_VALUE           104
+ #endif
+ #endif
+--- a/ManualMode.vcxproj	2026-11-11 12:18:55.638850266 +0000
++++ b/ManualMode.vcxproj	2026-11-11 12:48:33.537503959 +0000
+@@ -135,6 +135,8 @@
+   <ItemGroup>
+     <ClCompile Include="EditDlg.cpp" />
+     <ClCompile Include="GameInfoDlg.cpp" />
++    <ClCompile Include="HandHistory.cpp" />
++    <ClCompile Include="HandReplayDlg.cpp" />
+     <ClCompile Include="ManualMode.cpp" />
+     <ClCompile Include="ManualModeDlg.cpp" />
+     <ClCompile Include="registry.cpp" />
+@@ -146,6 +148,8 @@
+   <ItemGroup>
+     <ClInclude Include="EditDlg.h" />
+     <ClInclude Include="GameInfoDlg.h" />
++    <ClInclude Include="HandHistory.h" />
++    <ClInclude Include="HandReplayDlg.h" />
+     <ClInclude Include="ManualMode.h" />
+     <ClInclude Include="ManualModeDlg.h" />
+     <ClInclude Include="registry.h" />
+--- a/ManualMode_vcxproj.filters	2026-11-11 12:18:55.640376940 +0000
++++ b/ManualMode_vcxproj.filters	2026-11-11 12:48:33.538521813 +0000
+@@ -24,6 +24,12 @@
+     <ClCompile Include="GameInfoDlg.cpp">
+       <Filter>Source Files</Filter>
+     </ClCompile>
++    <ClCompile Include="HandHistory.cpp">
++      <Filter>Source Files</Filter>
++    </ClCompile>
++    <ClCompile Include="HandReplayDlg.cpp">
++      <Filter>Source Files</Filter>
++    </ClCompile>
+     <ClCompile Include="ManualMode.cpp">
+       <Filter>Source Files</Filter>
+     </ClCompile>
+@@ -44,6 +50,12 @@
+     <ClInclude Include="GameInfoDlg.h">
+       <Filter>Header Files</Filter>
+     </ClInclude>
++    <ClInclude Include="HandHistory.h">
++      <Filter>Header Files</Filter>
++    </ClInclude>
++    <ClInclude Include="HandReplayDlg.h">
++      <Filter>Header Files</Filter>
++    </ClInclude>
+     <ClInclude Include="ManualMode.h">
+       <Filter>Header Files</Filter>
+     </ClInclude>

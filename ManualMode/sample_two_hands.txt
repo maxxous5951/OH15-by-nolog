@@ -1,0 +1,61 @@
+PokerStars Hand #179309252003:  Hold'em No Limit ($1/$2 USD) - 2026/10/27 10:15:20 ET
+Table 'DD Poker 3' 9-max Seat #5 is the button
+Seat 2: Katina ($1042 in chips)
+Seat 4: Catherine ($986 in chips)
+Seat 5: p4 ($985 in chips)
+Seat 8: Thad ($987 in chips)
+Seat 9: lliana ($1000 in chips)
+Seat 10: Quillan ($1000 in chips)
+Thad: posts small blind $1
+lliana: posts big blind $2
+*** HOLE CARDS ***
+Dealt to p4 [Jd 8d]
+Quillan: raises $6 to $8
+Katina: folds
+Catherine: folds
+p4: folds
+Thad: calls $7
+lliana: folds
+*** FLOP *** [6d Jh Th]
+Thad: checks
+Quillan: bets $7
+Thad: calls $7
+*** TURN *** [6d Jh Th] [6h]
+Thad: checks
+Quillan: bets $23
+Thad: calls $23
+*** RIVER *** [6d Jh Th 6h] [7h]
+Thad: checks
+Quillan: bets $77
+Thad: calls $77
+*** SHOW DOWN ***
+Thad: mucks hand
+Quillan: mucks hand
+Quillan collected $232 from pot
+*** SUMMARY ***
+Total pot $232 | Rake $0
+Board [6d Jh Th 6h 7h]
+Seat 2: Katina folded before Flop (didn't bet)
+
+PokerStars Hand #179309252004:  Hold'em No Limit ($1/$2 USD) - 2026/10/27 10:17:02 ET
+Table 'DD Poker 3' 9-max Seat #8 is the button
+Seat 2: Katina ($1042 in chips)
+Seat 5: p4 ($985 in chips)
+Seat 8: Thad ($987 in chips)
+Seat 9: lliana ($1000 in chips)
+lliana: posts small blind $1
+Katina: posts big blind $2
+*** HOLE CARDS ***
+Dealt to p4 [Ah Kd]
+p4: raises $4 to $6
+Thad: folds
+lliana: folds
+Katina: calls $4
+*** FLOP *** [2c 7d Qs]
+Katina: checks
+p4: bets $8
+Katina: folds
+Uncalled bet ($8) returned to p4
+p4 collected $13 from pot
+*** SUMMARY ***
+Total pot $13
