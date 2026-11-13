@@ -44,6 +44,7 @@ class CFlagsToolbar: public CWnd {
  public:
   // Title bar, menu bar and layout
   void SetTitle(const char *title);
+  void SetWindowLabel(const char *label);
   void SetConnected(bool connected);
   bool OpenMenuByMnemonic(wchar_t character);
   int  HeaderHeight(float dpi_scale);
