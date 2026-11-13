@@ -42,6 +42,22 @@ bool IsTextRegion(const CString &transform, int *group) {
 	return *group < k_max_number_of_font_groups_in_tablemap;
 }
 
+// Kind of a text region, from its name (p0name, u1balance, p2bet, c0pot0, i3label ...)
+int RegionCategory(const CString &region_name) {
+	CString name = region_name;
+	name.MakeLower();
+	if (name.Left(1) == "i" && (name.Find("label") >= 0 || name.Find("edit") >= 0
+		|| name.Find("button") >= 0)) return k_batch_cat_buttons;
+	if (name.Find("name") >= 0)    return k_batch_cat_names;
+	if (name.Find("balance") >= 0) return k_batch_cat_balances;
+	if (name.Find("bet") >= 0)     return k_batch_cat_bets;
+	if (name.Find("pot") >= 0)     return k_batch_cat_pots;
+	return k_batch_cat_other;
+}
+
+// Kinds of regions to scan (bit mask), kept between two runs
+unsigned g_batch_categories = (1u << k_batch_cat_count) - 1;
+
 // Same separation of the characters as "Create Font" does for a single region,
 // but the unknown characters are only collected, not asked for.
 void CollectUnknownGlyphs(RMapCI region, const CString &file_name, int group, int width, int height,
@@ -120,6 +136,7 @@ bool ScanImage(const CString &path, const CString &file_name, TGlyphMap *found, 
 	for (RMapCI region = p_tablemap->r$()->begin(); region != p_tablemap->r$()->end(); ++region) {
 		int group = 0;
 		if (!IsTextRegion(region->second.transform, &group)) continue;
+		if (!(g_batch_categories & (1u << RegionCategory(region->first)))) continue;
 		const int width = region->second.right - region->second.left + 1;
 		const int height = region->second.bottom - region->second.top + 1;
 		// Regions that don't fit into the image or into our buffers are ignored
@@ -437,6 +454,18 @@ void CBatchFonts::Run(CWnd *parent) {
 	CFolderPickerDialog folder_dialog(NULL, 0, parent, 0);
 	folder_dialog.m_ofn.lpstrTitle = "Folder with the bmp files (e.g. replay frames)";
 	if (folder_dialog.DoModal() != IDOK) return;
+
+	// Which kinds of regions?
+	CDlgBatchFilter filter_dialog(parent);
+	for (RMapCI region = p_tablemap->r$()->begin(); region != p_tablemap->r$()->end(); ++region) {
+		int group = 0;
+		if (IsTextRegion(region->second.transform, &group)) {
+			filter_dialog.counts[RegionCategory(region->first)]++;
+		}
+	}
+	filter_dialog.mask = g_batch_categories;
+	if (filter_dialog.DoModal() != IDOK) return;
+	g_batch_categories = filter_dialog.mask;
 
 	std::vector<SBatchGlyph> glyphs;
 	int unreadable = 0, skipped_regions = 0, images = 0;
@@ -901,4 +930,54 @@ void CDlgBatchFonts::OnCancel() {
 		if (AfxMessageBox(text, MB_YESNO | MB_ICONQUESTION) != IDYES) return;
 	}
 	EndDialog(IDCANCEL);
+}
+
+
+// ---------------------------------------------------------------------------
+// Dialog: which kinds of regions to scan
+// ---------------------------------------------------------------------------
+BEGIN_MESSAGE_MAP(CDlgBatchFilter, CDialog)
+	ON_BN_CLICKED(IDC_BATCH_FILTER_ALL, &CDlgBatchFilter::OnBnClickedAll)
+	ON_BN_CLICKED(IDC_BATCH_FILTER_NONE, &CDlgBatchFilter::OnBnClickedNone)
+END_MESSAGE_MAP()
+
+CDlgBatchFilter::CDlgBatchFilter(CWnd *parent) : CDialog(IDD, parent) {
+	for (int i = 0; i < k_batch_cat_count; ++i) counts[i] = 0;
+	mask = (1u << k_batch_cat_count) - 1;
+}
+
+BOOL CDlgBatchFilter::OnInitDialog() {
+	CDialog::OnInitDialog();
+	static const char *k_names[k_batch_cat_count] = {
+		"Names", "Balances", "Bets", "Pots", "Button labels / bet edit", "Other" };
+	for (int i = 0; i < k_batch_cat_count; ++i) {
+		CString text;
+		text.Format("%s (%d region%s)", k_names[i], counts[i], counts[i] == 1 ? "" : "s");
+		SetDlgItemText((IDC_BATCH_FILTER_FIRST + i), text);
+		CheckDlgButton((IDC_BATCH_FILTER_FIRST + i),
+			(counts[i] > 0 && (mask & (1u << i))) ? BST_CHECKED : BST_UNCHECKED);
+		GetDlgItem((IDC_BATCH_FILTER_FIRST + i))->EnableWindow(counts[i] > 0);
+	}
+	return TRUE;
+}
+
+void CDlgBatchFilter::SetAll(bool checked) {
+	for (int i = 0; i < k_batch_cat_count; ++i) {
+		if (counts[i] > 0) CheckDlgButton((IDC_BATCH_FILTER_FIRST + i), checked ? BST_CHECKED : BST_UNCHECKED);
+	}
+}
+
+void CDlgBatchFilter::OnBnClickedAll()  { SetAll(true); }
+void CDlgBatchFilter::OnBnClickedNone() { SetAll(false); }
+
+void CDlgBatchFilter::OnOK() {
+	mask = 0;
+	for (int i = 0; i < k_batch_cat_count; ++i) {
+		if (IsDlgButtonChecked((IDC_BATCH_FILTER_FIRST + i)) == BST_CHECKED) mask |= (1u << i);
+	}
+	if (mask == 0) {
+		AfxMessageBox("Please check at least one kind of region.", MB_ICONINFORMATION);
+		return;
+	}
+	CDialog::OnOK();
 }
