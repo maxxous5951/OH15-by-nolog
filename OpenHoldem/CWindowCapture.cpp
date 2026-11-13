@@ -29,6 +29,13 @@
 //                      (Windows 8.1 and newer, ignored by older versions)
 static const UINT kPrintWindowFlags = PW_CLIENTONLY | PW_RENDERFULLCONTENT;
 
+// First attempt with full content (GPU/DirectComposition), second attempt
+// client-only for windows/Windows-versions that reject PW_RENDERFULLCONTENT.
+static BOOL PrintWindowWithFallback(HWND window, HDC destination_dc) {
+  return PrintWindow(window, destination_dc, kPrintWindowFlags)
+    || PrintWindow(window, destination_dc, PW_CLIENTONLY);
+}
+
 CWindowCapture window_capture;
 
 CWindowCapture::CWindowCapture() {
@@ -109,7 +116,7 @@ bool CWindowCapture::UpdateSnapshot(HWND window) {
     _snapshot_height = height;
   }
   DeleteDC(hdc_screen);
-  BOOL success = PrintWindow(window, _snapshot_dc, kPrintWindowFlags);
+  BOOL success = PrintWindowWithFallback(window, _snapshot_dc);
   if (!success) {
     if (!_last_print_window_failed) {
       write_log(k_always_log_errors,
@@ -151,5 +158,5 @@ bool CWindowCapture::PrintClientArea(HWND window, HDC destination_dc) {
   if ((window == NULL) || (destination_dc == NULL)) {
     return false;
   }
-  return (PrintWindow(window, destination_dc, kPrintWindowFlags) != FALSE);
+  return (PrintWindowWithFallback(window, destination_dc) != FALSE);
 }
