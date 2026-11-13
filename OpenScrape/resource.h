@@ -147,9 +147,13 @@
 #define IDC_LABEL                       65535
 
 #define IDD_BATCH_FONTS                 153
+#define IDD_BATCH_FILTER                154
 #define IDC_BATCH_INFO                  1115
 #define IDC_BATCH_PIXELS                1116
 #define IDC_BATCH_CHAR                  1117
+#define IDC_BATCH_FILTER_FIRST          1130
+#define IDC_BATCH_FILTER_ALL            1136
+#define IDC_BATCH_FILTER_NONE           1137
 #define IDC_BATCH_SKIP                  1118
 #define IDC_BATCH_BACK                  1119
 #define IDC_BATCH_FINISH                1120
@@ -168,9 +172,9 @@
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        154
+#define _APS_NEXT_RESOURCE_VALUE        155
 #define _APS_NEXT_COMMAND_VALUE         32797
-#define _APS_NEXT_CONTROL_VALUE         1130
+#define _APS_NEXT_CONTROL_VALUE         1138
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
