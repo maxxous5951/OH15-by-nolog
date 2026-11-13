@@ -34,7 +34,9 @@ const double kSeatPos[11][10][2] = {
   { {.72,.11}, {.95,.47}, {.72,.83}, {.50,.83}, {.28,.83}, {.05,.47}, {.28,.11}, {0,0}, {0,0}, {0,0} },
   { {.72,.11}, {.89,.25}, {.89,.69}, {.72,.83}, {.28,.83}, {.11,.69}, {.11,.25}, {.28,.11}, {0,0}, {0,0} },
   { {.72,.11}, {.89,.25}, {.89,.69}, {.72,.83}, {.50,.83}, {.28,.83}, {.11,.69}, {.11,.25}, {.28,.11}, {0,0} },
-  { {.72,.11}, {.85,.21}, {.95,.47}, {.85,.73}, {.72,.83}, {.28,.83}, {.15,.73}, {.05,.47}, {.15,.21}, {.28,.11} },
+  // 10 chairs (compact panels, see DrawTable): 2 on top, a row of 4 at the bottom,
+  // 2 chairs on each side, the outer ones lower and further out. All cards above the panels.
+  { {.745,.00}, {.955,.187}, {1.0,.551}, {.860,.877}, {.599,.877}, {.401,.877}, {.140,.877}, {0.0,.551}, {.045,.187}, {.255,.00} },
 };
 
 std::wstring RankText(char rank) {
@@ -65,10 +67,12 @@ void DrawCardFace(Graphics& g, const RectF& r, float s, const Palette& c, const 
   StrokeRoundRect(g, r, 6 * s, WithAlpha(0xFF000000, 60), 1.0f * s);
   Color ink = Rgba(SuitColor(c, card.suit));
   std::wstring rank = RankText(card.rank);
-  float rank_px = (rank.size() > 1 ? 15.0f : 18.0f) * s;
+  float k = r.Height / (40.0f * s);
+  if (k > 1.0f) k = 1.0f;
+  float rank_px = (rank.size() > 1 ? 15.0f : 18.0f) * s * k;
   RectF top(r.X, r.Y + 1 * s, content_w, r.Height * 0.50f);
   DrawLabel(g, rank, GetFont(rank_px, true), top, ink, HAlign::Center, false);
-  float glyph = 13 * s;
+  float glyph = 13 * s * k;
   RectF suit(r.X + (content_w - glyph) / 2, r.Y + r.Height * 0.56f, glyph, glyph);
   DrawSuit(g, card.suit, suit, ink);
 }
@@ -207,10 +211,13 @@ void DrawTable(Graphics& g, const RectF& area, float s, const Palette& c, const 
   int n = v.nchairs;
   if (n > 10) n = 10;
   if (n < 2) n = 0;            // no table connected: no chairs
-  const float seat_w = 98 * s, seat_h = 38 * s;
-  const float card_w = 28 * s, card_h = 40 * s, card_step = 21 * s;
-  const float left_margin = 60 * s, right_margin = 60 * s;
-  const float top_margin = 56 * s, bottom_margin = 40 * s;
+  // 10 chairs need smaller panels and cards, otherwise the chairs overlap.
+  const bool tight = (n == 10);
+  const float seat_w = (tight ? 78 : 98) * s, seat_h = (tight ? 36 : 38) * s;
+  const float card_w = (tight ? 22 : 28) * s, card_h = (tight ? 31 : 40) * s, card_step = (tight ? 17 : 21) * s;
+  const float left_margin = (tight ? 47 : 60) * s, right_margin = (tight ? 47 : 60) * s;
+  const float top_margin = (tight ? 49 : 56) * s, bottom_margin = 40 * s;
+  const float name_px = (tight ? 12.0f : 13.0f) * s, balance_px = (tight ? 11.0f : 12.0f) * s;
   for (int i = 0; i < n; ++i) {
     const SeatView& seat = v.seats[i];
     float sx = area.X + left_margin + (float)kSeatPos[n][i][0] * (area.Width - left_margin - right_margin);
@@ -232,6 +239,7 @@ void DrawTable(Graphics& g, const RectF& area, float s, const Palette& c, const 
       float total = card_w + (count - 1) * card_step;
       float x0 = sx - total / 2;
       float y0 = panel.Y + 4 * s - card_h;
+
       for (int k = 0; k < count; ++k) {
         float visible = (k == count - 1) ? card_w : card_step;
         DrawCard(g, RectF(x0 + k * card_step, y0, card_w, card_h), s, c, seat.cards[k], visible);
@@ -248,10 +256,10 @@ void DrawTable(Graphics& g, const RectF& area, float s, const Palette& c, const 
     }
     DWORD name_color = seat.active ? c.seat_name : c.seat_out_text;
     DWORD bal_color = seat.active ? c.seat_balance : c.seat_out_text;
-    DrawLabel(g, seat.name, GetFont(13.0f * s, true),
+    DrawLabel(g, seat.name, GetFont(name_px, true),
               RectF(panel.X + 6 * s, panel.Y + 3 * s, panel.Width - 12 * s, panel.Height / 2 - 1 * s),
               Rgba(name_color), HAlign::Center);
-    DrawLabel(g, seat.balance, GetFont(12.0f * s, false),
+    DrawLabel(g, seat.balance, GetFont(balance_px, false),
               RectF(panel.X + 6 * s, panel.Y + panel.Height / 2 - 2 * s, panel.Width - 12 * s, panel.Height / 2 - 1 * s),
               Rgba(bal_color), HAlign::Center);
 
