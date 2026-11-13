@@ -490,6 +490,31 @@ void CDlgPreferences::BuildPages() {
     p.items.push_back(msgbox);
   }
 
+  // ----- Window Label -----
+  {
+    PrefsPage& p = NewPage(&_pages, "Window Label");
+    p.items.push_back(Heading("Window Label"));
+    p.items.push_back(Note("Up to 15 labels. At launch, OpenHoldem shows (in green, next to \"Help\") the "
+      "first one below that no other currently running OpenHoldem window is already showing - handy to tell "
+      "several open windows apart. Leave a field empty to skip it. The label stays the same until this window "
+      "is closed, even if you edit the list afterwards."));
+    p.items.push_back(PREF_TEXT("Label 1", "window_label_01", window_label_01, k_prefs_window_label_01));
+    p.items.push_back(PREF_TEXT("Label 2", "window_label_02", window_label_02, k_prefs_window_label_02));
+    p.items.push_back(PREF_TEXT("Label 3", "window_label_03", window_label_03, k_prefs_window_label_03));
+    p.items.push_back(PREF_TEXT("Label 4", "window_label_04", window_label_04, k_prefs_window_label_04));
+    p.items.push_back(PREF_TEXT("Label 5", "window_label_05", window_label_05, k_prefs_window_label_05));
+    p.items.push_back(PREF_TEXT("Label 6", "window_label_06", window_label_06, k_prefs_window_label_06));
+    p.items.push_back(PREF_TEXT("Label 7", "window_label_07", window_label_07, k_prefs_window_label_07));
+    p.items.push_back(PREF_TEXT("Label 8", "window_label_08", window_label_08, k_prefs_window_label_08));
+    p.items.push_back(PREF_TEXT("Label 9", "window_label_09", window_label_09, k_prefs_window_label_09));
+    p.items.push_back(PREF_TEXT("Label 10", "window_label_10", window_label_10, k_prefs_window_label_10));
+    p.items.push_back(PREF_TEXT("Label 11", "window_label_11", window_label_11, k_prefs_window_label_11));
+    p.items.push_back(PREF_TEXT("Label 12", "window_label_12", window_label_12, k_prefs_window_label_12));
+    p.items.push_back(PREF_TEXT("Label 13", "window_label_13", window_label_13, k_prefs_window_label_13));
+    p.items.push_back(PREF_TEXT("Label 14", "window_label_14", window_label_14, k_prefs_window_label_14));
+    p.items.push_back(PREF_TEXT("Label 15", "window_label_15", window_label_15, k_prefs_window_label_15));
+  }
+
   // ----- Handhistory Generator -----
   {
     PrefsPage& p = NewPage(&_pages, "Handhistory Generator");
