@@ -20,6 +20,8 @@
 #include "poker_defs.h"
 #include "EditDlg.h"
 #include "GameInfoDlg.h"
+#include "HandReplayDlg.h"
+#include "HandHistory.h"
 
 // Limits
 #define LIMIT_NL		0
@@ -64,6 +66,23 @@ public:
 	enum { IDD = IDD_MANUALMODE_DIALOG };
 	virtual BOOL DestroyWindow();
 
+	// Hand replay, driven by the independent "Hand Replay" window
+	bool ImportHand(const CString& text, const CString& hero, CString* error);
+	bool HandStepNext();
+	bool HandStepPrev();
+	bool HandStepToDecision();	// next action of the hero, also in the following hands
+	bool NextHand();
+	bool PrevHand();
+	bool HeroToAct();
+	bool HandLoaded() const { return hh_loaded; }
+	size_t HandStep() const { return hh_step; }
+	size_t HandStepCount() const { return hh_hand.events.size(); }
+	size_t HandIndex() const { return hh_index; }
+	size_t HandCount() const { return hh_hands.size(); }
+	CString HandHero() const { CString h; h = hh_hero.c_str(); return h; }
+	CString HandStatus();
+	virtual BOOL PreTranslateMessage(MSG* pMsg);
+
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);	// DDX/DDV support
 	HICON		m_hIcon;
@@ -106,6 +125,16 @@ protected:
 	CEditDlg			edit;
 	CGameInfoDlg	gameinfo;
 	CEdit				  swag;
+
+	// Hand-history replay
+	CHandReplayDlg		handreplay;
+	bool					hh_loaded;
+	std::vector<HandHistory::Hand>	hh_hands;	// all imported hands
+	std::vector<std::string>				hh_heroes;	// hero of each hand
+	size_t				hh_index;		// current hand
+	HandHistory::Hand	hh_hand;		// current hand
+	std::string		hh_hero;		// hero of the current hand
+	size_t				hh_step;		// number of events applied so far
 
 	// Generated message map functions
 	virtual BOOL OnInitDialog();
@@ -231,4 +260,9 @@ private:
 private:
   int PlayerCardLeft(int chair, int index);
   int PlayerCardTop(int chair);
+private:
+  // Hand replay
+  unsigned int CardFromString(const std::string& card);
+  void SelectHand(size_t index);
+  void ApplyHandStep();
 };
