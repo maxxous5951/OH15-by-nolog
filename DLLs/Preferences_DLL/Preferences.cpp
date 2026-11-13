@@ -191,6 +191,21 @@ const char* k_registry_keys_for_CStrings[k_prefs_last_CString_value + 1] = {
   "hud_stats_flop",
   "hud_stats_turn",
   "hud_stats_river",
+  "window_label_01",
+  "window_label_02",
+  "window_label_03",
+  "window_label_04",
+  "window_label_05",
+  "window_label_06",
+  "window_label_07",
+  "window_label_08",
+  "window_label_09",
+  "window_label_10",
+  "window_label_11",
+  "window_label_12",
+  "window_label_13",
+  "window_label_14",
+  "window_label_15",
   // Finally an empty string
   // This correspondents to k_prefs_last_numerical_value (unused)
   // It will cause an assertion if used
@@ -329,6 +344,36 @@ CString CPreferences::DefaultStringValues(int index) {
     return "turn_af turn_cbet";
   case k_prefs_hud_stats_river:
     return "wtsd wssd";
+  case k_prefs_window_label_01:
+    return "";
+  case k_prefs_window_label_02:
+    return "";
+  case k_prefs_window_label_03:
+    return "";
+  case k_prefs_window_label_04:
+    return "";
+  case k_prefs_window_label_05:
+    return "";
+  case k_prefs_window_label_06:
+    return "";
+  case k_prefs_window_label_07:
+    return "";
+  case k_prefs_window_label_08:
+    return "";
+  case k_prefs_window_label_09:
+    return "";
+  case k_prefs_window_label_10:
+    return "";
+  case k_prefs_window_label_11:
+    return "";
+  case k_prefs_window_label_12:
+    return "";
+  case k_prefs_window_label_13:
+    return "";
+  case k_prefs_window_label_14:
+    return "";
+  case k_prefs_window_label_15:
+    return "";
   default:
     assert(kThisMustNotHappen);
     return "Error in CPreferences::DefaultStringValues()";
