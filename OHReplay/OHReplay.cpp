@@ -296,11 +296,26 @@ void draw_cur_frame()
 		width = bmp.bmWidth;
 		height = bmp.bmHeight;
 
-		// Resize window
-		SetWindowPos(g_hWnd, NULL, 0, 0, 
-					 width + GetSystemMetrics(SM_CXDLGFRAME)*2, 
-					 height + GetSystemMetrics(SM_CYDLGFRAME)*2 + GetSystemMetrics(SM_CYSIZE) + 1, 
+		// Resize window so that the CLIENT area matches the bitmap.
+		// AdjustWindowRectEx handles the real frame size of the current Windows version
+		// (SM_CXDLGFRAME-based formulas are too small on Win10/11 -> bitmap got cut).
+		RECT win_rect = { 0, 0, width, height };
+		AdjustWindowRectEx(&win_rect, (DWORD)GetWindowLongPtr(g_hWnd, GWL_STYLE), FALSE,
+						   (DWORD)GetWindowLongPtr(g_hWnd, GWL_EXSTYLE));
+		SetWindowPos(g_hWnd, NULL, 0, 0,
+					 win_rect.right - win_rect.left,
+					 win_rect.bottom - win_rect.top,
 					 SWP_NOMOVE | SWP_NOZORDER);
+		// Safety: correct any remaining difference between client area and bitmap
+		RECT client_rect;
+		GetClientRect(g_hWnd, &client_rect);
+		int dw = width - (client_rect.right - client_rect.left);
+		int dh = height - (client_rect.bottom - client_rect.top);
+		if (dw != 0 || dh != 0)
+			SetWindowPos(g_hWnd, NULL, 0, 0,
+						 (win_rect.right - win_rect.left) + dw,
+						 (win_rect.bottom - win_rect.top) + dh,
+						 SWP_NOMOVE | SWP_NOZORDER);
 
 		// Select file bitmap into a DC
 		hdc = GetDC(g_hWnd);
