@@ -218,12 +218,54 @@ void CAdvisor::ClassifyAction(const CString& raw, double betsize, double to_call
   }
 }
 
+// Translates an absolute betsize ("raise to") into what the buttons
+// of the poker client show, so that the right button can be clicked
+// without doing any math:
+//   * preflop:  multiple of the bet to match (= big blind if nobody raised yet)
+//               -> "x2.5 BB", "x3 the bet"
+//   * postflop: percentage of the pot, calculated like the "%" / "Pot" buttons
+//               (pot after calling + bet)  -> "66% pot", "POT"
+CString CAdvisor::SizeText(double betsize, double pot, double to_call) {
+  if (betsize <= kEpsilon) return "";
+  const double my_bet = p_table_state->User()->_bet.GetValue();
+  const double my_balance = p_table_state->User()->_balance.GetValue();
+  const double bet_to_match = my_bet + to_call;
+  CString text;
+  if (my_balance > kEpsilon && betsize >= my_bet + my_balance - kEpsilon) {
+    return "= ALL-IN";
+  }
+  if (p_betround_calculator != NULL && p_betround_calculator->betround() == kBetroundPreflop) {
+    if (bet_to_match <= kEpsilon) return "";
+    const double multiple = betsize / bet_to_match;
+    const double big_blind = p_engine_container->symbol_engine_tablelimits()->bblind();
+    const bool nobody_raised = (big_blind > kEpsilon && bet_to_match <= big_blind + kEpsilon);
+    text.Format("= x%.1f %s", multiple, nobody_raised ? "BB" : "the bet");
+    text.Replace(".0 ", " ");
+    return text;
+  }
+  const double pot_after_call = pot + to_call;
+  if (pot_after_call <= kEpsilon) return "";
+  const double added_chips = betsize - my_bet - to_call;
+  if (added_chips <= kEpsilon) return "";
+  const double percent = 100.0 * added_chips / pot_after_call;
+  if (fabs(percent - 100.0) < 2.0) return "= POT";
+  text.Format("= %.0f%% pot", percent);
+  return text;
+}
+
 void CAdvisor::OnDecision(CString best_action, CString action_taken,
     double pot, double to_call, double betsize) {
   if (!Preferences()->advisor_enabled()) return;
   AdvisorData fresh;
   ClassifyAction(best_action, betsize, to_call, &fresh.best_kind, &fresh.best_text);
   ClassifyAction(action_taken, betsize, to_call, &fresh.taken_kind, &fresh.taken_text);
+  {
+    CString best_name = best_action;
+    best_name.MakeLower();
+    if (fresh.best_kind == kAdvisorActionRaise && best_name.Find("betsize") >= 0) {
+      fresh.best_size_text = SizeText(betsize, pot, to_call);
+    }
+  }
   CString detail = "Pot " + MoneyText(pot);
   if (to_call > kEpsilon) {
     detail += "   |   To call " + MoneyText(to_call);
@@ -232,6 +274,7 @@ void CAdvisor::OnDecision(CString best_action, CString action_taken,
     CSLock lock(_data_critsec);
     _data.best_kind = fresh.best_kind;
     _data.best_text = fresh.best_text;
+    _data.best_size_text = fresh.best_size_text;
     _data.taken_kind = fresh.taken_kind;
     _data.taken_text = fresh.taken_text;
     _data.detail_text = detail;
@@ -281,7 +324,7 @@ LRESULT CAdvisor::OnThemeChanged(WPARAM, LPARAM) {
 
 CSize CAdvisor::WindowSize() {
   const float s = modernui::DpiScale(m_hWnd);
-  return CSize((int)(268 * s + 0.5f), (int)(172 * s + 0.5f));
+  return CSize((int)(268 * s + 0.5f), (int)(192 * s + 0.5f));
 }
 
 bool CAdvisor::TableClientRectOnScreen(CRect* rect) {
@@ -504,17 +547,24 @@ void CAdvisor::OnPaint() {
             RectF(pill.X + 12 * s, pill.Y, pill.Width - 24 * s, pill.Height),
             Rgba(has_best ? (d.my_turn ? best_colour : c.text_dim) : c.text_dim), HAlign::Left, true);
 
+  // Size in the language of the buttons (% of pot / multiple of the blind)
+  if (!d.best_size_text.IsEmpty()) {
+    DrawLabel(g, ToWideString(d.best_size_text), modernui::GetFont(14 * s, true),
+              RectF(pill.X + 12 * s, 104 * s, pill.Width - 24 * s, 18 * s),
+              Rgba(d.my_turn ? best_colour : c.text_dim), HAlign::Left, true);
+  }
+
   // Action taken
-  DrawLabel(g, L"ACTION TAKEN", caption_font, RectF(16 * s, 110 * s, w - 32 * s, 16 * s),
+  DrawLabel(g, L"ACTION TAKEN", caption_font, RectF(16 * s, 130 * s, w - 32 * s, 16 * s),
             Rgba(c.text_dim), HAlign::Left, false);
   CString taken_text = d.taken_text;
   const bool has_taken = (d.taken_kind != kAdvisorActionNone);
   if (taken_text.IsEmpty()) taken_text = "-";
   DWORD taken_colour = has_taken ? kind_colour(d.taken_kind) : c.text_dim;
   DrawLabel(g, ToWideString(taken_text), modernui::GetFont(15 * s, true),
-            RectF(16 * s, 127 * s, w - 32 * s, 22 * s), Rgba(taken_colour), HAlign::Left, true);
+            RectF(16 * s, 147 * s, w - 32 * s, 22 * s), Rgba(taken_colour), HAlign::Left, true);
 
   // Details (pot, amount to call)
   DrawLabel(g, ToWideString(d.detail_text), modernui::GetFont(10.5f * s, false),
-            RectF(16 * s, 150 * s, w - 32 * s, 16 * s), Rgba(c.text_dim), HAlign::Left, true);
+            RectF(16 * s, 170 * s, w - 32 * s, 16 * s), Rgba(c.text_dim), HAlign::Left, true);
 }
