@@ -341,28 +341,32 @@ bool CBlindLevels::BestMatchingBlindLevel(double *sblind, double *bblind, double
   return false;
 }
 
+bool CBlindLevels::IsKnownSBlindBBlindCombination(double sblind, double bblind) {
+  if ((sblind <= 0) || (bblind <= 0)) return false;
+  for (int i=0; i<kNumberOfBlindLevels; ++i) {
+    if ((sblind == kBlindLevels[i][0]) && (bblind == kBlindLevels[i][1])) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // Especially used for guessing the small-blind,
 // which usually is 50% or sometimes 40% of the big-blind
+// Returns the largest small-blind on the list that is <= guessed_blind.
 double CBlindLevels::GetNextSmallerOrEqualBlindOnList(double guessed_blind) {
-  // Highest bblind first
-  if ((kBlindLevels[kLastBlindLevel][0] > 0)
-      && (kBlindLevels[kLastBlindLevel][1] > 0)
-      && (guessed_blind >= kBlindLevels[kLastBlindLevel][0]) 
-      && (guessed_blind <= kBlindLevels[kLastBlindLevel][1])) {
+  double best = 0.0;
+  for (int i=0; i<kNumberOfBlindLevels; ++i) {
+    double candidate = kBlindLevels[i][0];
+    if ((candidate > 0) && (candidate <= guessed_blind) && (candidate > best)) {
+      best = candidate;
+    }
+  }
+  if (best > 0) {
     write_log(Preferences()->debug_table_limits(), 
       "[CBlindLevels] Best match for %.2f -> %.2f\n",
-      guessed_blind, kBlindLevels[kLastBlindLevel][1]);
-    return kBlindLevels[kLastBlindLevel][1];
-  }
-  // Then all small blinds downwards
-  for (int i=kLastBlindLevel; i>=0; ++i) {
-    if ((kBlindLevels[i][0] > 0)
-        && (guessed_blind <= kBlindLevels[i][0])) {
-      write_log(Preferences()->debug_table_limits(), 
-        "[CBlindLevels] Best match for %.2f -> %.2f\n",
-        guessed_blind, kBlindLevels[i][0]);
-      return kBlindLevels[i][0];
-    }
+      guessed_blind, best);
+    return best;
   }
   // Failure (bad input): return smallest blinds
   return kBlindLevels[0][0];

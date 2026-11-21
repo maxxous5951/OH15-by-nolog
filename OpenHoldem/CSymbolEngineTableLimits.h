@@ -73,6 +73,10 @@ class CSymbolEngineTableLimits: public CVirtualSymbolEngine {
 	STableLimit tablelimit_best_guess;
 	STableLimit tablelimit_locked_for_current_hand;
 	STableLimit tablelimit_locked_for_complete_session;
+	// Last blinds that were locked for a hand (reliable values only).
+	// Used as fallback if blinds are not (yet) visible in a new hand,
+	// and to keep the blinds stable after an unexpected handreset.
+	STableLimit tablelimit_last_valid;
  private:
 	static const int k_number_of_hands_to_autolock_blinds_for_cashgames = 5;
 	int number_of_saved_tablelimits;

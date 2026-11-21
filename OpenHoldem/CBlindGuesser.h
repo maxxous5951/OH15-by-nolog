@@ -32,10 +32,15 @@ public:
 	CBlindGuesser();
 	~CBlindGuesser();
 public:
-	void Guess(double *sblind, double *bblind, double *bbet, double *ante);
+	// Returns true if the result is reliable, i.e. it comes from the scraper
+	// or from two blind-bets at the table that form a known blind-level.
+	// Returns false for rough guesses and for the "complete failure" fallback.
+	// Callers must not lock unreliable results.
+	bool Guess(double *sblind, double *bblind, double *bbet, double *ante);
 private:
 	void GetFirstBlindDataFromScraper(double *sblind, double *bblind, double *bbet, double *ante);
-	void GetFirstBlindDataFromBetsAtTheTable(double *sblind, double *bblind, double *bbet, double *ante);
+	// Returns true if both blinds were seen as bets and form a known level
+	bool GetFirstBlindDataFromBetsAtTheTable(double *sblind, double *bblind, double *bbet, double *ante);
 private:
 	bool SBlindBBlindCombinationReasonable(double sblind, double bblind);
 	bool SBlindBBetCombinationReasonable(double sblind, double bbet);

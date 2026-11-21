@@ -15,6 +15,7 @@
 #include "stdafx.h"
 #include "CBlindGuesser.h"
 
+#include "CBetroundCalculator.h"
 #include "CBlindLevels.h"
 #include "CEngineContainer.h"
 
@@ -33,26 +34,33 @@ CBlindGuesser::~CBlindGuesser() {
 }
 
 // All parameters are out-parameters only
-void CBlindGuesser::Guess(double *sblind, double *bblind, double *bbet, double *ante) {
+bool CBlindGuesser::Guess(double *sblind, double *bblind, double *bbet, double *ante) {
   // No debug-messages needed here. Subroutines log enough.
   GetFirstBlindDataFromScraper(sblind, bblind, bbet, ante);
   // Take what we have and check the blinds on the list of known levels
   // (either complete or partial match)
   if (_blind_levels.BestMatchingBlindLevel(sblind, bblind, bbet)) {
-    return;
+    return true;
   }
   if (CompletePartiallyKnownBlinds(sblind, bblind, bbet)) {
-    return;
+    return true;
   }
   // Missing input.
   // We have to guess everything from the table
   // And then again try to verify/complete the data.
-  GetFirstBlindDataFromBetsAtTheTable(sblind, bblind, bbet, ante);
+  bool blinds_seen_as_bets = GetFirstBlindDataFromBetsAtTheTable(sblind, bblind, bbet, ante);
+  if (blinds_seen_as_bets) {
+    // Both blinds seen and a known level: perfect match, no ambiguity
+    // (e.g. 15/25 vs. 15/30)
+    _blind_levels.BestMatchingBlindLevel(sblind, bblind, bbet);
+    return true;
+  }
+  // Rough guesses from partial data: usable temporarily, but NOT reliable.
   if (_blind_levels.BestMatchingBlindLevel(sblind, bblind, bbet)) {
-    return;
+    return false;
   }
   if (CompletePartiallyKnownBlinds(sblind, bblind, bbet)) {
-    return;
+    return false;
   }
   write_log(Preferences()->debug_table_limits(), 
     "[CBlindGuesser] Complete failure\n");
@@ -61,6 +69,7 @@ void CBlindGuesser::Guess(double *sblind, double *bblind, double *bbet, double *
   *sblind = 0.01;
   *bblind = 0.02;
   *bbet   = 0.04;
+  return false;
 }
 
 bool CBlindGuesser::CompletePartiallyKnownBlinds(double *sblind, 
@@ -158,7 +167,7 @@ double CBlindGuesser::ReasonableLookingHalfBlindValue(double known_value) {
 // All parameters are out-parameters only
 // Guessing according to Want2Learns method
 // http://www.maxinmontreal.com/forums/viewtopic.php?f=117&t=17380&start=60
-void CBlindGuesser::GetFirstBlindDataFromBetsAtTheTable(double *sblind,
+bool CBlindGuesser::GetFirstBlindDataFromBetsAtTheTable(double *sblind,
   double *bblind,
   double *bbet,
   double *ante) {
@@ -167,6 +176,11 @@ void CBlindGuesser::GetFirstBlindDataFromBetsAtTheTable(double *sblind,
   *bblind = kUndefinedZero;
   *bbet = kUndefinedZero;
   //*ante = kUndefinedZero;
+  // Only preflop the bets are the blinds.
+  // On later betrounds they are just bets and must never be taken as blinds.
+  if (p_betround_calculator->betround() != kBetroundPreflop) {
+    return false;
+  }
   // Search first two bets...
   double first_bet_after_dealer = 0.0;
   double second_bet_after_dealer = 0.0;
@@ -180,7 +194,7 @@ void CBlindGuesser::GetFirstBlindDataFromBetsAtTheTable(double *sblind,
   int dealer = p_engine_container->symbol_engine_dealerchair()->dealerchair();
   // Exit on undefined or wrong dealer (outdated, from last hand)
   if ((dealer == kUndefined) || (p_table_state->Player(dealer)->dealer() == false)) {
-    return;
+    return false;
   }
   int first_chair = dealer + 1;
   int last_chair = dealer + p_tablemap->nchairs();
@@ -204,6 +218,36 @@ void CBlindGuesser::GetFirstBlindDataFromBetsAtTheTable(double *sblind,
     }
   }
   assert(p_engine_container->symbol_engine_active_dealt_playing() != NULL);
+  // Reliable case: both blinds are visible as bets and form a known level.
+  // Passing BOTH values to the matcher avoids ambiguity like 15/25 vs. 15/30
+  // that appears if only the small-blind is known (partial match).
+  // Requires the SB to sit immediately after the dealer (no missing SB)
+  // and an increasing sequence of bets (no raise taken as big-blind).
+  int nplayersdealt = p_engine_container->symbol_engine_active_dealt_playing()->nplayersdealt();
+  if ((first_bet_after_dealer > 0) && (second_bet_after_dealer > first_bet_after_dealer)) {
+    if ((nplayersdealt > 2) 
+        && first_chair_immediatelly_after_dealer_betting
+        && (second_bet_after_dealer <= 2.5 * first_bet_after_dealer)
+        && _blind_levels.IsKnownSBlindBBlindCombination(first_bet_after_dealer, second_bet_after_dealer)) {
+      *sblind = first_bet_after_dealer;
+      *bblind = second_bet_after_dealer;
+      write_log(Preferences()->debug_table_limits(),
+        "[CBlindGuesser] Both blinds seen at the table: %.2f / %.2f\n", *sblind, *bblind);
+      return true;
+    }
+  }
+  // Headsup: dealer is SB, the first bet after the dealer is the BB.
+  if ((nplayersdealt == 2) 
+      && (first_bet_after_dealer > 0) 
+      && (second_bet_after_dealer > 0)
+      && (second_bet_after_dealer < first_bet_after_dealer)
+      && _blind_levels.IsKnownSBlindBBlindCombination(second_bet_after_dealer, first_bet_after_dealer)) {
+    *sblind = second_bet_after_dealer;
+    *bblind = first_bet_after_dealer;
+    write_log(Preferences()->debug_table_limits(),
+      "[CBlindGuesser] Both blinds seen at the table (headsup): %.2f / %.2f\n", *sblind, *bblind);
+    return true;
+  }
   // Checking for reversed blinds.
   // Using 0.61% here to support limits like 0.15/0.25
   if ((second_bet_after_dealer < 0.61 * first_bet_after_dealer) &&
@@ -217,6 +261,13 @@ void CBlindGuesser::GetFirstBlindDataFromBetsAtTheTable(double *sblind,
       "[CBlindGuesser] Swapping reversed blinds\n");
     // settings sblind is bad idea, because sblind can call/raise
     *bblind = first_bet_after_dealer;
+  }
+  else if ((second_bet_after_dealer == 0.0) && (first_bet_after_dealer > 0)) {
+    // Only one bet visible. Either the big-blind with a missing small-blind
+    // or the second blind is not displayed yet. Not reliable either way.
+    *bblind = first_bet_after_dealer;
+    write_log(Preferences()->debug_table_limits(),
+      "[CBlindGuesser] Only one blind visible; assuming big-blind (unreliable)\n");
   }
   else if (second_bet_after_dealer < 2 * first_bet_after_dealer) {
 	  // sblind is raising/calling.
@@ -270,6 +321,7 @@ void CBlindGuesser::GetFirstBlindDataFromBetsAtTheTable(double *sblind,
     "[CBlindGuesser] Data needs to be completed\n");
   // Still to do (by the caller):
   // verify and complete these values
+  return false;
 }
 
 void CBlindGuesser::GetFirstBlindDataFromScraper(double *sblind, 

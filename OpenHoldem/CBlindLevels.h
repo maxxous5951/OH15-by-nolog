@@ -33,6 +33,9 @@ class CBlindLevels {
   // Especially used for guessing the small-blind,
   // which usually is 50% or sometimes 40% of the big-blind
   double GetNextSmallerOrEqualBlindOnList(double guessed_blind);
+  // True if a level with exactly this small-blind and big-blind exists.
+  // Used to validate blinds read directly from the bets at the table.
+  bool IsKnownSBlindBBlindCombination(double sblind, double bblind);
  private:
   bool BlindsMatchBlindLevelPerfectly(const int level,
                              const double sblind, 

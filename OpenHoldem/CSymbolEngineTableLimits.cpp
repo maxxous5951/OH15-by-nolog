@@ -71,6 +71,10 @@ void CSymbolEngineTableLimits::UpdateOnConnection() {
   tablelimit_locked_for_complete_session.bblind = 0;
   tablelimit_locked_for_complete_session.sblind = 0;
   tablelimit_locked_for_complete_session.ante = 0;
+  tablelimit_last_valid.sblind = 0;
+  tablelimit_last_valid.bblind = 0;
+  tablelimit_last_valid.bbet   = 0;
+  tablelimit_last_valid.ante   = 0;
   blinds_locked_for_complete_session = false;
   // UpdateOnHandreset also cares about tablelimit_locked_for_current_hand
 	UpdateOnHandreset();
@@ -105,10 +109,24 @@ void CSymbolEngineTableLimits::UpdateOnHeartbeat() {
 		"[CSymbolEngineTableLimits] UpdateOnHeartbeat()\n");
 	if (TableLimitsNeedToBeComputed()) {
 		CBlindGuesser _blind_guesser;
-		_blind_guesser.Guess(&tablelimit_best_guess.sblind,
-			&tablelimit_best_guess.bblind,
-			&tablelimit_best_guess.bbet,
-			&tablelimit_best_guess.ante);
+		STableLimit guess = {0, 0, 0, 0};
+		bool reliable = _blind_guesser.Guess(&guess.sblind,
+			&guess.bblind,
+			&guess.bbet,
+			&guess.ante);
+		if (reliable) {
+			tablelimit_best_guess = guess;
+		}	else if (tablelimit_last_valid.bblind > 0) {
+			// Blinds not (yet) visible at the table: keep the last known good ones
+			// instead of rough guesses or the 0.01/0.02 fallback.
+			tablelimit_best_guess.sblind = tablelimit_last_valid.sblind;
+			tablelimit_best_guess.bblind = tablelimit_last_valid.bblind;
+			tablelimit_best_guess.bbet   = tablelimit_last_valid.bbet;
+			tablelimit_best_guess.ante   = guess.ante;
+		}	else {
+			// First hand of the session: nothing better than the rough guess.
+			tablelimit_best_guess = guess;
+		}
 		if (p_table_state->_s_limit_info.ante() > 0) {
 			if (p_table_state->_s_limit_info.ante() > sblind()) {
 				write_log(k_always_log_errors,
@@ -121,7 +139,12 @@ void CSymbolEngineTableLimits::UpdateOnHeartbeat() {
 				_ante = p_table_state->_s_limit_info.ante();
 			}
 		}
-		AutoLockBlinds();
+		if (reliable) {
+			// Lock only reliable blinds, as early as possible in the hand.
+			// Locked values stay for all betrounds (flop, turn, river)
+			// until the next handreset.
+			AutoLockBlinds();
+		}
 	}
 }
 
@@ -225,11 +248,12 @@ void CSymbolEngineTableLimits::AutoLockBlinds() {
 	write_log(Preferences()->debug_table_limits(), 
     "[CSymbolEngineTableLimits] blinds_locked_for_current_hand: %s\n", 
     Bool2CString(blinds_locked_for_current_hand));
-	// Reasonable blinds guaranteed by the way we guess.
-	// Previously we was considering IsMyTurn guarantees stable input
-	// and now we rather consider IsHandreset() as some casinos don't let blinds and antes displayed on table until our turn
-  if (!blinds_locked_for_current_hand && p_handreset_detector->IsHandreset()) {
+	// Only called for reliable blinds (scraper or both blinds seen as bets).
+	// No longer waiting for IsHandreset(), because at that moment the blinds
+	// are often not yet visible, which used to lock the fallback 0.01/0.02.
+	if (!blinds_locked_for_current_hand) {
 		AutoLockBlindsForCurrentHand();
+		tablelimit_last_valid = tablelimit_locked_for_current_hand;
 		AutoLockBlindsForCashgamesAfterNHands();
 	}
 }
