@@ -103,6 +103,9 @@ class CAdvisor : public CWnd {
   // heartbeat thread
   CString MoneyText(double amount);
   CString SizeText(double betsize, double pot, double to_call);
+  // Largest total bet (bet + balance) that can still be called by an opponent
+  // who is in the hand, limited by our own stack. 0 if unknown.
+  double EffectiveStack();
   void ClassifyAction(const CString& raw, double betsize, double to_call,
                       AdvisorActionKind* kind, CString* text);
  private:

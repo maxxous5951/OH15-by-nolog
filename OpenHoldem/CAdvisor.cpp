@@ -253,12 +253,41 @@ CString CAdvisor::SizeText(double betsize, double pot, double to_call) {
   return text;
 }
 
+double CAdvisor::EffectiveStack() {
+  const int userchair = p_engine_container->symbol_engine_userchair()->userchair();
+  if (userchair < 0 || userchair >= kMaxNumberOfPlayers) return 0.0;
+  const double my_stack = p_table_state->User()->stack();
+  double biggest_opponent = 0.0;
+  for (int i = 0; i < kMaxNumberOfPlayers; ++i) {
+    if (i == userchair) continue;
+    CPlayer* player = p_table_state->Player(i);
+    if (player == NULL || !player->seated() || !player->active()) continue;
+    const double stack = player->stack();
+    if (stack > biggest_opponent) biggest_opponent = stack;
+  }
+  if (biggest_opponent <= kEpsilon || my_stack <= kEpsilon) return 0.0;
+  return (biggest_opponent < my_stack) ? biggest_opponent : my_stack;
+}
+
 void CAdvisor::OnDecision(CString best_action, CString action_taken,
     double pot, double to_call, double betsize) {
   if (!Preferences()->advisor_enabled()) return;
   AdvisorData fresh;
   ClassifyAction(best_action, betsize, to_call, &fresh.best_kind, &fresh.best_text);
   ClassifyAction(action_taken, betsize, to_call, &fresh.taken_kind, &fresh.taken_text);
+  // "Action taken" only: a bet/raise larger than what any opponent can call
+  // is effectively an all-in (the excess would be returned).
+  // "Best action" intentionally stays exactly as the profile says.
+  {
+    CString taken_name = action_taken;
+    taken_name.MakeLower();
+    const double effective_stack = EffectiveStack();
+    if (fresh.taken_kind == kAdvisorActionRaise && taken_name.Find("betsize") >= 0
+        && effective_stack > kEpsilon && betsize >= effective_stack - kEpsilon) {
+      fresh.taken_kind = kAdvisorActionAllin;
+      fresh.taken_text = "ALL-IN";
+    }
+  }
   {
     CString best_name = best_action;
     best_name.MakeLower();
@@ -300,6 +329,16 @@ void CAdvisor::OnHeartbeat() {
     if (_data.my_turn != my_turn || _data.autoplayer_engaged != engaged) {
       _data.my_turn = my_turn;
       _data.autoplayer_engaged = engaged;
+      if (!my_turn) {
+        // Our turn is over: erase recommendation and action taken
+        // until the next decision.
+        _data.taken_kind = kAdvisorActionNone;
+        _data.taken_text = "";
+        _data.best_kind = kAdvisorActionNone;
+        _data.best_text = "";
+        _data.best_size_text = "";
+        _data.detail_text = "";
+      }
       changed = true;
     }
   }
