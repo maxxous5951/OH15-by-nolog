@@ -77,6 +77,10 @@ class CSymbolEngineTableLimits: public CVirtualSymbolEngine {
 	// Used as fallback if blinds are not (yet) visible in a new hand,
 	// and to keep the blinds stable after an unexpected handreset.
 	STableLimit tablelimit_last_valid;
+	// First plausible (rough) guess of the current hand, kept for the whole hand
+	// (flop, turn, river), as the blinds are usually no longer visible postflop.
+	STableLimit tablelimit_rough_this_hand;
+	bool rough_guess_this_hand_valid;
  private:
 	static const int k_number_of_hands_to_autolock_blinds_for_cashgames = 5;
 	int number_of_saved_tablelimits;

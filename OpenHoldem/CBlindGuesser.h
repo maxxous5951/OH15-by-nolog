@@ -32,11 +32,14 @@ public:
 	CBlindGuesser();
 	~CBlindGuesser();
 public:
-	// Returns true if the result is reliable, i.e. it comes from the scraper
-	// or from two blind-bets at the table that form a known blind-level.
-	// Returns false for rough guesses and for the "complete failure" fallback.
-	// Callers must not lock unreliable results.
-	bool Guess(double *sblind, double *bblind, double *bbet, double *ante);
+	// Quality of the result:
+	//   kBlindGuessReliable: scraper data, or both blinds seen as bets and a known level
+	//   kBlindGuessRough:    plausible known level from partial data (e.g. only the BB
+	//                        visible, or SB limped so that both bets are equal)
+	//   kBlindGuessFailed:   nothing usable, the 0.01/0.02 fallback is returned
+	// Only reliable results may be locked. Rough ones are kept for the rest of the hand.
+	enum BlindGuessQuality { kBlindGuessFailed = 0, kBlindGuessRough, kBlindGuessReliable };
+	BlindGuessQuality Guess(double *sblind, double *bblind, double *bbet, double *ante);
 private:
 	void GetFirstBlindDataFromScraper(double *sblind, double *bblind, double *bbet, double *ante);
 	// Returns true if both blinds were seen as bets and form a known level

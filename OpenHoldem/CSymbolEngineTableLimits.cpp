@@ -76,6 +76,7 @@ void CSymbolEngineTableLimits::UpdateOnConnection() {
   tablelimit_last_valid.bbet   = 0;
   tablelimit_last_valid.ante   = 0;
   blinds_locked_for_complete_session = false;
+  rough_guess_this_hand_valid = false;
   // UpdateOnHandreset also cares about tablelimit_locked_for_current_hand
 	UpdateOnHandreset();
 }
@@ -84,6 +85,11 @@ void CSymbolEngineTableLimits::UpdateOnHandreset() {
 	write_log(Preferences()->debug_table_limits(), 
     "[CSymbolEngineTableLimits] UpdateOnHandreset()\n");
 	blinds_locked_for_current_hand = false;
+	rough_guess_this_hand_valid = false;
+	tablelimit_rough_this_hand.sblind = 0;
+	tablelimit_rough_this_hand.bblind = 0;
+	tablelimit_rough_this_hand.bbet   = 0;
+	tablelimit_rough_this_hand.ante   = 0;
 	tablelimit_locked_for_current_hand.sblind = 0;
 	tablelimit_locked_for_current_hand.bblind = 0;
 	tablelimit_locked_for_current_hand.bbet   = 0;
@@ -110,21 +116,34 @@ void CSymbolEngineTableLimits::UpdateOnHeartbeat() {
 	if (TableLimitsNeedToBeComputed()) {
 		CBlindGuesser _blind_guesser;
 		STableLimit guess = {0, 0, 0, 0};
-		bool reliable = _blind_guesser.Guess(&guess.sblind,
+		CBlindGuesser::BlindGuessQuality quality = _blind_guesser.Guess(&guess.sblind,
 			&guess.bblind,
 			&guess.bbet,
 			&guess.ante);
+		const bool reliable = (quality == CBlindGuesser::kBlindGuessReliable);
 		if (reliable) {
 			tablelimit_best_guess = guess;
+		}	else if (quality == CBlindGuesser::kBlindGuessRough) {
+			// Plausible known level from partial data (e.g. SB limped, both bets equal).
+			// The first rough guess of the hand wins: it is closest to the posted blinds,
+			// later ones could be distorted by raises.
+			if (!rough_guess_this_hand_valid) {
+				tablelimit_rough_this_hand = guess;
+				rough_guess_this_hand_valid = true;
+			}
+			tablelimit_best_guess = tablelimit_rough_this_hand;
+		}	else if (rough_guess_this_hand_valid) {
+			// Postflop: nothing visible any more, keep what we saw preflop.
+			tablelimit_best_guess = tablelimit_rough_this_hand;
 		}	else if (tablelimit_last_valid.bblind > 0) {
 			// Blinds not (yet) visible at the table: keep the last known good ones
-			// instead of rough guesses or the 0.01/0.02 fallback.
+			// instead of the 0.01/0.02 fallback.
 			tablelimit_best_guess.sblind = tablelimit_last_valid.sblind;
 			tablelimit_best_guess.bblind = tablelimit_last_valid.bblind;
 			tablelimit_best_guess.bbet   = tablelimit_last_valid.bbet;
 			tablelimit_best_guess.ante   = guess.ante;
 		}	else {
-			// First hand of the session: nothing better than the rough guess.
+			// First hand of the session: nothing better than the fallback.
 			tablelimit_best_guess = guess;
 		}
 		if (p_table_state->_s_limit_info.ante() > 0) {

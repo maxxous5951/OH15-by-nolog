@@ -34,16 +34,16 @@ CBlindGuesser::~CBlindGuesser() {
 }
 
 // All parameters are out-parameters only
-bool CBlindGuesser::Guess(double *sblind, double *bblind, double *bbet, double *ante) {
+CBlindGuesser::BlindGuessQuality CBlindGuesser::Guess(double *sblind, double *bblind, double *bbet, double *ante) {
   // No debug-messages needed here. Subroutines log enough.
   GetFirstBlindDataFromScraper(sblind, bblind, bbet, ante);
   // Take what we have and check the blinds on the list of known levels
   // (either complete or partial match)
   if (_blind_levels.BestMatchingBlindLevel(sblind, bblind, bbet)) {
-    return true;
+    return kBlindGuessReliable;
   }
   if (CompletePartiallyKnownBlinds(sblind, bblind, bbet)) {
-    return true;
+    return kBlindGuessReliable;
   }
   // Missing input.
   // We have to guess everything from the table
@@ -53,14 +53,14 @@ bool CBlindGuesser::Guess(double *sblind, double *bblind, double *bbet, double *
     // Both blinds seen and a known level: perfect match, no ambiguity
     // (e.g. 15/25 vs. 15/30)
     _blind_levels.BestMatchingBlindLevel(sblind, bblind, bbet);
-    return true;
+    return kBlindGuessReliable;
   }
   // Rough guesses from partial data: usable temporarily, but NOT reliable.
   if (_blind_levels.BestMatchingBlindLevel(sblind, bblind, bbet)) {
-    return false;
+    return kBlindGuessRough;
   }
   if (CompletePartiallyKnownBlinds(sblind, bblind, bbet)) {
-    return false;
+    return kBlindGuessRough;
   }
   write_log(Preferences()->debug_table_limits(), 
     "[CBlindGuesser] Complete failure\n");
@@ -69,7 +69,7 @@ bool CBlindGuesser::Guess(double *sblind, double *bblind, double *bbet, double *
   *sblind = 0.01;
   *bblind = 0.02;
   *bbet   = 0.04;
-  return false;
+  return kBlindGuessFailed;
 }
 
 bool CBlindGuesser::CompletePartiallyKnownBlinds(double *sblind, 
