@@ -341,6 +341,14 @@ bool CBlindLevels::BestMatchingBlindLevel(double *sblind, double *bblind, double
   return false;
 }
 
+bool CBlindLevels::IsKnownBigBlind(double bblind) {
+  if (bblind <= 0) return false;
+  for (int i=0; i<kNumberOfBlindLevels; ++i) {
+    if (bblind == kBlindLevels[i][1]) return true;
+  }
+  return false;
+}
+
 bool CBlindLevels::IsKnownSBlindBBlindCombination(double sblind, double bblind) {
   if ((sblind <= 0) || (bblind <= 0)) return false;
   for (int i=0; i<kNumberOfBlindLevels; ++i) {

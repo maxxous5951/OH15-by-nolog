@@ -296,8 +296,16 @@ void CAdvisor::OnDecision(CString best_action, CString action_taken,
     }
   }
   CString detail = "Pot " + MoneyText(pot);
+  {
+    // Blinds as locked/guessed by OpenHoldem, next to the pot
+    const double small_blind = p_engine_container->symbol_engine_tablelimits()->sblind();
+    const double big_blind   = p_engine_container->symbol_engine_tablelimits()->bblind();
+    if (big_blind > kEpsilon) {
+      detail += "  |  Blinds " + MoneyText(small_blind) + "/" + MoneyText(big_blind);
+    }
+  }
   if (to_call > kEpsilon) {
-    detail += "   |   To call " + MoneyText(to_call);
+    detail += "  |  To call " + MoneyText(to_call);
   }
   {
     CSLock lock(_data_critsec);

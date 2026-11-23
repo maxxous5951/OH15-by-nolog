@@ -26,6 +26,7 @@
 #include "CSymbolEngineGameType.h"
 #include "CSymbolEngineIsTournament.h"
 #include "CTableState.h"
+#include "..\CTablemap\CTablemap.h"
 #include "FloatingPoint_Comparisions.h"
 #include "Median.h"
 #include "..\DLLs\StringFunctions_DLL\string_functions.h"
@@ -81,9 +82,18 @@ void CSymbolEngineTableLimits::UpdateOnConnection() {
 	UpdateOnHandreset();
 }
 
+// Tables with r$nextblinds (e.g. Spin&Go) have rising blinds:
+// they must never be locked for the complete session.
+static bool TableHasChangingBlinds() {
+	return (p_tablemap->r$()->find("nextblinds") != p_tablemap->r$()->end());
+}
+
 void CSymbolEngineTableLimits::UpdateOnHandreset() {
 	write_log(Preferences()->debug_table_limits(), 
     "[CSymbolEngineTableLimits] UpdateOnHandreset()\n");
+	if (TableHasChangingBlinds()) {
+		blinds_locked_for_complete_session = false;
+	}
 	blinds_locked_for_current_hand = false;
 	rough_guess_this_hand_valid = false;
 	tablelimit_rough_this_hand.sblind = 0;
@@ -123,27 +133,25 @@ void CSymbolEngineTableLimits::UpdateOnHeartbeat() {
 		const bool reliable = (quality == CBlindGuesser::kBlindGuessReliable);
 		if (reliable) {
 			tablelimit_best_guess = guess;
-		}	else if (quality == CBlindGuesser::kBlindGuessRough) {
-			// Plausible known level from partial data (e.g. SB limped, both bets equal).
-			// The first rough guess of the hand wins: it is closest to the posted blinds,
-			// later ones could be distorted by raises.
-			if (!rough_guess_this_hand_valid) {
-				tablelimit_rough_this_hand = guess;
-				rough_guess_this_hand_valid = true;
-			}
-			tablelimit_best_guess = tablelimit_rough_this_hand;
-		}	else if (rough_guess_this_hand_valid) {
-			// Postflop: nothing visible any more, keep what we saw preflop.
-			tablelimit_best_guess = tablelimit_rough_this_hand;
 		}	else if (tablelimit_last_valid.bblind > 0) {
-			// Blinds not (yet) visible at the table: keep the last known good ones
-			// instead of the 0.01/0.02 fallback.
+			// No reliable reading (yet). The blind-level normally does not change
+			// from one hand to the next, so the level of the last reliable hand
+			// is much safer than a rough guess from partially visible bets
+			// (animations, raises).
 			tablelimit_best_guess.sblind = tablelimit_last_valid.sblind;
 			tablelimit_best_guess.bblind = tablelimit_last_valid.bblind;
 			tablelimit_best_guess.bbet   = tablelimit_last_valid.bbet;
 			tablelimit_best_guess.ante   = guess.ante;
+		}	else if (quality == CBlindGuesser::kBlindGuessRough) {
+			// First hand of the session: latest rough guess,
+			// remembered for flop, turn and river where no bets are visible.
+			tablelimit_rough_this_hand = guess;
+			rough_guess_this_hand_valid = true;
+			tablelimit_best_guess = guess;
+		}	else if (rough_guess_this_hand_valid) {
+			tablelimit_best_guess = tablelimit_rough_this_hand;
 		}	else {
-			// First hand of the session: nothing better than the fallback.
+			// Nothing better than the fallback.
 			tablelimit_best_guess = guess;
 		}
 		if (p_table_state->_s_limit_info.ante() > 0) {
@@ -208,7 +216,15 @@ void CSymbolEngineTableLimits::AutoLockBlindsForCashgamesAfterNHands() {
       "[CSymbolEngineTableLimits] Leaving CSymbolEngineTableLimits::AutoLockBlindsForCashgamesAfterNHands() early\n");
 		return;
 	}
+	if (TableHasChangingBlinds()) return;
 	if (number_of_saved_tablelimits == k_number_of_hands_to_autolock_blinds_for_cashgames) {
+		// Blinds that changed during the first N hands (Spin&Go, wrong guesses)
+		// must not be frozen for the complete session.
+		for (int i = 1; i < k_number_of_hands_to_autolock_blinds_for_cashgames; ++i) {
+			if (tablelimits_first_N_hands_bblind[i] != tablelimits_first_N_hands_bblind[0]) {
+				return;
+			}
+		}
 		// We simply take the median as the "correct" value.
 		// This works, as long as less than half of the values are too small
 		// and less than half of the values are too high.

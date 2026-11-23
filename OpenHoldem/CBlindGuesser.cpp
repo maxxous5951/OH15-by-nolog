@@ -33,9 +33,60 @@ CBlindGuesser::CBlindGuesser() {
 CBlindGuesser::~CBlindGuesser() {
 }
 
+// Spin&Go blind-ladder (small-blind, big-blind), levels only go up.
+static const double kSpinLadder[][2] = {
+  {10, 20}, {15, 30}, {20, 40}, {30, 60}, {40, 80}, {50, 100},
+  {60, 120}, {80, 160}, {100, 200}, {125, 250}, {150, 300}
+};
+static const int kSpinLadderSize = sizeof(kSpinLadder) / sizeof(kSpinLadder[0]);
+
+bool CBlindGuesser::GetBlindsFromNextBlindsRegion(double *sblind, double *bblind, double *bbet) {
+  CString text;
+  if (!p_scraper->EvaluateRegion("nextblinds", &text)) return false;  // no such region
+  // Extract the first two numbers: "40 - 80", "40/80", "40 / 80"...
+  double numbers[2] = {0, 0};
+  int count = 0;
+  const char *c = text.GetString();
+  while (*c && count < 2) {
+    if (isdigit((unsigned char)*c)) {
+      numbers[count++] = atof(c);
+      while (isdigit((unsigned char)*c) || *c == '.') ++c;
+    } else {
+      ++c;
+    }
+  }
+  write_log(Preferences()->debug_table_limits(),
+    "[CBlindGuesser] r$nextblinds text [%s] -> %.2f / %.2f\n", text.GetString(), numbers[0], numbers[1]);
+  if (count < 2 || numbers[0] <= 0 || numbers[1] <= numbers[0]) return false;
+  // Current level = the one before "next" on the ladder
+  for (int i = 1; i < kSpinLadderSize; ++i) {
+    if (kSpinLadder[i][0] == numbers[0] && kSpinLadder[i][1] == numbers[1]) {
+      *sblind = kSpinLadder[i-1][0];
+      *bblind = kSpinLadder[i-1][1];
+      *bbet   = 2 * *bblind;
+      write_log(Preferences()->debug_table_limits(),
+        "[CBlindGuesser] Next level %.2f/%.2f -> current level %.2f/%.2f\n",
+        numbers[0], numbers[1], *sblind, *bblind);
+      return true;
+    }
+  }
+  // Not on the ladder: half of it, if that is a known level
+  if (_blind_levels.IsKnownSBlindBBlindCombination(numbers[0] / 2, numbers[1] / 2)) {
+    *sblind = numbers[0] / 2;
+    *bblind = numbers[1] / 2;
+    *bbet   = 2 * *bblind;
+    return true;
+  }
+  return false;
+}
+
 // All parameters are out-parameters only
 CBlindGuesser::BlindGuessQuality CBlindGuesser::Guess(double *sblind, double *bblind, double *bbet, double *ante) {
   // No debug-messages needed here. Subroutines log enough.
+  *ante = kUndefinedZero;
+  if (GetBlindsFromNextBlindsRegion(sblind, bblind, bbet)) {
+    return kBlindGuessReliable;
+  }
   GetFirstBlindDataFromScraper(sblind, bblind, bbet, ante);
   // Take what we have and check the blinds on the list of known levels
   // (either complete or partial match)
@@ -167,6 +218,15 @@ double CBlindGuesser::ReasonableLookingHalfBlindValue(double known_value) {
 // All parameters are out-parameters only
 // Guessing according to Want2Learns method
 // http://www.maxinmontreal.com/forums/viewtopic.php?f=117&t=17380&start=60
+// Next chair after "chair" (clockwise) that was dealt into the hand.
+static int NextDealtChair(int chair, int dealt_bits, int nchairs) {
+  for (int k = 1; k < nchairs; ++k) {
+    int candidate = (chair + k) % nchairs;
+    if (dealt_bits & (1 << candidate)) return candidate;
+  }
+  return kUndefined;
+}
+
 bool CBlindGuesser::GetFirstBlindDataFromBetsAtTheTable(double *sblind,
   double *bblind,
   double *bbet,
@@ -195,6 +255,44 @@ bool CBlindGuesser::GetFirstBlindDataFromBetsAtTheTable(double *sblind,
   // Exit on undefined or wrong dealer (outdated, from last hand)
   if ((dealer == kUndefined) || (p_table_state->Player(dealer)->dealer() == false)) {
     return false;
+  }
+  // Positional detection (most reliable): the big-blind seat is known from the
+  // dealer position, independent of how the bets appear one after the other
+  // (animations) and of later raises:
+  //   * headsup: dealer = small-blind, the other player = big-blind
+  //   * otherwise: first dealt player after the dealer = SB, the next one = BB
+  // Before the big-blind acts, his bet IS the big-blind. We lock at the first
+  // sight of it, so later raises (e.g. a dealer raising to 2 big-blinds,
+  // which looks like a "small-blind" + "big-blind" pair 40/80 instead of 20/40)
+  // can no longer fool us.
+  {
+    const int nchairs = p_tablemap->nchairs();
+    const int dealt_bits = p_engine_container->symbol_engine_active_dealt_playing()->playersdealtbits();
+    const int ndealt = p_engine_container->symbol_engine_active_dealt_playing()->nplayersdealt();
+    int sb_chair = (ndealt == 2) ? dealer : NextDealtChair(dealer, dealt_bits, nchairs);
+    int bb_chair = (sb_chair == kUndefined) ? kUndefined : NextDealtChair(sb_chair, dealt_bits, nchairs);
+    if (ndealt >= 2 && sb_chair != kUndefined && bb_chair != kUndefined && bb_chair != sb_chair) {
+      double bb_bet = p_table_state->Player(bb_chair)->_bet.GetValue();
+      double sb_bet = p_table_state->Player(sb_chair)->_bet.GetValue();
+      // Reliable only if BOTH blinds are visible and form a known level.
+      // (The number of dealt players might not be complete yet in the very
+      // first frames, which would shift the seats: the lone SB-bet could
+      // then be mistaken for the BB.)
+      // No other player may have bet more than the BB (no raise yet).
+      bool someone_bet_more = false;
+      for (int c = 0; c < nchairs; ++c) {
+        if (p_table_state->Player(c)->_bet.GetValue() > bb_bet) someone_bet_more = true;
+      }
+      if (bb_bet > 0 && sb_bet > 0 && sb_bet < bb_bet && !someone_bet_more
+          && _blind_levels.IsKnownSBlindBBlindCombination(sb_bet, bb_bet)) {
+        *bblind = bb_bet;
+        *sblind = sb_bet;
+        write_log(Preferences()->debug_table_limits(),
+          "[CBlindGuesser] Big-blind seat (chair %d) bets %.2f -> big-blind %.2f (small-blind %.2f)\n",
+          bb_chair, bb_bet, *bblind, *sblind);
+        return true;
+      }
+    }
   }
   int first_chair = dealer + 1;
   int last_chair = dealer + p_tablemap->nchairs();

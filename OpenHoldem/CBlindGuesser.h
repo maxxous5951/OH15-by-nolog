@@ -41,6 +41,10 @@ public:
 	enum BlindGuessQuality { kBlindGuessFailed = 0, kBlindGuessRough, kBlindGuessReliable };
 	BlindGuessQuality Guess(double *sblind, double *bblind, double *bbet, double *ante);
 private:
+	// Optional region r$nextblinds (OCR text like "40 - 80" = NEXT blind-level
+	// shown in the table-corner, e.g. Spin&Go). The current level is the one
+	// before it on the ladder. Returns true if usable (reliable).
+	bool GetBlindsFromNextBlindsRegion(double *sblind, double *bblind, double *bbet);
 	void GetFirstBlindDataFromScraper(double *sblind, double *bblind, double *bbet, double *ante);
 	// Returns true if both blinds were seen as bets and form a known level
 	bool GetFirstBlindDataFromBetsAtTheTable(double *sblind, double *bblind, double *bbet, double *ante);

@@ -36,6 +36,8 @@ class CBlindLevels {
   // True if a level with exactly this small-blind and big-blind exists.
   // Used to validate blinds read directly from the bets at the table.
   bool IsKnownSBlindBBlindCombination(double sblind, double bblind);
+  // True if a level with exactly this big-blind exists.
+  bool IsKnownBigBlind(double bblind);
  private:
   bool BlindsMatchBlindLevelPerfectly(const int level,
                              const double sblind, 

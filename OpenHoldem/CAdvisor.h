@@ -55,7 +55,7 @@ struct AdvisorData {
   AdvisorActionKind best_kind;
   CString best_text;      // "RAISE to 12.50"
   CString best_size_text; // "= 66% pot" / "= x2.5 BB" (empty if not applicable)
-  CString detail_text;    // "Pot 6.00 | To call 2.00"
+  CString detail_text;    // "Pot 6.00 | Blinds 1/2 | To call 2.00"
   AdvisorActionKind taken_kind;   // what the bot did in the last turn
   CString taken_text;
   bool    my_turn;
