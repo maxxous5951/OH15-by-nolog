@@ -32,6 +32,7 @@
 
 #include "CRebuyManagement.h"
 #include "CReplayFrame.h"
+#include "CSymbolEngineReplayFrameController.h"
 #include "CScraper.h"
 #include "CStableFramesCounter.h"
 #include "CSymbolEngineAutoplayer.h"
@@ -79,6 +80,11 @@ void CAutoplayer::UpdateEnginesAfterAction(int autoplayer_action_code) {
   if (advisor_mode_engaged()) {
     // The action got only simulated. The human decides what really happens,
     // therefore the symbol engines must not register it.
+    // Exception: replay-frames "on my turn" are normally shot after the
+    // autoplayer-action, which never happens in advisor mode.
+    if (Preferences()->replay_record() == kShootReplyFramesOnMyTurn) {
+      p_engine_container->symbol_engine_replayframe_controller()->ShootReplayFrameIfNotYetDone();
+    }
     return;
   }
   p_engine_container->UpdateAfterAutoplayerAction(autoplayer_action_code);
